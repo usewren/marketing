@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wren — Versioned JSON Storage</title>
+  <meta name="description" content="Self-hosted backend with versioning and multi-tenancy built in. Every write creates a version. Deploy to your own infrastructure." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       Navigation
+       ============================================================ -->
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo">Wren</a>
+      <ul class="nav__links">
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/admin">Admin</a></li>
+        <li><a href="#">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       Hero
+       ============================================================ -->
+  <section class="hero">
+    <div class="container">
+      <span class="hero__badge">Early access &middot; Self-hosted</span>
+      <h1 class="hero__title">Versioned JSON storage for your apps.</h1>
+      <p class="hero__sub">
+        Every write creates a version. Security and multi-tenancy built in.
+        Deploy to your own infrastructure &mdash; no vendor lock-in.
+      </p>
+      <div class="hero__ctas">
+        <a href="/admin" class="btn btn--primary">Open Admin UI</a>
+        <a href="/docs" class="btn btn--secondary">Read the Docs</a>
+      </div>
+
+      <!-- Code block -->
+      <div class="hero__code">
+        <div class="hero__code-header">
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-title">API example</span>
+        </div>
+        <pre><span class="tok-comment"># Create a document (version 1)</span>
+<span class="tok-method">POST</span> <span class="tok-path">/pages</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"title"</span><span class="tok-arrow">:</span> <span class="tok-str">"Hello"</span><span class="tok-arrow">,</span> <span class="tok-key">"body"</span><span class="tok-arrow">:</span> <span class="tok-str">"World"</span> <span class="tok-arrow">}</span>
+<span class="tok-arrow">→</span> <span class="tok-arrow">{</span> <span class="tok-key">"id"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span><span class="tok-arrow">,</span> <span class="tok-key">"version"</span><span class="tok-arrow">:</span> <span class="tok-str">1</span><span class="tok-arrow">,</span> <span class="tok-key">"data"</span><span class="tok-arrow">:</span> <span class="tok-arrow">{ ... } }</span>
+
+<span class="tok-comment"># Update (version 2 created automatically)</span>
+<span class="tok-method">PUT</span> <span class="tok-path">/pages/abc</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"title"</span><span class="tok-arrow">:</span> <span class="tok-str">"Hello v2"</span> <span class="tok-arrow">}</span>
+<span class="tok-arrow">→</span> <span class="tok-arrow">{</span> <span class="tok-key">"id"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span><span class="tok-arrow">,</span> <span class="tok-key">"version"</span><span class="tok-arrow">:</span> <span class="tok-str">2</span><span class="tok-arrow">,</span> <span class="tok-key">"data"</span><span class="tok-arrow">:</span> <span class="tok-arrow">{ ... } }</span>
+
+<span class="tok-comment"># Pin a label to version 2</span>
+<span class="tok-method">POST</span> <span class="tok-path">/pages/abc/labels</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"label"</span><span class="tok-arrow">:</span> <span class="tok-label">"published"</span> <span class="tok-arrow">}</span>
+
+<span class="tok-comment"># Serve the published version</span>
+<span class="tok-method">GET</span> <span class="tok-path">/pages/abc?label=published</span>
+<span class="tok-arrow">→</span> version 2 data</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Features grid
+       ============================================================ -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="features__intro">
+        <p class="section-label">Features</p>
+        <h2 class="section-title">Everything you need, nothing you don&rsquo;t.</h2>
+        <p class="section-sub">Built for developers who want a real backend without the operational overhead.</p>
+      </div>
+      <div class="features__grid">
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#x1F4C2;</div>
+          <h3 class="feature-card__title">Versioned by default</h3>
+          <p class="feature-card__desc">Every mutation creates a new version. Roll back, diff, or time-travel to any point. No extra setup.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#x1F3E2;</div>
+          <h3 class="feature-card__title">Tenant isolation</h3>
+          <p class="feature-card__desc">Each org gets its own Postgres schema. Isolation is structural &mdash; not a policy to misconfigure.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#x1F3F7;&#xFE0F;</div>
+          <h3 class="feature-card__title">Label snapshots</h3>
+          <p class="feature-card__desc">Pin any version as <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">published</code>, <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">draft</code>, or <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">staging</code>. Serve different audiences from the same document.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#x1F916;</div>
+          <h3 class="feature-card__title">LLM-friendly</h3>
+          <p class="feature-card__desc">Simple REST, JSON in and out. Safe for AI agents to write &mdash; every action is reversible.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#x1F3E0;</div>
+          <h3 class="feature-card__title">Self-hosted</h3>
+          <p class="feature-card__desc">Deploy to Railway, Fly.io, or Render. Bring your own Postgres. No vendor lock-in, ever.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#x26A1;</div>
+          <h3 class="feature-card__title">Streamed responses</h3>
+          <p class="feature-card__desc">All responses stream from Postgres to the client. Flat memory, no buffering regardless of result size.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       How it works
+       ============================================================ -->
+  <section class="how" id="how-it-works">
+    <div class="container">
+      <div class="how__intro">
+        <p class="section-label">How it works</p>
+        <h2 class="section-title">Simple by design.</h2>
+        <p class="section-sub">No schemas to define, no migrations to run. Just POST JSON and go.</p>
+      </div>
+      <div class="how__steps">
+
+        <div class="how__step">
+          <div class="how__step-num">1</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Define nothing</h3>
+            <p class="how__step-desc">Collections are schema-free by default. POST any JSON document and it&rsquo;s stored with version 1.</p>
+          </div>
+        </div>
+
+        <div class="how__step">
+          <div class="how__step-num">2</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Mutate freely</h3>
+            <p class="how__step-desc">Every PUT creates a new version. The old data is never overwritten.</p>
+          </div>
+        </div>
+
+        <div class="how__step">
+          <div class="how__step-num">3</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Access history</h3>
+            <p class="how__step-desc">List versions, diff any two, label a snapshot, or roll back &mdash; all via REST.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       API reference snippet
+       ============================================================ -->
+  <section class="api-ref" id="api">
+    <div class="container">
+      <div class="api-ref__intro">
+        <p class="section-label">API Reference</p>
+        <h2 class="section-title">A handful of endpoints. Infinite history.</h2>
+        <p class="section-sub">The full API is documented at <a href="/docs" style="color:var(--color-primary)">/docs</a>. Here&rsquo;s the shape of it.</p>
+      </div>
+      <div class="api-ref__block">
+        <div class="api-ref__block-header">
+          <span class="api-ref__block-lang">bash</span>
+        </div>
+        <pre><span class="tok-comment"># Create a document</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X POST</span> <span class="tok-url">/pages</span> \
+  <span class="tok-flag">-d</span> <span class="tok-data">'{"title": "My Page", "published": false}'</span>
+
+<span class="tok-comment"># Update (creates version 2)</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X PUT</span> <span class="tok-url">/pages/{id}</span> \
+  <span class="tok-flag">-d</span> <span class="tok-data">'{"title": "My Page", "published": true}'</span>
+
+<span class="tok-comment"># Diff v1 → v2</span>
+<span class="tok-method">curl</span> <span class="tok-url">/pages/{id}/diff?v1=1&amp;v2=2</span>
+
+<span class="tok-comment"># Rollback to v1</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X POST</span> <span class="tok-url">/pages/{id}/rollback/1</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Footer
+       ============================================================ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>Wren</strong> &mdash; self-hosted versioned JSON storage</p>
+        <ul class="footer__links">
+          <li><a href="/admin">Admin UI</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="#">GitHub</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 Wren. Self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
