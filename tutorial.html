@@ -7,6 +7,14 @@
   <meta name="description" content="A hands-on guide to Wren: collections, versioning, labels, schemas, binary assets, trees, API keys, collaborators, permissions, and the CLI." />
   <link rel="stylesheet" href="/styles.css" />
   <style>
+    .tutorial-screenshot {
+      display: block;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin: 1.25rem 0 1.75rem;
+    }
     .tutorial-layout {
       display: grid;
       grid-template-columns: 230px 1fr;
@@ -385,6 +393,8 @@ GET /api/auth/get-session</pre>
           </div>
         </div>
 
+        <img src="/img/01-login.png" alt="Wren login screen" class="tutorial-screenshot">
+
         <h3 id="org">Organisations</h3>
         <p>When you sign up, Wren creates an organisation for you. Every collection, document, and tree belongs to an organisation — data is fully isolated between orgs. If you're a member of multiple orgs, a dropdown in the sidebar lets you switch the active one.</p>
 
@@ -443,6 +453,8 @@ wren schema set pages '{
           </div>
         </div>
 
+        <img src="/img/02-collections.png" alt="Collections list in the admin UI" class="tutorial-screenshot">
+
         <h3 id="create-doc">Create a document</h3>
         <ol class="steps-inline">
           <li><span class="n">1</span> Open a collection from the sidebar.</li>
@@ -470,6 +482,8 @@ wren schema set pages '{
           </div>
         </div>
 
+        <img src="/img/03-document-list.png" alt="Document list for the articles collection" class="tutorial-screenshot">
+
         <h3 id="read-doc">Read &amp; list</h3>
         <p>The collection page shows all documents in a table. If a <strong>display name rule</strong> is set (e.g. <code>{title}</code>), the human-readable name appears in the first column instead of the raw ID. Click any row to open the document.</p>
 
@@ -491,6 +505,8 @@ GET /pages/abc123
 GET /pages/abc123?label=published</pre>
           </div>
         </div>
+
+        <img src="/img/04-document-editor.png" alt="Document editor showing JSON content" class="tutorial-screenshot">
 
         <h3 id="update-doc">Update a document</h3>
         <p>Open a document and click the <strong>Document</strong> tab. Edit the JSON directly in the textarea and click <strong>Save</strong>. Every save creates a new immutable version — the old data is never overwritten.</p>
@@ -602,6 +618,8 @@ GET /pages/abc123/versions/2</pre>
           </div>
         </div>
 
+        <img src="/img/05-version-history.png" alt="Version history timeline showing 3 versions" class="tutorial-screenshot">
+
         <h3 id="diff">Diff versions</h3>
         <p>In the History tab, click <strong>Compare versions</strong>, pick any two version numbers from the dropdowns, then click <strong>Show diff</strong>. The response shows what changed between them.</p>
 
@@ -615,6 +633,8 @@ GET /pages/abc123/versions/2</pre>
             <pre>GET /pages/abc123/diff?v1=1&amp;v2=3</pre>
           </div>
         </div>
+
+        <img src="/img/06-diff.png" alt="Diff view comparing version 1 and version 3" class="tutorial-screenshot">
 
         <h3 id="rollback">Rollback</h3>
         <p>Rolling back doesn't erase versions — it creates a <em>new</em> version whose content matches the target. In the History tab, click <strong>Rollback here</strong> on any entry and confirm.</p>
@@ -639,6 +659,8 @@ wren rollback pages abc123 1</pre>
         <h2><span class="step-badge">5</span> Labels</h2>
 
         <p>A <strong>label</strong> is a named pointer to a specific version — like a Git tag. Moving a label never changes the underlying versions. Common labels: <code>published</code>, <code>stable</code>, <code>draft</code>.</p>
+
+        <img src="/img/07-labels.png" alt="Labels tab with label name field" class="tutorial-screenshot">
 
         <div class="ui-hint">
           <span class="ui-hint__icon">🏷️</span>
@@ -729,6 +751,8 @@ DELETE /pages/_schema</pre>
           </div>
         </div>
 
+        <img src="/img/08-schema.png" alt="JSON Schema editor for the articles collection" class="tutorial-screenshot">
+
         <h3 id="display-name">Display name rules</h3>
         <p>A <strong>display name rule</strong> is a template that extracts a human-readable name from document data. Set it in the <strong>Display name rule</strong> field on the Schema tab, for example <code>{title}</code> or <code>{first} {last}</code>. This name is shown in the documents list instead of the raw UUID.</p>
 
@@ -779,6 +803,8 @@ GET /tree/main/site/about</pre>
           </div>
         </div>
 
+        <img src="/img/09-tree.png" alt="Tree browser showing golf article paths" class="tutorial-screenshot">
+
         <h3 id="tree-assign">Assign documents to a path</h3>
         <p>Click <strong>Set doc</strong> next to any tree path to open the <strong>DocPicker</strong> panel:</p>
         <ul>
@@ -822,6 +848,8 @@ DELETE /tree/main/site/about</pre>
           </div>
         </div>
 
+        <img src="/img/07b-paths.png" alt="Paths tab showing /tournaments/masters-2026" class="tutorial-screenshot">
+
         <div class="callout callout--info">
           <strong>CMS pattern:</strong> store pages in a <code>pages</code> collection. Map them into the <code>main</code> tree at their public URLs. For previews, use a <code>staging</code> tree that points to draft documents at the same paths.
         </div>
@@ -839,6 +867,8 @@ DELETE /tree/main/site/about</pre>
           <span class="ui-hint__icon">🔑</span>
           <div><strong>Settings → API Keys</strong> → <strong>Create key</strong> → give it a name → copy the key shown (it's only displayed once).</div>
         </div>
+
+        <img src="/img/10-apikeys.png" alt="API Keys management page" class="tutorial-screenshot">
 
         <div class="callout callout--warn">
           <strong>Secret shown once.</strong> Copy the full key immediately after creation — it's hashed before storage and cannot be retrieved again.
@@ -870,6 +900,8 @@ Authorization: Bearer wren_abc123…</pre>
         <h2><span class="step-badge">9</span> Collaborators &amp; orgs</h2>
 
         <p>Invite other users to your organisation. They get their own login but share access to your collections, trees, and settings.</p>
+
+        <img src="/img/11-collaborators.png" alt="Collaborators page showing members and invite tabs" class="tutorial-screenshot">
 
         <h3 id="invite">Invite a collaborator</h3>
         <ol class="steps-inline">
@@ -937,6 +969,8 @@ DELETE /api/members/&lt;userId&gt;</pre>
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="permissions">
         <h2><span class="step-badge">10</span> Permissions</h2>
+
+        <img src="/img/12-permissions.png" alt="Permissions page with access rules" class="tutorial-screenshot">
 
         <p>Permissions control what each <strong>principal</strong> (a member or API key) can do on a given <strong>resource</strong> (a collection, all collections, or everything). Access levels are <code>none</code>, <code>read</code>, <code>write</code>, and <code>admin</code>.</p>
 
