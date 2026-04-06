@@ -875,7 +875,7 @@ Authorization: Bearer wren_abc123…</pre>
         <ol class="steps-inline">
           <li><span class="n">1</span> Go to <strong>Settings → Collaborators → Sent invites</strong>.</li>
           <li><span class="n">2</span> Enter the invitee's email address, choose a role (viewer / editor / admin), and click <strong>Send invite</strong>.</li>
-          <li><span class="n">3</span> Share the invite link with the recipient, or they can accept via the <strong>Pending invites</strong> tab.</li>
+          <li><span class="n">3</span> Share the invite link with the recipient, or they can accept via the pending invitations callout that appears at the top of their Collaborators page.</li>
         </ol>
 
         <div class="paired">
@@ -896,7 +896,7 @@ DELETE /api/invites/&lt;inviteId&gt;</pre>
         </div>
 
         <h3 id="accept">Accept an invite</h3>
-        <p>When you receive an invite link (<code>/admin#/accept/TOKEN</code>), open it in a browser while logged in. If you're not logged in you'll be prompted to sign in first, then redirected back to complete acceptance. Alternatively, use the <strong>Pending invites</strong> tab under Collaborators.</p>
+        <p>When you receive an invite link (<code>/admin#/accept/TOKEN</code>), open it in a browser while logged in. If you're not logged in you'll be prompted to sign in first, then redirected back to complete acceptance. Alternatively, a callout appears at the top of <strong>Settings → Collaborators</strong> listing any pending invitations with an <strong>Accept</strong> button — visible regardless of which workspace you have selected in the org switcher.</p>
 
         <div class="paired">
           <div class="code-block">
