@@ -1,0 +1,87 @@
+# Wren
+
+> Self-hosted versioned JSON storage service. Every write creates a new immutable version. Multi-tenancy, labels, schemas, tree navigation, and fine-grained access control built in. Postgres-backed, deployed with Docker.
+
+Wren is an open-source backend service for storing versioned JSON documents. Collections are schema-free by default — POST any JSON and it is stored as version 1. Every subsequent PUT creates version 2, 3, and so on. The full history is always queryable. Labels (e.g. "published", "draft") act as named pointers to any version. Trees provide hierarchical path-based navigation for CMS-style use cases. Each organisation gets its own isolated Postgres schema.
+
+## Key concepts
+
+- **Collections** — named document namespaces; schema-free by default, optionally validated with JSON Schema
+- **Documents** — JSON objects stored with a UUID; every mutation creates a new version
+- **Versions** — immutable snapshots; list, diff, or roll back to any point in history
+- **Labels** — named pointers to a specific version (`published`, `draft`, `staging`, etc.)
+- **Trees** — hierarchical path assignment (`/site/about`, `/blog/2026/hello`) for CMS navigation
+- **Binary assets** — collections can store files (images, PDFs) alongside JSON metadata
+- **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
+- **Permissions** — fine-grained rules per principal (user or API key) per resource, with optional label and data filters
+- **API keys** — long-lived Bearer tokens for programmatic access
+
+## Documentation
+
+- [Tutorial](/tutorial): Complete step-by-step walkthrough — Admin UI, CLI, TypeScript client, Python client
+- [API Reference](/docs): Interactive Scalar UI over the OpenAPI 3.1 spec; live request examples for every endpoint
+- [OpenAPI spec](/openapi.json): Machine-readable OpenAPI 3.1 specification
+- [Full LLM reference](/llms-full.txt): Complete API and client library reference in plain text
+
+## Client libraries
+
+- **TypeScript / JavaScript**: `npm install @wren/client` — Node ≥18, Bun, Browser; zero runtime dependencies; full types
+- **Python**: `pip install wren-client` — Python ≥3.9; sync (`WrenClient`) and async (`AsyncWrenClient`) via httpx; dataclasses
+
+## Authentication
+
+Two methods:
+1. **Bearer token** (API key): `Authorization: Bearer wren_…` — create keys in Admin UI → API Keys
+2. **Session cookie**: `better-auth.session_token=…` — set after POST `/api/auth/sign-in/email`
+
+## Quick API reference
+
+```
+# Documents
+GET    /collections                          list collections
+GET    /{collection}                         list documents (?label=, ?filter=, ?limit=, ?cursor=, ?facets=)
+POST   /{collection}                         create document → {id, version:1, data, …}
+GET    /{collection}/{id}                    get document (?label=)
+PUT    /{collection}/{id}                    update → new version
+DELETE /{collection}/{id}                    soft delete
+
+# Versions
+GET    /{collection}/{id}/versions           list all versions
+GET    /{collection}/{id}/versions/{n}       get specific version
+POST   /{collection}/{id}/rollback/{n}       roll back (creates new version)
+GET    /{collection}/{id}/diff?v1=N&v2=N     diff two versions
+
+# Labels
+POST   /{collection}/{id}/labels             {label, version?} → pin label
+
+# Schemas
+GET    /{collection}/_schema
+PUT    /{collection}/_schema                 {schema, displayName, collectionType}
+DELETE /{collection}/_schema
+
+# Trees
+GET    /tree                                 list trees
+GET    /tree/{name}?full=true               full tree snapshot
+GET    /tree/{name}/{path}                  node + children
+PUT    /tree/{name}/{path}                  {documentId} → assign
+DELETE /tree/{name}/{path}                  unassign
+
+# Management
+GET    /api/keys                             list API keys
+POST   /api/keys                             {name} → create key (shown once)
+DELETE /api/keys/{id}                        revoke
+GET    /api/members                          list org members
+DELETE /api/members/{id}                     remove member
+GET    /api/invites                          list sent invites
+POST   /api/invites                          {email, role?} → invite
+DELETE /api/invites/{id}                     revoke invite
+POST   /api/invites/accept                   {token} → accept by token
+GET    /api/permissions                      list permission rules
+POST   /api/permissions                      create rule
+PUT    /api/permissions/{id}                 update rule
+DELETE /api/permissions/{id}                 delete rule
+```
+
+## Optional
+
+- [llms-full.txt](/llms-full.txt): Expanded reference with request/response shapes, error codes, and client library usage

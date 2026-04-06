@@ -1,0 +1,667 @@
+# Wren — Complete LLM Reference
+
+> Self-hosted versioned JSON storage. Every write creates a new immutable version. Postgres-backed. Deploy with Docker.
+
+This document is the complete reference for LLMs and AI agents working with the Wren API. It covers authentication, every endpoint with request and response shapes, error handling, and both client libraries.
+
+---
+
+## Overview
+
+Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. You can list versions, diff any two, label a snapshot, or roll back. Each organisation gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
+
+Base URL: configured at deploy time (e.g. `https://wren.example.com`). All paths below are relative to the base URL.
+
+---
+
+## Authentication
+
+### Bearer token (API key) — recommended for programmatic access
+```
+Authorization: Bearer wren_<key>
+```
+Create keys at: Admin UI → Settings → API Keys, or via `POST /api/keys`.
+Keys are shown once at creation. Prefix format: `wren_` followed by random hex.
+
+### Session cookie — used by browser / CLI
+After `POST /api/auth/sign-in/email`, the response sets `better-auth.session_token=<token>`.
+Send it as a cookie on subsequent requests.
+
+---
+
+## Error responses
+
+All errors return JSON:
+```json
+{ "error": "human-readable message" }
+```
+
+Validation errors (422) also include:
+```json
+{ "error": "Schema validation failed", "details": ["field: message", …] }
+```
+
+| Status | Meaning |
+|--------|---------|
+| 400    | Bad request — missing or invalid body fields |
+| 401    | Unauthorized — missing or invalid credentials |
+| 403    | Forbidden — authenticated but not permitted |
+| 404    | Not found |
+| 409    | Conflict (e.g. invite already accepted) |
+| 410    | Gone (e.g. invite expired or revoked) |
+| 422    | Schema validation failed |
+
+---
+
+## Collections
+
+### List collections
+```
+GET /collections
+Authorization: Bearer wren_…
+
+Response 200:
+{
+  "collections": [
+    { "name": "articles", "count": 42, "updatedAt": "2026-04-06T12:00:00Z" }
+  ]
+}
+```
+
+---
+
+## Documents
+
+### List documents in a collection
+```
+GET /{collection}
+Query params:
+  label    — return only docs where this label is set (e.g. label=published)
+  filter   — dot-path filter, e.g. filter=category:golf
+  limit    — max results, default 20, max 200
+  cursor   — pagination cursor from previous response
+  facets   — comma-separated fields to aggregate, e.g. facets=category,author
+
+Response 200:
+{
+  "collection": "articles",
+  "total": 42,
+  "cursor": "next-page-token or null",
+  "facets": { "category": [{ "value": "golf", "count": 5 }] },
+  "items": [ <DocumentResponse>, … ]
+}
+```
+
+### Create a document
+```
+POST /{collection}
+Content-Type: application/json
+{ "title": "Hello", "body": "World", "category": "news" }
+
+Response 201: <DocumentResponse>
+```
+
+### Get a document (current or labelled version)
+```
+GET /{collection}/{id}
+GET /{collection}/{id}?label=published   ← returns the version pinned to that label
+
+Response 200: <DocumentResponse>
+Response 404: not found or deleted
+```
+
+### Update a document (creates a new version)
+```
+PUT /{collection}/{id}
+Content-Type: application/json
+{ "title": "Updated title", "body": "Updated body" }
+
+Response 200: <DocumentResponse>  ← version is incremented
+```
+
+### Delete a document (soft delete — creates tombstone)
+```
+DELETE /{collection}/{id}
+
+Response 200: { "id": "uuid", "deleted": true }
+```
+
+### Get tree paths for a document
+```
+GET /{collection}/{id}/paths
+
+Response 200:
+{
+  "id": "uuid",
+  "collection": "articles",
+  "paths": [
+    { "tree": "main", "path": "/blog/hello-world" }
+  ]
+}
+```
+
+### DocumentResponse shape
+```json
+{
+  "collection": "articles",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "version": 3,
+  "labels": ["published", "featured"],
+  "createdAt": "2026-04-01T10:00:00Z",
+  "updatedAt": "2026-04-06T14:30:00Z",
+  "data": { "title": "Hello", "body": "World" }
+}
+```
+
+---
+
+## Versions
+
+### List version history
+```
+GET /{collection}/{id}/versions
+
+Response 200:
+{
+  "collection": "articles",
+  "id": "uuid",
+  "versions": [
+    { "version": 1, "labels": [], "createdAt": "2026-04-01T10:00:00Z", "createdBy": "user-id" },
+    { "version": 2, "labels": [], "createdAt": "2026-04-02T11:00:00Z", "createdBy": "user-id" },
+    { "version": 3, "labels": ["published"], "createdAt": "2026-04-06T14:30:00Z", "createdBy": "user-id" }
+  ]
+}
+```
+
+### Get a specific version
+```
+GET /{collection}/{id}/versions/{n}
+
+Response 200: <DocumentResponse>   ← data is the state at version n
+```
+
+### Rollback to a previous version
+Creates a new version whose data matches the target version. Does not delete history.
+```
+POST /{collection}/{id}/rollback/{n}
+
+Response 200: { "id": "uuid", "version": 4, "rolledBackTo": 1 }
+```
+
+### Diff two versions
+```
+GET /{collection}/{id}/diff?v1=1&v2=3
+
+Response 200:
+{
+  "id": "uuid",
+  "collection": "articles",
+  "v1": 1,
+  "v2": 3,
+  "diff": [
+    { "op": "replace", "path": "/title", "value": "New title", "oldValue": "Old title" },
+    { "op": "add",     "path": "/publishedAt", "value": "2026-04-06" },
+    { "op": "remove",  "path": "/draft" }
+  ]
+}
+```
+`op` is one of `"add"`, `"remove"`, `"replace"`. `path` is a JSON Pointer (RFC 6901).
+
+---
+
+## Labels
+
+Labels are named pointers to a specific version. Setting a label again moves the pointer.
+
+### Set a label
+```
+POST /{collection}/{id}/labels
+{ "label": "published" }            ← pins to current version
+{ "label": "published", "version": 2 }  ← pins to specific version
+
+Response 200: { "id": "uuid", "label": "published", "version": 3 }
+```
+
+Common label names: `published`, `draft`, `staging`, `featured`, `archived`.
+Fetch a labelled version: `GET /{collection}/{id}?label=published`
+
+---
+
+## JSON Schemas
+
+Schemas are optional. When set, every create/update is validated before writing.
+
+### Get schema
+```
+GET /{collection}/_schema
+
+Response 200:
+{
+  "collection": "articles",
+  "collectionType": "json",
+  "schema": { "type": "object", "required": ["title"], "properties": { … } },
+  "displayName": "{title}",
+  "updatedAt": "2026-04-01T10:00:00Z"
+}
+Response 404: no schema set
+```
+
+### Set schema
+```
+PUT /{collection}/_schema
+{
+  "schema": {
+    "type": "object",
+    "required": ["title", "author"],
+    "properties": {
+      "title":  { "type": "string" },
+      "author": { "type": "string" },
+      "category": { "type": "string", "enum": ["news", "opinion"] }
+    }
+  },
+  "displayName": "{title}",       ← field used as human-readable name in Admin UI
+  "collectionType": "json"        ← "json" (default) or "binary"
+}
+
+Response 200: <Schema>
+Response 422: invalid JSON Schema
+```
+
+### Delete schema
+```
+DELETE /{collection}/_schema
+Response 200: { "collection": "articles", "deleted": true }
+```
+
+---
+
+## Trees
+
+Trees provide hierarchical path-based navigation. Useful for CMS site maps, navigation menus, and content routing.
+
+### List trees
+```
+GET /tree
+Response 200: { "trees": [{ "name": "main", "count": 12 }] }
+```
+
+### Get full tree snapshot
+```
+GET /tree/{name}?full=true
+Response 200:
+{
+  "tree": "main",
+  "nodes": [
+    { "path": "/blog/hello", "documentId": "uuid", "document": <DocumentResponse> },
+    …
+  ]
+}
+```
+
+### Get a node and its children
+```
+GET /tree/{name}/{path}
+e.g. GET /tree/main/blog/hello
+
+Response 200:
+{
+  "path": "/blog/hello",
+  "document": <DocumentResponse or null>,
+  "assignmentDocId": "uuid or null",
+  "children": [
+    { "path": "/blog/hello/comments", "documentId": "uuid or null" }
+  ]
+}
+Response 404: path not found
+```
+
+### Assign a document to a path
+```
+PUT /tree/{name}/{path}
+{ "documentId": "uuid" }
+
+Response 200: { "path": "/blog/hello", "documentId": "uuid" }
+```
+
+### Remove a path assignment
+```
+DELETE /tree/{name}/{path}
+Response 200: { "path": "/blog/hello", "removed": true }
+```
+
+---
+
+## Binary assets
+
+Set `collectionType: "binary"` in the schema to store files.
+
+### Upload a file
+```
+POST /{collection}
+Content-Type: multipart/form-data
+file=<binary>  (form field named "file")
+
+Response 201: <DocumentResponse>  ← data contains filename, contentType, size, etc.
+```
+
+### Replace / update a file
+```
+PUT /{collection}/{id}
+Content-Type: multipart/form-data
+file=<binary>
+
+Response 200: <DocumentResponse>
+```
+
+### Download raw file
+```
+GET /{collection}/{id}/raw
+GET /{collection}/{id}/raw?version=2   ← specific version
+
+Response 200: binary content with correct Content-Type and Content-Disposition headers
+```
+
+---
+
+## API Keys
+
+### List keys
+```
+GET /api/keys
+Response 200: { "keys": [{ "id": "…", "name": "CI deploy", "keyPrefix": "wren_a3f4e5", "createdAt": "…", "lastUsedAt": "…", "revokedAt": null }] }
+```
+
+### Create a key
+```
+POST /api/keys
+{ "name": "CI deploy" }
+
+Response 201: { …ApiKey fields…, "key": "wren_a3f4e5d2…" }   ← full key shown ONCE
+```
+
+### Revoke a key
+```
+DELETE /api/keys/{id}
+Response 200: { "id": "…", "revoked": true }
+```
+
+---
+
+## Organisation
+
+### Get current org context
+```
+GET /api/org
+Response 200:
+{
+  "current": { "id": "org-id", "name": "Acme", "email": "owner@example.com" },
+  "orgs": [
+    { "id": "org-id", "name": "Acme", "email": "owner@example.com", "own": true },
+    { "id": "other-id", "name": "Partner", "email": "partner@example.com", "own": false }
+  ]
+}
+```
+
+### Switch org (session-based only)
+```
+PUT /api/org
+{ "orgId": "other-id" }
+Response 200: { "current": { "id": "other-id", … } }
+```
+
+---
+
+## Members
+
+### List members
+```
+GET /api/members
+Response 200: { "members": [{ "userId": "…", "name": "Jane", "email": "jane@…", "role": "editor", "joinedAt": "…" }] }
+```
+
+### Remove a member
+```
+DELETE /api/members/{userId}
+Response 200: { "userId": "…", "removed": true }
+```
+
+---
+
+## Invites
+
+### List sent invites
+```
+GET /api/invites
+Response 200: { "invites": [{ "id": "…", "email": "jane@…", "role": "editor", "createdAt": "…", "expiresAt": "…", "acceptedAt": null, "revokedAt": null }] }
+```
+
+### Create an invite
+```
+POST /api/invites
+{ "email": "jane@example.com", "role": "editor" }
+
+Response 201: { …Invite fields…, "token": "raw-token" }  ← token shown ONCE
+```
+
+### Accept an invite (by token)
+```
+POST /api/invites/accept
+{ "token": "raw-token" }
+Response 200: { "accepted": true, "orgId": "…" }
+```
+
+### Accept an invite (by ID — for logged-in users)
+```
+POST /api/invites/{inviteId}/accept
+Response 200: { "accepted": true, "orgId": "…" }
+```
+
+### Revoke an invite
+```
+DELETE /api/invites/{inviteId}
+Response 200: { "id": "…", "revoked": true }
+```
+
+### List received invites
+```
+GET /api/invites/received
+Response 200: { "invites": [{ "id": "…", "orgId": "…", "orgName": "Acme", "orgEmail": "…", "role": "editor", … }] }
+```
+
+---
+
+## Permissions
+
+Fine-grained access control rules. Only org owners can manage permissions.
+
+### Permission rule shape
+```json
+{
+  "id": "perm-uuid",
+  "principal": "member:<userId>  OR  key:<keyId>  OR  *",
+  "resource":  "collection:<name>  OR  collection:*  OR  tree:<name>  OR  tree:*  OR  *",
+  "access":    "none | read | write | admin",
+  "labelFilter": "published",          ← only allow access when this label is set (optional)
+  "filterLang": "jmespath",            ← optional data filter language: jq | jmespath | jsonata
+  "filterExpr": "category == 'news'",  ← optional data filter expression
+  "auditReads":  false,
+  "auditWrites": true,
+  "createdAt": "2026-04-01T10:00:00Z"
+}
+```
+
+### List rules
+```
+GET /api/permissions
+Response 200: { "permissions": [ <Permission>, … ] }
+```
+
+### Create a rule
+```
+POST /api/permissions
+{
+  "principal": "*",
+  "resource":  "collection:articles",
+  "access":    "read",
+  "labelFilter": "published"
+}
+Response 201: <Permission>
+```
+
+### Update a rule
+```
+PUT /api/permissions/{id}
+{ "access": "write", "labelFilter": null }
+Response 200: <Permission>
+```
+
+### Delete a rule
+```
+DELETE /api/permissions/{id}
+Response 200: { "id": "…", "deleted": true }
+```
+
+---
+
+## TypeScript / JavaScript client
+
+```
+npm install @wren/client     # Node ≥18 or Bun
+```
+
+```typescript
+import { WrenClient, WrenNotFoundError, WrenValidationError } from "@wren/client";
+
+const wren = new WrenClient({ baseUrl: "https://…", apiKey: "wren_…" });
+
+// Documents
+const doc  = await wren.documents.create("articles", { title: "Hello" });
+const list = await wren.documents.list("articles", { label: "published", limit: 10 });
+const item = await wren.documents.get("articles", doc.id);
+const v2   = await wren.documents.update("articles", doc.id, { title: "Updated" });
+await           wren.documents.delete("articles", doc.id);
+
+// Versions
+const hist = await wren.versions.list("articles", doc.id);
+const snap = await wren.versions.get("articles", doc.id, 1);
+await           wren.versions.rollback("articles", doc.id, 1);
+
+// Labels & diff
+await           wren.labels.set("articles", doc.id, "published");
+await           wren.labels.set("articles", doc.id, "staging", 2);  // pin to v2
+const diff = await wren.diff.compare("articles", doc.id, 1, 2);
+
+// Collections & schemas
+const cols = await wren.collections.list();
+await           wren.collections.setSchema("articles", {
+  schema: { type: "object", required: ["title"], properties: { title: { type: "string" } } },
+  displayName: "{title}",
+});
+
+// Trees
+const tree = await wren.trees.snapshot("main");
+const node = await wren.trees.getNode("main", "/blog/hello");
+await           wren.trees.assign("main", "/blog/hello", doc.id);
+await           wren.trees.unassign("main", "/blog/hello");
+
+// Keys, members, invites, permissions
+const key  = await wren.keys.create("CI deploy");        // key.key shown once
+const inv  = await wren.invites.create("jane@…", "editor");
+await           wren.invites.accept(inv.token);
+await           wren.permissions.create({
+  principal: "*", resource: "collection:articles", access: "read", labelFilter: "published"
+});
+
+// Error handling
+try {
+  await wren.documents.get("articles", "missing-id");
+} catch (e) {
+  if (e instanceof WrenNotFoundError) console.log("not found");
+  if (e instanceof WrenValidationError) console.log(e.details);
+}
+```
+
+Resources available on `WrenClient`: `documents`, `versions`, `labels`, `diff`, `collections`, `trees`, `keys`, `members`, `invites`, `permissions`.
+
+---
+
+## Python client
+
+```
+pip install wren-client
+```
+
+```python
+from wren import WrenClient, AsyncWrenClient, WrenNotFoundError, WrenValidationError
+
+# ── Sync ──────────────────────────────────────────────────────────────────────
+with WrenClient("https://…", api_key="wren_…") as wren:
+    doc  = wren.documents.create("articles", {"title": "Hello"})
+    list_ = wren.documents.list("articles", label="published", limit=10)
+    item = wren.documents.get("articles", doc.id)
+    v2   = wren.documents.update("articles", doc.id, {"title": "Updated"})
+    wren.documents.delete("articles", doc.id)
+
+    hist = wren.versions.list("articles", doc.id)
+    snap = wren.versions.get("articles", doc.id, 1)
+    wren.versions.rollback("articles", doc.id, 1)
+
+    wren.labels.set("articles", doc.id, "published")
+    diff = wren.diff.compare("articles", doc.id, 1, 2)
+
+    cols = wren.collections.list()
+    wren.collections.set_schema("articles", schema={
+        "type": "object",
+        "required": ["title"],
+        "properties": {"title": {"type": "string"}}
+    }, display_name="{title}")
+
+    tree = wren.trees.snapshot("main")
+    node = wren.trees.get_node("main", "/blog/hello")
+    wren.trees.assign("main", "/blog/hello", doc.id)
+    wren.trees.unassign("main", "/blog/hello")
+
+    key = wren.keys.create("CI deploy")   # key.key shown once
+    inv = wren.invites.create("jane@example.com", role="editor")
+    wren.invites.accept(inv.token)
+    wren.permissions.create(
+        principal="*", resource="collection:articles",
+        access="read", label_filter="published"
+    )
+
+    try:
+        wren.documents.get("articles", "missing-id")
+    except WrenNotFoundError:
+        print("not found")
+    except WrenValidationError as e:
+        print(e.details)
+
+# ── Async ─────────────────────────────────────────────────────────────────────
+import asyncio
+
+async def main():
+    async with AsyncWrenClient("https://…", api_key="wren_…") as wren:
+        doc  = await wren.documents.create("articles", {"title": "Hello"})
+        hist = await wren.versions.list("articles", doc.id)
+        await wren.labels.set("articles", doc.id, "published")
+
+asyncio.run(main())
+```
+
+Resources available on both clients: `documents`, `versions`, `labels`, `diff`, `collections`, `trees`, `keys`, `members`, `invites`, `permissions`.
+
+Response objects are Python dataclasses. Fields use `snake_case` (e.g. `created_at`, `user_id`, `label_filter`).
+
+---
+
+## System endpoints
+
+```
+GET /health        → { "status": "ok" }
+GET /openapi.json  → OpenAPI 3.1 specification
+GET /docs          → Interactive Scalar API explorer
+GET /llms.txt      → Concise LLM-friendly site summary (this file's index)
+GET /llms-full.txt → This document
+GET /robots.txt    → Crawler permissions
+GET /sitemap.xml   → XML sitemap
+```
