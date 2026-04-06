@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tutorial — Wren</title>
+  <meta name="description" content="A hands-on guide to Wren: collections, versioning, labels, schemas, binary assets, trees, API keys, collaborators, permissions, and the CLI." />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .tutorial-layout {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      gap: 0;
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 24px;
+      min-height: calc(100vh - var(--nav-height));
+    }
+
+    .tutorial-toc {
+      position: sticky;
+      top: calc(var(--nav-height) + 24px);
+      align-self: start;
+      padding: 32px 24px 32px 0;
+      font-size: 14px;
+      max-height: calc(100vh - var(--nav-height) - 48px);
+      overflow-y: auto;
+    }
+
+    .tutorial-toc__title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-muted);
+      margin-bottom: 12px;
+    }
+
+    .tutorial-toc__list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .tutorial-toc__list a {
+      display: block;
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      color: var(--color-muted);
+      font-size: 13px;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .tutorial-toc__list a:hover {
+      background: var(--color-bg-subtle);
+      color: var(--color-text);
+    }
+
+    .tutorial-toc__sub {
+      padding-left: 14px;
+    }
+
+    .tutorial-body {
+      padding: 48px 0 80px 40px;
+      border-left: 1px solid var(--color-border);
+      min-width: 0;
+    }
+
+    .tutorial-body h1 {
+      font-size: 36px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+
+    .tutorial-body .lead {
+      font-size: 18px;
+      color: var(--color-muted);
+      margin-bottom: 48px;
+      max-width: 600px;
+    }
+
+    .tutorial-section {
+      margin-bottom: 56px;
+    }
+
+    .tutorial-section h2 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      padding-top: 8px;
+      color: var(--color-text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .tutorial-section h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 28px 0 8px;
+      color: var(--color-text);
+    }
+
+    .tutorial-section p {
+      color: var(--color-muted);
+      margin-bottom: 16px;
+      max-width: 680px;
+      line-height: 1.7;
+    }
+
+    .tutorial-section ul, .tutorial-section ol {
+      color: var(--color-muted);
+      margin: 0 0 16px 20px;
+      line-height: 1.8;
+      max-width: 680px;
+    }
+
+    .tutorial-section ul li code,
+    .tutorial-section ol li code,
+    .tutorial-section p code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      color: var(--color-primary-dark);
+    }
+
+    .tutorial-divider {
+      border: none;
+      border-top: 1px solid var(--color-border);
+      margin: 48px 0;
+    }
+
+    /* paired UI + CLI layout */
+    .paired {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0 24px;
+      max-width: 840px;
+    }
+    .paired--wide {
+      grid-template-columns: 1fr;
+      max-width: 680px;
+    }
+    @media (max-width: 900px) {
+      .paired { grid-template-columns: 1fr; }
+    }
+
+    .code-block {
+      background: var(--color-code-bg);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    .code-block__header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .code-block__lang {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .code-block__label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      margin-left: auto;
+      font-weight: 600;
+    }
+
+    .code-block pre {
+      padding: 14px 16px;
+      overflow-x: auto;
+      line-height: 1.65;
+      color: #e2e8f0;
+      margin: 0;
+    }
+
+    .callout {
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin: 20px 0;
+      font-size: 14px;
+      max-width: 680px;
+      line-height: 1.6;
+    }
+
+    .callout--tip {
+      background: #eff6ff;
+      border-left: 3px solid var(--color-primary);
+      color: #1e40af;
+    }
+
+    .callout--info {
+      background: #f0fdf4;
+      border-left: 3px solid var(--color-success);
+      color: #065f46;
+    }
+
+    .callout--warn {
+      background: #fefce8;
+      border-left: 3px solid #eab308;
+      color: #713f12;
+    }
+
+    .callout strong { font-weight: 700; }
+    .callout code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: rgba(0,0,0,0.08);
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+
+    .ui-hint {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      margin: 12px 0 20px;
+      font-size: 13px;
+      color: var(--color-muted);
+      max-width: 680px;
+      line-height: 1.6;
+    }
+    .ui-hint strong { color: var(--color-text); }
+
+    .ui-hint__icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+    .steps-inline {
+      list-style: none;
+      margin: 0 0 20px;
+      padding: 0;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .steps-inline li {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--color-muted);
+      line-height: 1.6;
+    }
+
+    .steps-inline li .n {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--color-border);
+      color: var(--color-text);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 768px) {
+      .tutorial-layout { grid-template-columns: 1fr; }
+      .tutorial-toc { display: none; }
+      .tutorial-body { border-left: none; padding-left: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo">Wren</a>
+      <ul class="nav__links">
+        <li><a href="/tutorial" style="color:var(--color-primary);font-weight:600">Tutorial</a></li>
+        <li><a href="/docs">API Docs</a></li>
+        <li><a href="/admin">Admin UI</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="tutorial-layout">
+
+    <aside class="tutorial-toc">
+      <p class="tutorial-toc__title">On this page</p>
+      <ul class="tutorial-toc__list">
+        <li><a href="#getting-started">1. Getting started</a></li>
+        <li class="tutorial-toc__sub"><a href="#login">Login &amp; account</a></li>
+        <li class="tutorial-toc__sub"><a href="#org">Organisations</a></li>
+        <li><a href="#collections">2. Collections &amp; documents</a></li>
+        <li class="tutorial-toc__sub"><a href="#create-col">Create a collection</a></li>
+        <li class="tutorial-toc__sub"><a href="#create-doc">Create a document</a></li>
+        <li class="tutorial-toc__sub"><a href="#read-doc">Read &amp; list</a></li>
+        <li class="tutorial-toc__sub"><a href="#update-doc">Update a document</a></li>
+        <li class="tutorial-toc__sub"><a href="#delete-doc">Delete a document</a></li>
+        <li><a href="#binary">3. Binary assets</a></li>
+        <li class="tutorial-toc__sub"><a href="#binary-upload">Upload</a></li>
+        <li class="tutorial-toc__sub"><a href="#binary-replace">Replace &amp; download</a></li>
+        <li><a href="#versioning">4. Versioning</a></li>
+        <li class="tutorial-toc__sub"><a href="#history">View history</a></li>
+        <li class="tutorial-toc__sub"><a href="#diff">Diff versions</a></li>
+        <li class="tutorial-toc__sub"><a href="#rollback">Rollback</a></li>
+        <li><a href="#labels">5. Labels</a></li>
+        <li><a href="#schemas">6. JSON Schemas</a></li>
+        <li class="tutorial-toc__sub"><a href="#schema-set">Set a schema</a></li>
+        <li class="tutorial-toc__sub"><a href="#display-name">Display name rules</a></li>
+        <li><a href="#trees">7. Trees</a></li>
+        <li class="tutorial-toc__sub"><a href="#tree-browse">Browse a tree</a></li>
+        <li class="tutorial-toc__sub"><a href="#tree-assign">Assign documents</a></li>
+        <li class="tutorial-toc__sub"><a href="#tree-paths">Paths tab</a></li>
+        <li><a href="#apikeys">8. API keys</a></li>
+        <li><a href="#collab">9. Collaborators &amp; orgs</a></li>
+        <li class="tutorial-toc__sub"><a href="#invite">Invite a collaborator</a></li>
+        <li class="tutorial-toc__sub"><a href="#accept">Accept an invite</a></li>
+        <li><a href="#permissions">10. Permissions</a></li>
+        <li><a href="#cli">11. CLI reference</a></li>
+      </ul>
+    </aside>
+
+    <main class="tutorial-body">
+
+      <h1>Wren Tutorial</h1>
+      <p class="lead">From first login to labels, schemas, binary assets, tree navigation, and access control — a complete walkthrough of the Admin UI and CLI.</p>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="getting-started">
+        <h2><span class="step-badge">1</span> Getting started</h2>
+
+        <p>Wren runs as a single Docker container backed by Postgres. Start everything with:</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>docker compose up -d
+# Admin UI → http://localhost:4000/admin
+# API docs  → http://localhost:4000/docs</pre>
+        </div>
+
+        <h3 id="login">Login &amp; account</h3>
+        <p>Open <code>http://localhost:4000/admin</code>. On first visit, sign up with an email and password. Every subsequent visit requires the same credentials. Your session persists across browser refreshes.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren auth login -e you@example.com -p yourpassword
+wren auth whoami
+wren auth logout</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /api/auth/sign-in/email
+{"email":"you@example.com","password":"…"}
+
+GET /api/auth/get-session</pre>
+          </div>
+        </div>
+
+        <h3 id="org">Organisations</h3>
+        <p>When you sign up, Wren creates an organisation for you. Every collection, document, and tree belongs to an organisation — data is fully isolated between orgs. If you're a member of multiple orgs, a dropdown in the sidebar lets you switch the active one.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren org current
+wren org switch &lt;orgId&gt;</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /api/org
+PUT /api/org  {"orgId":"&lt;id&gt;"}</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="collections">
+        <h2><span class="step-badge">2</span> Collections &amp; documents</h2>
+
+        <p>A <strong>collection</strong> is a named bucket for JSON documents. Collections are listed in the sidebar with their document counts.</p>
+
+        <h3 id="create-col">Create a collection</h3>
+        <p>Click <strong>New collection</strong> on the Collections page, enter a name (lowercase, letters, numbers, hyphens, underscores), and click <strong>Create</strong>. A default open JSON Schema (<code>{"type":"object","additionalProperties":true}</code>) is created automatically so the collection appears in the schema tab immediately.</p>
+
+        <div class="ui-hint">
+          <span class="ui-hint__icon">💡</span>
+          You can also create a collection implicitly by posting the first document to it via the API — no schema will be set in that case.
+        </div>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Schema set implicitly on first doc
+wren create pages '{"title":"Hello"}'
+
+# Or set schema explicitly first
+wren schema set pages '{
+  "type":"object",
+  "additionalProperties":true
+}'</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>PUT /pages/_schema
+{
+  "collectionType": "json",
+  "schema": {
+    "type": "object",
+    "additionalProperties": true
+  }
+}</pre>
+          </div>
+        </div>
+
+        <h3 id="create-doc">Create a document</h3>
+        <ol class="steps-inline">
+          <li><span class="n">1</span> Open a collection from the sidebar.</li>
+          <li><span class="n">2</span> Click <strong>New document</strong>.</li>
+          <li><span class="n">3</span> Optionally enter a custom ID (leave blank to auto-generate a UUID).</li>
+          <li><span class="n">4</span> Paste or type your JSON and click <strong>Create</strong>.</li>
+        </ol>
+
+        <div class="ui-hint">
+          <span class="ui-hint__icon">🛡️</span>
+          If the collection has a strict JSON Schema, invalid documents are rejected with a <code>422</code> and a list of field errors.
+        </div>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren create pages '{"title":"Hello World","published":false}'</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /pages
+{"title":"Hello World","published":false}
+
+→ {"id":"abc123","version":1,"data":{…}}</pre>
+          </div>
+        </div>
+
+        <h3 id="read-doc">Read &amp; list</h3>
+        <p>The collection page shows all documents in a table. If a <strong>display name rule</strong> is set (e.g. <code>{title}</code>), the human-readable name appears in the first column instead of the raw ID. Click any row to open the document.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren collections
+wren list pages
+wren list pages --limit=5 --label=published
+wren get pages abc123
+wren get pages abc123 --label=published</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /collections
+GET /pages?limit=20&amp;offset=0
+GET /pages?label=published
+GET /pages/abc123
+GET /pages/abc123?label=published</pre>
+          </div>
+        </div>
+
+        <h3 id="update-doc">Update a document</h3>
+        <p>Open a document and click the <strong>Document</strong> tab. Edit the JSON directly in the textarea and click <strong>Save</strong>. Every save creates a new immutable version — the old data is never overwritten.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren update pages abc123 '{"title":"Hello World","published":true}'</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>PUT /pages/abc123
+{"title":"Hello World","published":true}</pre>
+          </div>
+        </div>
+
+        <h3 id="delete-doc">Delete a document</h3>
+        <p>Click the red <strong>Delete</strong> button on the document page. The button requires a confirmation click. Deletion is a soft-delete — the document is hidden but its versions remain in the database.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren delete pages abc123</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>DELETE /pages/abc123</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="binary">
+        <h2><span class="step-badge">3</span> Binary assets</h2>
+
+        <p>Collections can store binary files (images, videos, PDFs, etc.) instead of JSON. Set <strong>Collection type</strong> to <em>Binary assets</em> in the Schema tab to enable this mode.</p>
+
+        <h3 id="binary-upload">Upload a file</h3>
+        <ol class="steps-inline">
+          <li><span class="n">1</span> Open a binary collection.</li>
+          <li><span class="n">2</span> Click <strong>Upload file</strong>.</li>
+          <li><span class="n">3</span> Choose a file and click <strong>Upload</strong>. The filename, MIME type, and size are stored automatically.</li>
+        </ol>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren upload images ./photo.jpg</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /images   (multipart/form-data, field: file)
+→ {"id":"xyz","version":1,"data":{
+    "filename":"photo.jpg",
+    "mimeType":"image/jpeg",
+    "size":204800
+  }}</pre>
+          </div>
+        </div>
+
+        <h3 id="binary-replace">Replace &amp; download</h3>
+        <p>Open a binary asset to see a preview (images, video, audio, and PDFs render inline). Use the <strong>Download</strong> button to save the file, or scroll to <strong>Replace file</strong> to upload a new version while keeping the history.</p>
+
+        <p>Every version of a binary asset is independently downloadable via the raw URL.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Download current version
+wren download images xyz --out ./photo.jpg
+
+# Download a specific version
+wren download images xyz --version=2 --out ./photo-v2.jpg
+
+# Upload a new version (replaces content, keeps history)
+wren upload-version images xyz ./photo-v2.jpg</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /images/xyz/raw
+GET /images/xyz/raw?version=2
+PUT /images/xyz   (multipart/form-data, field: file)</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="versioning">
+        <h2><span class="step-badge">4</span> Versioning</h2>
+
+        <p>Every mutation — create, update, rollback — produces a new numbered version. Versions start at 1, increment by 1, and are immutable. Nothing is ever deleted from the version history.</p>
+
+        <h3 id="history">View history</h3>
+        <p>Open any document and click the <strong>History</strong> tab. A timeline shows every version, newest first. Click <strong>View</strong> on any entry to expand the raw data for that version.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren versions pages abc123</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /pages/abc123/versions
+GET /pages/abc123/versions/2</pre>
+          </div>
+        </div>
+
+        <h3 id="diff">Diff versions</h3>
+        <p>In the History tab, click <strong>Compare versions</strong>, pick any two version numbers from the dropdowns, then click <strong>Show diff</strong>. The response shows what changed between them.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren diff pages abc123 --v1=1 --v2=3</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /pages/abc123/diff?v1=1&amp;v2=3</pre>
+          </div>
+        </div>
+
+        <h3 id="rollback">Rollback</h3>
+        <p>Rolling back doesn't erase versions — it creates a <em>new</em> version whose content matches the target. In the History tab, click <strong>Rollback here</strong> on any entry and confirm.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Creates v4 = copy of v1's data
+wren rollback pages abc123 1</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /pages/abc123/rollback/1</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="labels">
+        <h2><span class="step-badge">5</span> Labels</h2>
+
+        <p>A <strong>label</strong> is a named pointer to a specific version — like a Git tag. Moving a label never changes the underlying versions. Common labels: <code>published</code>, <code>stable</code>, <code>draft</code>.</p>
+
+        <div class="ui-hint">
+          <span class="ui-hint__icon">🏷️</span>
+          <div>Open a document → <strong>Labels</strong> tab → type a label name → optionally pick a version from the dropdown → click <strong>Set label</strong>. The label moves to that version; all other versions are untouched.</div>
+        </div>
+
+        <div class="callout callout--info">
+          <strong>Common pattern:</strong> write new versions freely (drafts, experiments). Only move the <code>published</code> label when you're ready. Readers always fetch by label, so they always get the approved version regardless of how many drafts exist.
+        </div>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Point "published" at the current version
+wren label pages abc123 published
+
+# Point "archive" at version 1 specifically
+wren label pages abc123 archive --version=1
+
+# Fetch whichever version "published" points to
+wren get pages abc123 --label=published
+
+# List documents filtered to a label
+wren list pages --label=published</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /pages/abc123/labels
+{"label":"published"}
+
+POST /pages/abc123/labels
+{"label":"archive","version":1}
+
+GET /pages/abc123?label=published
+GET /pages?label=published</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="schemas">
+        <h2><span class="step-badge">6</span> JSON Schemas</h2>
+
+        <p>By default a new collection accepts any JSON object. Attach a <a href="https://json-schema.org/" target="_blank">JSON Schema</a> to enforce a strict shape — every write is validated and rejected with <code>422</code> if it fails.</p>
+
+        <h3 id="schema-set">Set a schema</h3>
+        <ol class="steps-inline">
+          <li><span class="n">1</span> Open a collection and click the <strong>Schema</strong> tab.</li>
+          <li><span class="n">2</span> Choose <em>Collection type</em>: <strong>JSON documents</strong> or <strong>Binary assets</strong>.</li>
+          <li><span class="n">3</span> For JSON collections, edit the schema in the textarea.</li>
+          <li><span class="n">4</span> Click <strong>Save</strong>. Click <strong>Remove schema</strong> to disable validation entirely.</li>
+        </ol>
+
+        <div class="callout callout--tip">
+          <strong>Start permissive.</strong> The default open schema (<code>"additionalProperties": true</code>) accepts any object. Tighten it once your shape is stable.
+        </div>
+
+        <div class="code-block paired--wide" style="margin:16px 0 8px">
+          <div class="code-block__header"><span class="code-block__lang">json</span><span class="code-block__label">Example schema</span></div>
+          <pre>{
+  "type": "object",
+  "required": ["title"],
+  "properties": {
+    "title":     { "type": "string", "minLength": 1 },
+    "published": { "type": "boolean" },
+    "body":      { "type": "string" }
+  },
+  "additionalProperties": false
+}</pre>
+        </div>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren schema get pages
+wren schema set pages '{"type":"object","required":["title"],...}'
+wren schema set pages --type=binary   # binary collection
+wren schema delete pages</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET  /pages/_schema
+PUT  /pages/_schema
+  {"collectionType":"json","schema":{…},"displayName":"{title}"}
+DELETE /pages/_schema</pre>
+          </div>
+        </div>
+
+        <h3 id="display-name">Display name rules</h3>
+        <p>A <strong>display name rule</strong> is a template that extracts a human-readable name from document data. Set it in the <strong>Display name rule</strong> field on the Schema tab, for example <code>{title}</code> or <code>{first} {last}</code>. This name is shown in the documents list instead of the raw UUID.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren schema set pages \
+  '{"type":"object","additionalProperties":true}' \
+  --display-name="{title}"</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>PUT /pages/_schema
+{
+  "collectionType": "json",
+  "displayName": "{title}",
+  "schema": {"type":"object","additionalProperties":true}
+}</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="trees">
+        <h2><span class="step-badge">7</span> Trees</h2>
+
+        <p>A <strong>tree</strong> maps URL-style paths to documents — like a filesystem or a CMS route table. A tenant can have multiple named trees (e.g. <code>main</code> and <code>staging</code>). The same document can appear in multiple trees at different paths.</p>
+
+        <p>Click <strong>Trees</strong> in the sidebar to list trees, then click a tree name to browse it.</p>
+
+        <h3 id="tree-browse">Browse a tree</h3>
+        <p>The tree view shows a hierarchical list of paths with their assigned document IDs. Use the <strong>label</strong> filter at the top to view a version of the tree where each document is resolved at a specific label (e.g. only <code>published</code> documents).</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren tree list
+wren tree view main
+wren tree get main /site/about</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /tree
+GET /tree/main?full=true
+GET /tree/main/site/about</pre>
+          </div>
+        </div>
+
+        <h3 id="tree-assign">Assign documents to a path</h3>
+        <p>Click <strong>Set doc</strong> next to any tree path to open the <strong>DocPicker</strong> panel:</p>
+        <ul>
+          <li><strong>Browse tab</strong> — select a collection from the dropdown, then click <strong>Select</strong> next to any document in the list.</li>
+          <li><strong>Direct ID tab</strong> — type or paste a document ID and click <strong>Set</strong>.</li>
+        </ul>
+        <p>Click <strong>Remove</strong> next to a path to unassign its document. The document itself is not deleted.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Assign a document
+wren tree set main /site/about abc123
+
+# Remove mapping (document is kept)
+wren tree remove main /site/about
+
+# Point staging at a different doc
+wren tree set staging /site/about draft456</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>PUT /tree/main/site/about
+{"documentId":"abc123"}
+
+DELETE /tree/main/site/about</pre>
+          </div>
+        </div>
+
+        <h3 id="tree-paths">Paths tab (from a document)</h3>
+        <p>Open any document and click the <strong>Paths</strong> tab to see every tree path that points to it. Useful for understanding where a document is referenced before moving or deleting it.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren paths pages abc123</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /pages/abc123/paths</pre>
+          </div>
+        </div>
+
+        <div class="callout callout--info">
+          <strong>CMS pattern:</strong> store pages in a <code>pages</code> collection. Map them into the <code>main</code> tree at their public URLs. For previews, use a <code>staging</code> tree that points to draft documents at the same paths.
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="apikeys">
+        <h2><span class="step-badge">8</span> API keys</h2>
+
+        <p>API keys let scripts and services authenticate without a user session. Keys are prefixed with <code>wren_</code> and passed as a <code>Bearer</code> token.</p>
+
+        <div class="ui-hint">
+          <span class="ui-hint__icon">🔑</span>
+          <div><strong>Settings → API Keys</strong> → <strong>Create key</strong> → give it a name → copy the key shown (it's only displayed once).</div>
+        </div>
+
+        <div class="callout callout--warn">
+          <strong>Secret shown once.</strong> Copy the full key immediately after creation — it's hashed before storage and cannot be retrieved again.
+        </div>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren keys list
+wren keys create "ci-deploy"
+wren keys revoke &lt;keyId&gt;</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET    /api/keys
+POST   /api/keys  {"name":"ci-deploy"}
+DELETE /api/keys/&lt;keyId&gt;
+
+# Use a key:
+Authorization: Bearer wren_abc123…</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="collab">
+        <h2><span class="step-badge">9</span> Collaborators &amp; orgs</h2>
+
+        <p>Invite other users to your organisation. They get their own login but share access to your collections, trees, and settings.</p>
+
+        <h3 id="invite">Invite a collaborator</h3>
+        <ol class="steps-inline">
+          <li><span class="n">1</span> Go to <strong>Settings → Collaborators → Sent invites</strong>.</li>
+          <li><span class="n">2</span> Enter the invitee's email address, choose a role (viewer / editor / admin), and click <strong>Send invite</strong>.</li>
+          <li><span class="n">3</span> Share the invite link with the recipient, or they can accept via the <strong>Pending invites</strong> tab.</li>
+        </ol>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren invites send colleague@example.com --role=editor
+wren invites list
+wren invites revoke &lt;inviteId&gt;</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /api/invites
+{"email":"colleague@example.com","role":"editor"}
+
+GET    /api/invites
+DELETE /api/invites/&lt;inviteId&gt;</pre>
+          </div>
+        </div>
+
+        <h3 id="accept">Accept an invite</h3>
+        <p>When you receive an invite link (<code>/admin#/accept/TOKEN</code>), open it in a browser while logged in. If you're not logged in you'll be prompted to sign in first, then redirected back to complete acceptance. Alternatively, use the <strong>Pending invites</strong> tab under Collaborators.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Accept by invite ID (from "received" list)
+wren invites received
+wren invites accept-by-id &lt;inviteId&gt;
+
+# Accept by token (from invite URL)
+wren invites accept &lt;token&gt;</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /api/invites/received
+POST /api/invites/&lt;inviteId&gt;/accept
+POST /api/invites/accept  {"token":"…"}</pre>
+          </div>
+        </div>
+
+        <p>To remove a member: <strong>Settings → Collaborators → Members</strong> → click <strong>Remove</strong>.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren members list
+wren members remove &lt;userId&gt;</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET    /api/members
+DELETE /api/members/&lt;userId&gt;</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="permissions">
+        <h2><span class="step-badge">10</span> Permissions</h2>
+
+        <p>Permissions control what each <strong>principal</strong> (a member or API key) can do on a given <strong>resource</strong> (a collection, all collections, or everything). Access levels are <code>none</code>, <code>read</code>, <code>write</code>, and <code>admin</code>.</p>
+
+        <p>Go to <strong>Settings → Permissions</strong> to manage rules, or open a collection's <strong>Access</strong> tab to manage rules scoped to that collection.</p>
+
+        <div class="ui-hint">
+          <span class="ui-hint__icon">🔒</span>
+          <div>
+            <strong>Resource format:</strong><br>
+            <code>collection:pages</code> — a specific collection<br>
+            <code>collection:*</code> — all collections<br>
+            <code>*</code> — everything (collections, trees, settings)<br><br>
+            <strong>Principal format:</strong><br>
+            <code>member:&lt;userId&gt;</code>, <code>key:&lt;keyId&gt;</code>, <code>member:*</code> (all members), <code>*</code> (everyone)
+          </div>
+        </div>
+
+        <div class="callout callout--tip">
+          <strong>Optional filters:</strong> a permission can include a <code>labelFilter</code> (only documents with a specific label are visible) or a <code>filterExpr</code> (a JMESPath / JSONata expression that's applied to each document before returning it). Use these to expose only published content or strip private fields from API key responses.
+        </div>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren permissions list
+
+# Give an API key read access to one collection
+wren permissions create \
+  --principal=key:&lt;keyId&gt; \
+  --resource=collection:pages \
+  --access=read
+
+# Give all members read/write on all collections
+wren permissions create \
+  --principal=member:* \
+  --resource=collection:* \
+  --access=write
+
+# Only expose published documents to a key
+wren permissions create \
+  --principal=key:&lt;keyId&gt; \
+  --resource=collection:pages \
+  --access=read \
+  --label-filter=published
+
+wren permissions delete &lt;permissionId&gt;</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET  /api/permissions
+POST /api/permissions
+{
+  "principal": "key:&lt;keyId&gt;",
+  "resource":  "collection:pages",
+  "access":    "read",
+  "labelFilter": "published"
+}
+PUT    /api/permissions/&lt;id&gt;
+DELETE /api/permissions/&lt;id&gt;</pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="cli">
+        <h2><span class="step-badge">11</span> CLI reference</h2>
+
+        <h3>Setup</h3>
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>cd wren/cli
+bun install
+bun link           # registers "wren" globally
+
+wren config --url http://localhost:4000
+wren auth login -e you@example.com -p yourpassword
+wren auth whoami</pre>
+        </div>
+
+        <h3>Full command list</h3>
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># ── Auth ──────────────────────────────────────────────────
+wren auth login -e &lt;email&gt; -p &lt;password&gt;
+wren auth logout
+wren auth whoami
+
+# ── Org ───────────────────────────────────────────────────
+wren org current
+wren org switch &lt;orgId&gt;
+
+# ── Collections ───────────────────────────────────────────
+wren collections
+
+# ── Documents ─────────────────────────────────────────────
+wren list &lt;collection&gt; [--filter] [--limit] [--label]
+wren get &lt;collection&gt; &lt;id&gt; [--label]
+wren create &lt;collection&gt; '&lt;json&gt;'
+wren update &lt;collection&gt; &lt;id&gt; '&lt;json&gt;'
+wren delete &lt;collection&gt; &lt;id&gt;
+wren paths &lt;collection&gt; &lt;id&gt;
+
+# ── Versions ──────────────────────────────────────────────
+wren versions &lt;collection&gt; &lt;id&gt;
+wren diff &lt;collection&gt; &lt;id&gt; --v1=N --v2=N
+wren rollback &lt;collection&gt; &lt;id&gt; &lt;version&gt;
+wren label &lt;collection&gt; &lt;id&gt; &lt;label&gt; [--version=N]
+
+# ── Schemas ───────────────────────────────────────────────
+wren schema get &lt;collection&gt;
+wren schema set &lt;collection&gt; '&lt;json-schema&gt;' [--display-name="{field}"] [--type=binary]
+wren schema delete &lt;collection&gt;
+
+# ── Binary assets ─────────────────────────────────────────
+wren upload &lt;collection&gt; &lt;file&gt;
+wren upload-version &lt;collection&gt; &lt;id&gt; &lt;file&gt;
+wren download &lt;collection&gt; &lt;id&gt; [--version=N] [--out=&lt;path&gt;]
+
+# ── Trees ─────────────────────────────────────────────────
+wren tree list
+wren tree view &lt;treeName&gt;
+wren tree get &lt;treeName&gt; &lt;path&gt;
+wren tree set &lt;treeName&gt; &lt;path&gt; &lt;documentId&gt;
+wren tree remove &lt;treeName&gt; &lt;path&gt;
+
+# ── API keys ──────────────────────────────────────────────
+wren keys list
+wren keys create &lt;name&gt;
+wren keys revoke &lt;id&gt;
+
+# ── Collaborators ─────────────────────────────────────────
+wren invites send &lt;email&gt; [--role=viewer|editor|admin]
+wren invites list
+wren invites received
+wren invites accept-by-id &lt;inviteId&gt;
+wren invites accept &lt;token&gt;
+wren invites revoke &lt;id&gt;
+wren members list
+wren members remove &lt;userId&gt;
+
+# ── Permissions ───────────────────────────────────────────
+wren permissions list
+wren permissions create --principal=&lt;p&gt; --resource=&lt;r&gt; --access=&lt;a&gt; \
+                        [--label-filter=&lt;label&gt;] \
+                        [--filter-lang=jmespath|jsonata] [--filter-expr=&lt;expr&gt;] \
+                        [--audit-reads] [--audit-writes]
+wren permissions update &lt;id&gt; [same options]
+wren permissions delete &lt;id&gt;</pre>
+        </div>
+
+        <div class="callout callout--tip">
+          <strong>Interactive API docs</strong> are at <a href="/docs">/docs</a> — a full Scalar UI over the OpenAPI spec with live request examples for every endpoint.
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>Wren</strong> &mdash; self-hosted versioned JSON storage</p>
+        <ul class="footer__links">
+          <li><a href="/tutorial">Tutorial</a></li>
+          <li><a href="/admin">Admin UI</a></li>
+          <li><a href="/docs">API Docs</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 Wren. Self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
