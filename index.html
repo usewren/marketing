@@ -18,6 +18,7 @@
       <ul class="nav__links">
         <li><a href="/tutorial">Tutorial</a></li>
         <li><a href="/docs">Docs</a></li>
+        <li><a href="#clients">Libraries</a></li>
         <li><a href="/admin">Admin</a></li>
         <li><a href="#">GitHub</a></li>
       </ul>
@@ -46,9 +47,40 @@
           <span class="hero__code-dot"></span>
           <span class="hero__code-dot"></span>
           <span class="hero__code-dot"></span>
-          <span class="hero__code-title">API example</span>
+          <div class="hero__tabs">
+            <button class="hero__tab hero__tab--active" onclick="heroTab(this,'ts')">TypeScript</button>
+            <button class="hero__tab" onclick="heroTab(this,'py')">Python</button>
+            <button class="hero__tab" onclick="heroTab(this,'rest')">REST</button>
+          </div>
         </div>
-        <pre><span class="tok-comment"># Create a document (version 1)</span>
+        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @wren/client</span>
+<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+
+<span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl: <span class="tok-str">"https://…"</span>, apiKey: <span class="tok-str">"wren_…"</span> });
+
+<span class="tok-comment">// Create a document (version 1)</span>
+<span class="tok-keyword">const</span> doc = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"pages"</span>, { title: <span class="tok-str">"Hello"</span>, body: <span class="tok-str">"World"</span> });
+
+<span class="tok-comment">// Update (version 2 created automatically)</span>
+<span class="tok-keyword">await</span> wren.documents.<span class="tok-method">update</span>(<span class="tok-str">"pages"</span>, doc.id, { title: <span class="tok-str">"Hello v2"</span> });
+
+<span class="tok-comment">// Pin a label and read it back</span>
+<span class="tok-keyword">await</span> wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"pages"</span>, doc.id, <span class="tok-str">"published"</span>);
+<span class="tok-keyword">const</span> live = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">get</span>(<span class="tok-str">"pages"</span>, doc.id, { label: <span class="tok-str">"published"</span> });</pre>
+        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install wren-client</span>
+<span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>
+
+<span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(<span class="tok-str">"https://…"</span>, api_key=<span class="tok-str">"wren_…"</span>) <span class="tok-keyword">as</span> wren:
+    <span class="tok-comment"># Create a document (version 1)</span>
+    doc = wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"pages"</span>, {<span class="tok-str">"title"</span>: <span class="tok-str">"Hello"</span>, <span class="tok-str">"body"</span>: <span class="tok-str">"World"</span>})
+
+    <span class="tok-comment"># Update (version 2 created automatically)</span>
+    wren.documents.<span class="tok-method">update</span>(<span class="tok-str">"pages"</span>, doc.id, {<span class="tok-str">"title"</span>: <span class="tok-str">"Hello v2"</span>})
+
+    <span class="tok-comment"># Pin a label and read it back</span>
+    wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"pages"</span>, doc.id, <span class="tok-str">"published"</span>)
+    live = wren.documents.<span class="tok-method">get</span>(<span class="tok-str">"pages"</span>, doc.id, label=<span class="tok-str">"published"</span>)</pre>
+        <pre id="hero-tab-rest" style="display:none"><span class="tok-comment"># Create a document (version 1)</span>
 <span class="tok-method">POST</span> <span class="tok-path">/pages</span>
 <span class="tok-arrow">{</span> <span class="tok-key">"title"</span><span class="tok-arrow">:</span> <span class="tok-str">"Hello"</span><span class="tok-arrow">,</span> <span class="tok-key">"body"</span><span class="tok-arrow">:</span> <span class="tok-str">"World"</span> <span class="tok-arrow">}</span>
 <span class="tok-arrow">→</span> <span class="tok-arrow">{</span> <span class="tok-key">"id"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span><span class="tok-arrow">,</span> <span class="tok-key">"version"</span><span class="tok-arrow">:</span> <span class="tok-str">1</span><span class="tok-arrow">,</span> <span class="tok-key">"data"</span><span class="tok-arrow">:</span> <span class="tok-arrow">{ ... } }</span>
@@ -66,6 +98,15 @@
 <span class="tok-method">GET</span> <span class="tok-path">/pages/abc?label=published</span>
 <span class="tok-arrow">→</span> version 2 data</pre>
       </div>
+      <script>
+        function heroTab(btn, id) {
+          document.querySelectorAll('.hero__tab').forEach(b => b.classList.remove('hero__tab--active'));
+          btn.classList.add('hero__tab--active');
+          ['ts','py','rest'].forEach(t => {
+            document.getElementById('hero-tab-' + t).style.display = t === id ? 'block' : 'none';
+          });
+        }
+      </script>
     </div>
   </section>
 
@@ -188,6 +229,68 @@
 
 <span class="tok-comment"># Rollback to v1</span>
 <span class="tok-method">curl</span> <span class="tok-flag">-X POST</span> <span class="tok-url">/pages/{id}/rollback/1</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Client Libraries
+       ============================================================ -->
+  <section class="clients" id="clients">
+    <div class="container">
+      <div class="clients__intro">
+        <p class="section-label">Client Libraries</p>
+        <h2 class="section-title">First-class TypeScript &amp; Python clients.</h2>
+        <p class="section-sub">Full types. Zero extra dependencies. Works in Node, Bun, and async Python.</p>
+      </div>
+      <div class="clients__grid">
+
+        <div class="client-card">
+          <div class="client-card__header">
+            <span class="client-card__lang">TypeScript &amp; JavaScript</span>
+            <code class="client-card__install">npm install @wren/client</code>
+          </div>
+          <pre><span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+
+<span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl, apiKey });
+
+<span class="tok-comment">// Documents, versions, labels, trees…</span>
+<span class="tok-keyword">const</span> doc  = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"pages"</span>, data);
+<span class="tok-keyword">const</span> hist = <span class="tok-keyword">await</span> wren.versions.<span class="tok-method">list</span>(<span class="tok-str">"pages"</span>, doc.id);
+<span class="tok-keyword">const</span> diff = <span class="tok-keyword">await</span> wren.diff.<span class="tok-method">compare</span>(<span class="tok-str">"pages"</span>, doc.id, <span class="tok-str">1</span>, <span class="tok-str">2</span>);
+<span class="tok-keyword">await</span> wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"pages"</span>, doc.id, <span class="tok-str">"published"</span>);</pre>
+          <div class="client-card__footer">
+            <span class="client-card__tag">Node ≥ 18</span>
+            <span class="client-card__tag">Bun</span>
+            <span class="client-card__tag">Browser</span>
+            <span class="client-card__tag">Zero deps</span>
+          </div>
+        </div>
+
+        <div class="client-card">
+          <div class="client-card__header">
+            <span class="client-card__lang">Python</span>
+            <code class="client-card__install">pip install wren-client</code>
+          </div>
+          <pre><span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>, <span class="tok-path">AsyncWrenClient</span>
+
+<span class="tok-comment"># Sync</span>
+<span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(base_url, api_key=key) <span class="tok-keyword">as</span> wren:
+    doc  = wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"pages"</span>, data)
+    hist = wren.versions.<span class="tok-method">list</span>(<span class="tok-str">"pages"</span>, doc.id)
+    wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"pages"</span>, doc.id, <span class="tok-str">"published"</span>)
+
+<span class="tok-comment"># Async</span>
+<span class="tok-keyword">async with</span> <span class="tok-path">AsyncWrenClient</span>(base_url, api_key=key) <span class="tok-keyword">as</span> wren:
+    doc = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"pages"</span>, data)</pre>
+          <div class="client-card__footer">
+            <span class="client-card__tag">Python ≥ 3.9</span>
+            <span class="client-card__tag">Sync + Async</span>
+            <span class="client-card__tag">httpx</span>
+            <span class="client-card__tag">Typed</span>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>

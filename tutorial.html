@@ -353,6 +353,9 @@
         <li class="tutorial-toc__sub"><a href="#accept">Accept an invite</a></li>
         <li><a href="#permissions">10. Permissions</a></li>
         <li><a href="#cli">11. CLI reference</a></li>
+        <li><a href="#clients">12. Client libraries</a></li>
+        <li class="tutorial-toc__sub"><a href="#clients-ts">TypeScript / Node / Bun</a></li>
+        <li class="tutorial-toc__sub"><a href="#clients-py">Python</a></li>
       </ul>
     </aside>
 
@@ -1126,6 +1129,135 @@ wren permissions delete &lt;id&gt;</pre>
         <div class="callout callout--tip">
           <strong>Interactive API docs</strong> are at <a href="/docs">/docs</a> — a full Scalar UI over the OpenAPI spec with live request examples for every endpoint.
         </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="clients">
+        <h2><span class="step-badge">12</span> Client libraries</h2>
+
+        <p>Wren ships official client libraries for TypeScript/JavaScript and Python. Both cover the full API surface — documents, versions, labels, diff, schemas, trees, keys, invites, permissions — with complete type definitions.</p>
+
+        <!-- ── TypeScript ── -->
+        <h3 id="clients-ts">TypeScript / Node / Bun</h3>
+
+        <p>Works in Node.js ≥ 18, Bun, and the browser. Zero runtime dependencies — uses the native <code>fetch</code> API.</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>npm install @wren/client
+# or: bun add @wren/client</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">typescript</span></div>
+          <pre>import { WrenClient } from "@wren/client";
+
+const wren = new WrenClient({
+  baseUrl: "https://your-wren-instance.example.com",
+  apiKey: "wren_…",          // from Admin UI → API Keys
+});
+
+// Create a document
+const doc = await wren.documents.create("articles", {
+  title: "My first article",
+  body:  "Hello, world!",
+});
+console.log(doc.id, doc.version); // "uuid…", 1
+
+// Update (new version created automatically)
+const v2 = await wren.documents.update("articles", doc.id, {
+  title: "My first article (revised)",
+  body:  "Hello, world! — edited",
+});
+console.log(v2.version); // 2
+
+// View full version history
+const history = await wren.versions.list("articles", doc.id);
+console.log(history.versions); // [{version:1,…}, {version:2,…}]
+
+// Diff two versions
+const diff = await wren.diff.compare("articles", doc.id, 1, 2);
+diff.diff.forEach(d => console.log(d.op, d.path, d.value));
+
+// Pin a label
+await wren.labels.set("articles", doc.id, "published");
+
+// Read back via label
+const live = await wren.documents.get("articles", doc.id, { label: "published" });
+
+// Rollback to v1
+await wren.versions.rollback("articles", doc.id, 1);</pre>
+        </div>
+
+        <div class="callout callout--tip">
+          <strong>Error handling</strong> — the client throws typed errors: <code>WrenNotFoundError</code> (404), <code>WrenUnauthorizedError</code> (401), <code>WrenValidationError</code> (422 with per-field details). Import them from <code>@wren/client</code> and use <code>instanceof</code> to handle specific cases.
+        </div>
+
+        <!-- ── Python ── -->
+        <h3 id="clients-py">Python</h3>
+
+        <p>Supports Python 3.9+. Provides both a synchronous client and an async client (via <code>httpx</code>). Fully typed with dataclasses.</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>pip install wren-client</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">python</span></div>
+          <pre>from wren import WrenClient
+
+# Use as a context manager — connection is closed automatically
+with WrenClient("https://your-wren-instance.example.com", api_key="wren_…") as wren:
+
+    # Create a document
+    doc = wren.documents.create("articles", {
+        "title": "My first article",
+        "body":  "Hello, world!",
+    })
+    print(doc.id, doc.version)  # "uuid…", 1
+
+    # Update
+    v2 = wren.documents.update("articles", doc.id, {
+        "title": "My first article (revised)",
+    })
+    print(v2.version)  # 2
+
+    # View version history
+    history = wren.versions.list("articles", doc.id)
+    for v in history.versions:
+        print(v.version, v.labels, v.created_at)
+
+    # Diff two versions
+    result = wren.diff.compare("articles", doc.id, 1, 2)
+    for entry in result.diff:
+        print(entry.op, entry.path, entry.value)
+
+    # Pin a label
+    wren.labels.set("articles", doc.id, "published")
+
+    # Read via label
+    live = wren.documents.get("articles", doc.id, label="published")
+
+    # Rollback to v1
+    wren.versions.rollback("articles", doc.id, 1)</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">python — async</span></div>
+          <pre>from wren import AsyncWrenClient
+
+async def main():
+    async with AsyncWrenClient("https://…", api_key="wren_…") as wren:
+        doc = await wren.documents.create("articles", {"title": "Async hello"})
+        history = await wren.versions.list("articles", doc.id)
+        await wren.labels.set("articles", doc.id, "published")</pre>
+        </div>
+
+        <div class="callout callout--tip">
+          <strong>Error handling</strong> — the Python client raises <code>WrenNotFoundError</code>, <code>WrenUnauthorizedError</code>, <code>WrenForbiddenError</code>, and <code>WrenValidationError</code> (with a <code>.details</code> list of field errors). All are subclasses of <code>WrenError</code>, which exposes <code>.status</code> and <code>.body</code>.
+        </div>
+
       </section>
 
     </main>
