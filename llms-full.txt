@@ -367,8 +367,8 @@ Requires a `principal='*'` read permission on the collection.
 The org slug is required in the URL since there is no session to identify the tenant.
 
 ```
-GET /orgs/{slug}/{collection}/{id}/raw
-GET /orgs/{slug}/{collection}/{id}/raw/filename.jpg   ← recommended: append real filename for browsers/tools
+GET /api/v1/orgs/{slug}/{collection}/{id}/raw
+GET /api/v1/orgs/{slug}/{collection}/{id}/raw/filename.jpg   ← recommended: append real filename for browsers/tools
 
 Response 200: binary content — same headers as authenticated endpoint
 Response 403: collection not publicly accessible
@@ -376,7 +376,7 @@ Response 403: collection not publicly accessible
 
 Use the filename-in-URL pattern for `<img>` tags, CDN configs, and CLI tools:
 ```html
-<img src="https://wren.example.com/orgs/coral-tide-fox/images/{id}/raw/hero.jpg">
+<img src="https://wren.example.com/api/v1/orgs/coral-tide-fox/images/{id}/raw/hero.jpg">
 ```
 
 ---
