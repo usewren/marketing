@@ -353,12 +353,30 @@ file=<binary>
 Response 200: <DocumentResponse>
 ```
 
-### Download raw file
+### Download raw file (authenticated)
 ```
-GET /{collection}/{id}/raw
-GET /{collection}/{id}/raw?version=2   ← specific version
+GET /api/v1/{collection}/{id}/raw
+GET /api/v1/{collection}/{id}/raw?version=2      ← specific version
+GET /api/v1/{collection}/{id}/raw/filename.jpg   ← optional filename suffix for better download naming
 
-Response 200: binary content with correct Content-Type and Content-Disposition headers
+Response 200: binary content with correct Content-Type and Content-Disposition: inline; filename="..."
+```
+
+### Serve raw file publicly (no auth)
+Requires a `principal='*'` read permission on the collection.
+The org slug is required in the URL since there is no session to identify the tenant.
+
+```
+GET /api/v1/orgs/{slug}/{collection}/{id}/raw
+GET /api/v1/orgs/{slug}/{collection}/{id}/raw/filename.jpg   ← recommended: append real filename for browsers/tools
+
+Response 200: binary content — same headers as authenticated endpoint
+Response 403: collection not publicly accessible
+```
+
+Use the filename-in-URL pattern for `<img>` tags, CDN configs, and CLI tools:
+```html
+<img src="https://wren.example.com/api/v1/orgs/coral-tide-fox/images/{id}/raw/hero.jpg">
 ```
 
 ---
