@@ -549,6 +549,135 @@ section {
 }
 
 /* ============================================================
+   Pricing
+   ============================================================ */
+
+.pricing {
+  padding: 96px 0;
+  background: var(--color-white);
+}
+
+.pricing__intro {
+  text-align: center;
+  max-width: 560px;
+  margin: 0 auto 56px;
+}
+
+.pricing__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.pricing-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.pricing-card:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+.pricing-card--featured {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-card);
+}
+
+.pricing-card__badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  background: var(--color-primary);
+  padding: 3px 14px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+.pricing-card__header {
+  margin-bottom: 24px;
+}
+
+.pricing-card__name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.pricing-card__price {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+  line-height: 1.1;
+  margin-bottom: 8px;
+}
+
+.pricing-card__period {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  letter-spacing: 0;
+}
+
+.pricing-card__tagline {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.pricing-card__features {
+  list-style: none;
+  margin-bottom: 28px;
+  flex: 1;
+}
+
+.pricing-card__features li {
+  font-size: 0.875rem;
+  color: var(--color-text);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--color-border);
+  padding-left: 22px;
+  position: relative;
+}
+
+.pricing-card__features li::before {
+  content: "\2713";
+  position: absolute;
+  left: 0;
+  color: var(--color-success);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.pricing-card__cta {
+  text-align: center;
+  width: 100%;
+}
+
+@media (max-width: 860px) {
+  .pricing__grid {
+    grid-template-columns: 1fr;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+}
+
+/* ============================================================
    Responsive
    ============================================================ */
 
