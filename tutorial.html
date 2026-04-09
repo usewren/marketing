@@ -789,10 +789,16 @@ DELETE /pages/_schema</pre>
 
         <p>A <strong>tree</strong> maps URL-style paths to documents — like a filesystem or a CMS route table. A tenant can have multiple named trees (e.g. <code>main</code> and <code>staging</code>). The same document can appear in multiple trees at different paths.</p>
 
-        <p>Click <strong>Trees</strong> in the sidebar to list trees, then click a tree name to browse it.</p>
+        <p>Individual trees are listed in the sidebar under <strong>Trees</strong> — click a tree name to open its file browser.</p>
 
         <h3 id="tree-browse">Browse a tree</h3>
-        <p>The tree view shows a hierarchical list of paths with their assigned document IDs. Use the <strong>label</strong> filter at the top to view a version of the tree where each document is resolved at a specific label (e.g. only <code>published</code> documents).</p>
+        <p>The tree browser works like a filesystem. At each path level you see:</p>
+        <ul>
+          <li>The <strong>document</strong> assigned to the current path (with JSON preview, version badge, and links to open, reassign, or remove it).</li>
+          <li>A <strong>Contents</strong> list of child paths — click any child to navigate deeper.</li>
+          <li>A <strong>Navigate to child</strong> input to jump to (or create) a new path segment.</li>
+        </ul>
+        <p>A clickable breadcrumb trail at the top lets you move back up the tree. Use the optional <strong>label filter</strong> to view a specific version (e.g. only <code>published</code> documents).</p>
 
         <div class="paired">
           <div class="code-block">
@@ -812,12 +818,13 @@ GET /tree/main/site/about</pre>
         <img src="/img/09-tree.png" alt="Tree browser showing golf article paths" class="tutorial-screenshot">
 
         <h3 id="tree-assign">Assign documents to a path</h3>
-        <p>Click <strong>Set doc</strong> next to any tree path to open the <strong>DocPicker</strong> panel:</p>
+        <p>If a path has no document, the assign panel opens automatically. Otherwise click <strong>Reassign</strong>. The panel has three tabs:</p>
         <ul>
-          <li><strong>Browse tab</strong> — select a collection from the dropdown, then click <strong>Select</strong> next to any document in the list.</li>
-          <li><strong>Direct ID tab</strong> — type or paste a document ID and click <strong>Set</strong>.</li>
+          <li><strong>Browse</strong> — select a collection from the dropdown, then click <strong>Select</strong> next to any document.</li>
+          <li><strong>Create new</strong> — select a collection, write JSON in the editor, and click <strong>Create &amp; assign</strong> to create the document and assign it in one step.</li>
+          <li><strong>Direct ID</strong> — paste a document ID and click <strong>Set</strong>.</li>
         </ul>
-        <p>Click <strong>Remove</strong> next to a path to unassign its document. The document itself is not deleted.</p>
+        <p>Click <strong>Remove</strong> to unassign a document from a path. The document itself is not deleted — only the tree mapping is removed.</p>
 
         <div class="paired">
           <div class="code-block">
