@@ -825,9 +825,10 @@ GET /tree/main/site/about</pre>
           <li><strong>Direct ID</strong> — paste a document ID and click <strong>Set</strong>.</li>
         </ul>
         <p>Click <strong>Unassign</strong> to clear a document from a path — the path remains as an empty folder and the document itself is not deleted.</p>
+        <p>When a folder is empty (no document assigned), a <strong>Remove folder</strong> button appears above the Contents card. Click it to delete the explicit path entry. If the folder still has descendants, it will reappear as an implicit grouping.</p>
 
         <h3 id="tree-add-child">Add a document as a child</h3>
-        <p>Use the <strong>Add document</strong> button in the Contents header to assign a document to a new child path without navigating there first. Optionally type a path segment name, then pick a document in the usual way. If you leave the segment name blank, the UI derives one from the document's <code>filename</code> field (for binary assets) or its display name rule — perfect for quickly adding an <code>index.html</code> to a folder.</p>
+        <p>Use the <strong>Add document</strong> button in the Contents header to assign a document to a new child path without navigating there first. Optionally type a path segment name, then pick a document in the usual way. If you leave the segment name blank, the UI derives one from the document's <code>filename</code> field (for binary assets) or its display name rule (case preserved, spaces replaced with hyphens) — perfect for quickly adding an <code>index.html</code> or <code>My-Article</code> to a folder.</p>
 
         <div class="paired">
           <div class="code-block">
