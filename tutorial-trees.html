@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tree Tutorial — Wren</title>
+  <meta name="description" content="Build hierarchical JSON storage with Wren trees: paths, public URLs, subtree bundling, labels, and empty folders." />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .tutorial-screenshot {
+      display: block;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin: 1.25rem 0 1.75rem;
+    }
+    .tutorial-layout {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      gap: 0;
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 24px;
+      min-height: calc(100vh - var(--nav-height));
+    }
+
+    .tutorial-toc {
+      position: sticky;
+      top: calc(var(--nav-height) + 24px);
+      align-self: start;
+      padding: 32px 24px 32px 0;
+      font-size: 14px;
+      max-height: calc(100vh - var(--nav-height) - 48px);
+      overflow-y: auto;
+    }
+
+    .tutorial-toc__title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-muted);
+      margin-bottom: 12px;
+    }
+
+    .tutorial-toc__list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .tutorial-toc__list a {
+      display: block;
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      color: var(--color-muted);
+      font-size: 13px;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .tutorial-toc__list a:hover {
+      background: var(--color-bg-subtle);
+      color: var(--color-text);
+    }
+
+    .tutorial-toc__sub {
+      padding-left: 14px;
+    }
+
+    .tutorial-body {
+      padding: 48px 0 80px 40px;
+      border-left: 1px solid var(--color-border);
+      min-width: 0;
+    }
+
+    .tutorial-body h1 {
+      font-size: 36px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+
+    .tutorial-body .lead {
+      font-size: 18px;
+      color: var(--color-muted);
+      margin-bottom: 48px;
+      max-width: 600px;
+    }
+
+    .tutorial-section {
+      margin-bottom: 56px;
+    }
+
+    .tutorial-section h2 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      padding-top: 8px;
+      color: var(--color-text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .tutorial-section h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 28px 0 8px;
+      color: var(--color-text);
+    }
+
+    .tutorial-section p {
+      color: var(--color-muted);
+      margin-bottom: 16px;
+      max-width: 680px;
+      line-height: 1.7;
+    }
+
+    .tutorial-section ul, .tutorial-section ol {
+      color: var(--color-muted);
+      margin: 0 0 16px 20px;
+      line-height: 1.8;
+      max-width: 680px;
+    }
+
+    .tutorial-section ul li code,
+    .tutorial-section ol li code,
+    .tutorial-section p code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      color: var(--color-primary-dark);
+    }
+
+    .tutorial-divider {
+      border: none;
+      border-top: 1px solid var(--color-border);
+      margin: 48px 0;
+    }
+
+    .paired {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0 24px;
+      max-width: 840px;
+    }
+    .paired--wide {
+      grid-template-columns: 1fr;
+      max-width: 680px;
+    }
+    @media (max-width: 900px) {
+      .paired { grid-template-columns: 1fr; }
+    }
+
+    .code-block {
+      background: var(--color-code-bg);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    .code-block__header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .code-block__lang {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .code-block__label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      margin-left: auto;
+      font-weight: 600;
+    }
+
+    .code-block pre {
+      padding: 14px 16px;
+      overflow-x: auto;
+      line-height: 1.65;
+      color: #e2e8f0;
+      margin: 0;
+    }
+
+    .callout {
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin: 20px 0;
+      font-size: 14px;
+      max-width: 680px;
+      line-height: 1.6;
+    }
+
+    .callout--tip {
+      background: #eff6ff;
+      border-left: 3px solid var(--color-primary);
+      color: #1e40af;
+    }
+
+    .callout--info {
+      background: #f0fdf4;
+      border-left: 3px solid var(--color-success);
+      color: #065f46;
+    }
+
+    .callout--warn {
+      background: #fefce8;
+      border-left: 3px solid #eab308;
+      color: #713f12;
+    }
+
+    .callout strong { font-weight: 700; }
+    .callout code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: rgba(0,0,0,0.08);
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+
+    .callout--related a {
+      color: inherit;
+      text-decoration: underline;
+    }
+
+    .steps-inline {
+      list-style: none;
+      margin: 0 0 20px;
+      padding: 0;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .steps-inline li {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--color-muted);
+      line-height: 1.6;
+    }
+
+    .steps-inline li .n {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--color-border);
+      color: var(--color-text);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 768px) {
+      .tutorial-layout { grid-template-columns: 1fr; }
+      .tutorial-toc { display: none; }
+      .tutorial-body { border-left: none; padding-left: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/b" class="nav__logo">Wren</a>
+      <ul class="nav__links">
+        <li><a href="/tutorial/trees" style="color:var(--color-primary);font-weight:600">Tutorial</a></li>
+        <li><a href="/docs">API Docs</a></li>
+        <li><a href="/admin">Admin UI</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="tutorial-layout">
+
+    <aside class="tutorial-toc">
+      <p class="tutorial-toc__title">On this page</p>
+      <ul class="tutorial-toc__list">
+        <li><a href="#getting-started">1. Getting started</a></li>
+        <li><a href="#first-tree">2. Your first tree</a></li>
+        <li class="tutorial-toc__sub"><a href="#new-folder">Create a folder</a></li>
+        <li class="tutorial-toc__sub"><a href="#cli-tree">From the CLI</a></li>
+        <li><a href="#attach-doc">3. Attach a document</a></li>
+        <li class="tutorial-toc__sub"><a href="#add-doc">Add document button</a></li>
+        <li class="tutorial-toc__sub"><a href="#create-inline">Create inline</a></li>
+        <li><a href="#nesting">4. Nesting</a></li>
+        <li><a href="#read-back">5. Read it back</a></li>
+        <li class="tutorial-toc__sub"><a href="#single-node">Single node</a></li>
+        <li class="tutorial-toc__sub"><a href="#full-tree">Bundle a subtree</a></li>
+        <li><a href="#public">6. Make it public</a></li>
+        <li><a href="#versioning">7. Versions at paths</a></li>
+        <li><a href="#labels">8. Labels on the whole tree</a></li>
+        <li><a href="#empty-folders">9. Empty folders</a></li>
+        <li><a href="#client-fetch">10. Fetch from a client app</a></li>
+        <li><a href="#next-steps">11. Next steps</a></li>
+      </ul>
+    </aside>
+
+    <main class="tutorial-body">
+
+      <h1>Tree Tutorial</h1>
+      <p class="lead">Organise JSON documents into paths, build a hierarchy, and serve it publicly with zero config. The file browser in the Admin UI, the REST endpoints, and the <code>wren tree</code> CLI &mdash; end to end.</p>
+
+      <div class="callout callout--related">
+        <strong>Related:</strong> Looking for the document/collection walkthrough instead? See the <a href="/tutorial">full Wren tutorial</a>.
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="getting-started">
+        <h2><span class="step-badge">1</span> Getting started</h2>
+
+        <p>Wren runs as a single Docker container backed by Postgres.</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>docker compose up -d
+# Admin UI → http://localhost:4000/admin
+# API docs  → http://localhost:4000/docs</pre>
+        </div>
+
+        <p>Open the Admin UI, register an account, and you&rsquo;ll land in your personal organisation with an empty sidebar. This tutorial uses a running example: a taekwondo federation storing tournament data as a tree.</p>
+
+        <p>A <strong>tree</strong> in Wren is a named hierarchy of paths. Each path can hold a JSON document, be an empty folder, or both. Trees live alongside collections &mdash; in fact, the documents you attach to tree paths are stored in regular collections. Trees are just a way to organise them into a navigable hierarchy.</p>
+
+        <div class="callout callout--tip">
+          <strong>Mental model.</strong> A tree is like a filesystem. Paths are directories and files. The JSON document at <code>/events/masters-2026</code> is the &ldquo;file&rdquo; &mdash; it lives in some collection (say <code>events</code>) and has its own version history. Labels and schemas apply to the underlying document, not the path.
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="first-tree">
+        <h2><span class="step-badge">2</span> Your first tree</h2>
+
+        <p>Trees are created implicitly the first time you add a path to them. There is no &ldquo;create tree&rdquo; action &mdash; just PUT a path and the tree appears in the sidebar.</p>
+
+        <h3 id="new-folder">Create a folder in the Admin UI</h3>
+        <ol class="steps-inline">
+          <li><span class="n">1</span> In the sidebar, click <strong>Trees</strong>.</li>
+          <li><span class="n">2</span> On the Trees overview, click <strong>Open</strong> next to any existing tree, or type a new tree name in the URL: <code>#/trees/events</code>.</li>
+          <li><span class="n">3</span> In the Contents card, click <strong>New folder</strong>, enter <code>masters-2026</code>, and click <strong>Create</strong>.</li>
+        </ol>
+
+        <p>You&rsquo;re now at <code>events:/ &rsaquo; masters-2026</code> with an empty folder ready to receive a document.</p>
+
+        <img src="/img/09-tree.png" alt="Tree browser at the root of the events tree" class="tutorial-screenshot">
+
+        <h3 id="cli-tree">From the CLI</h3>
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren tree set events /masters-2026</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>PUT /api/v1/tree/events/masters-2026
+{}</pre>
+          </div>
+        </div>
+
+        <p>Both commands create the <code>/masters-2026</code> path as an empty folder. No document, no collection involvement &mdash; yet.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="attach-doc">
+        <h2><span class="step-badge">3</span> Attach a document</h2>
+
+        <p>Once you&rsquo;re inside a folder, the assign panel opens automatically. It has three tabs:</p>
+        <ul>
+          <li><strong>Browse</strong> &mdash; pick an existing document from any collection.</li>
+          <li><strong>Create new</strong> &mdash; choose a collection, write the JSON, and create + assign in one step.</li>
+          <li><strong>Direct ID</strong> &mdash; paste a document ID you already know.</li>
+        </ul>
+
+        <h3 id="add-doc">Add document button</h3>
+        <p>From a parent folder, you can also attach a document directly to a child path without navigating there first. Click <strong>Add document</strong> in the Contents header:</p>
+        <ol class="steps-inline">
+          <li><span class="n">1</span> Optionally type a path segment (e.g. <code>cigra-open</code>).</li>
+          <li><span class="n">2</span> Pick a document &mdash; the child path <code>/events/cigra-open</code> is created and the document attached.</li>
+          <li><span class="n">3</span> Leave the segment blank? Wren derives it from the document&rsquo;s <code>filename</code> field (for binary assets) or its display-name rule.</li>
+        </ol>
+
+        <h3 id="create-inline">Create inline</h3>
+        <p>The most common workflow for new data: pick a collection, write the JSON, click <strong>Create &amp; assign</strong>.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Create a document first, then attach
+DOC=$(wren docs create events \
+  '{"name":"Masters 2026","city":"Augusta"}' \
+  --id-only)
+
+wren tree set events /masters-2026 $DOC</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /api/v1/events
+{ "name": "Masters 2026", "city": "Augusta" }
+→ { "id": "abc", "version": 1, ... }
+
+PUT /api/v1/tree/events/masters-2026
+{ "documentId": "abc" }</pre>
+          </div>
+        </div>
+
+        <img src="/img/09b-tree-path.png" alt="Tree browser at /masters-2026 with the document card" class="tutorial-screenshot">
+
+        <div class="callout callout--tip">
+          <strong>Names are sticky.</strong> When the UI auto-derives a segment name from a document&rsquo;s filename or title, it copies the value at assignment time &mdash; it doesn&rsquo;t stay in sync with the document. Rename the document later and the path stays the same.
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="nesting">
+        <h2><span class="step-badge">4</span> Nesting</h2>
+
+        <p>Any path can have children. From <code>/masters-2026</code>, click <strong>New folder</strong> again to create <code>/masters-2026/round-1</code>, then attach round-specific documents inside it. The breadcrumb at the top of every view lets you walk back up.</p>
+
+        <p>The tree browser shows <strong>first-level children only</strong>, so drilling into a deep tree is always one click at a time. Descendants several levels deep appear as folders (📁) with an item count; paths with an actual document show as documents (📄) with the assigned ID.</p>
+
+        <div class="callout callout--info">
+          <strong>Path names preserve case.</strong> Segments are lightly sanitized (spaces become hyphens, URL-reserved characters are stripped) but case is kept. <code>Masters 2026</code> becomes <code>Masters-2026</code>, not <code>masters-2026</code>.
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="read-back">
+        <h2><span class="step-badge">5</span> Read it back</h2>
+
+        <h3 id="single-node">Single node</h3>
+        <p>Fetching a single path returns the document at that path plus a list of immediate children.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren tree get events /masters-2026</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /api/v1/tree/events/masters-2026
+→ {
+  "path": "/masters-2026",
+  "document": { "id": "abc", "data": {...} },
+  "children": [
+    { "path": "/masters-2026/round-1", ... }
+  ]
+}</pre>
+          </div>
+        </div>
+
+        <h3 id="full-tree">Bundle a subtree</h3>
+        <p>The killer feature for client apps: append <code>?full=true</code> to get every document in a branch, all resolved, in a single request. Perfect for client-side caching.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren tree view events</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /api/v1/tree/events?full=true
+→ {
+  "tree": "events",
+  "nodes": [
+    { "path": "/masters-2026", "document": {...} },
+    { "path": "/masters-2026/round-1", "document": {...} },
+    { "path": "/cigra-open", "document": {...} }
+  ]
+}</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="public">
+        <h2><span class="step-badge">6</span> Make it public</h2>
+
+        <p>Trees can be exposed as public read-only URLs with a single permission rule. Grant <code>principal=*</code> read access to <code>tree:events</code> and every path in that tree becomes accessible without auth.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren permissions create \
+  --principal '*' \
+  --resource tree:events \
+  --access read</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>POST /api/v1/permissions
+{
+  "principal": "*",
+  "resource": "tree:events",
+  "access": "read"
+}</pre>
+          </div>
+        </div>
+
+        <p>Now anyone can fetch your tree by the org slug &mdash; no API key, no Authorization header:</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># Canonical API-v1 form
+curl https://api.example.com/api/v1/orgs/tkd/tree/events/masters-2026
+
+# Short alias for browser-friendly URLs
+curl https://api.example.com/orgs/tkd/tree/events/masters-2026</pre>
+        </div>
+
+        <div class="callout callout--info">
+          <strong>Your org slug.</strong> Find your slug in the Admin UI under <strong>Org</strong>, or set a custom one with <code>wren org set-slug &lt;slug&gt;</code>. Slugs are how the world addresses your public trees.
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="versioning">
+        <h2><span class="step-badge">7</span> Versions at paths</h2>
+
+        <p>Every document attached to a path keeps its own version history. Update the <code>masters-2026</code> document five times and the tree path keeps pointing to the latest version by default &mdash; but you can query any version explicitly.</p>
+
+        <p>Path assignments themselves are also versioned: every PUT to a tree path creates a new version of an internal tracking document in the <code>_paths</code> collection. You can see the history of who reassigned what, when, on the document&rsquo;s <strong>Paths</strong> tab.</p>
+
+        <div class="callout callout--related">
+          <strong>Versioning details.</strong> The mechanics of versions, diffs, and rollbacks are covered in the <a href="/tutorial#versioning">main tutorial &mdash; section 4</a>.
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="labels">
+        <h2><span class="step-badge">8</span> Labels on the whole tree</h2>
+
+        <p>Labels are the cleanest way to run <code>draft</code> and <code>published</code> workflows. Pin a label on each document, then pass <code>?label=published</code> when reading the tree &mdash; every path resolves to its labelled version atomically.</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># Pin version 2 of the Masters doc as 'published'
+wren labels set events abc published 2
+
+# Serve the published snapshot of the whole tree
+curl /api/v1/tree/events?full=true&amp;label=published</pre>
+        </div>
+
+        <p>Documents without the requested label are silently skipped. This makes <code>?label=published</code> a safe way to build a &ldquo;live&rdquo; view of the tree that ignores half-edited drafts.</p>
+
+        <div class="callout callout--related">
+          <strong>Label basics.</strong> See <a href="/tutorial#labels">the main tutorial &mdash; section 5</a> for the full label mechanics.
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="empty-folders">
+        <h2><span class="step-badge">9</span> Empty folders</h2>
+
+        <p>You don&rsquo;t have to attach a document to every path. Empty folders are first-class: they exist as an explicit entry in the paths table, show up as folders in the file browser, and can be created and removed independently of any document.</p>
+
+        <p>Useful for laying out the tree shape before the content lands &mdash; draft a conference schedule with empty day folders, then attach session documents later.</p>
+
+        <ol class="steps-inline">
+          <li><span class="n">1</span> Click <strong>New folder</strong> in the Contents card to create.</li>
+          <li><span class="n">2</span> Click <strong>Remove folder</strong> on an empty path to delete the explicit entry (the path reappears as an implicit parent if it still has descendants).</li>
+        </ol>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="client-fetch">
+        <h2><span class="step-badge">10</span> Fetch from a client app</h2>
+
+        <p>Public trees are designed to be fetched directly from a browser with no backend in between. Pair <code>?full=true</code> with caching headers or a CDN to ship dynamic data with static-site economics.</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">javascript</span></div>
+          <pre>// In a React / vanilla JS app
+const res = await fetch(
+  "https://api.example.com/orgs/tkd/tree/events?full=true&amp;label=published"
+);
+const { nodes } = await res.json();
+
+// nodes is now [{ path, document }, ...] for the whole tree
+const byPath = Object.fromEntries(
+  nodes.map(n =&gt; [n.path, n.document.data])
+);
+
+// Look up a specific event instantly
+const masters = byPath["/masters-2026"];</pre>
+        </div>
+
+        <p>One request. All the data. No client-side joins, no N+1s.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="next-steps">
+        <h2><span class="step-badge">11</span> Next steps</h2>
+
+        <ul>
+          <li><a href="/tutorial">Main tutorial</a> &mdash; collections, schemas, binary assets, API keys, collaborators, permissions.</li>
+          <li><a href="/docs">API reference</a> &mdash; every endpoint with request/response shapes.</li>
+          <li><a href="/admin">Admin UI</a> &mdash; the file browser lives under the <strong>Trees</strong> section of the sidebar.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+</body>
+</html>

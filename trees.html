@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wren — Versioned Tree Storage</title>
+  <meta name="description" content="Versioned tree storage for hierarchical JSON data. Organise your data into paths, serve subtrees with a single fetch, and publish public URLs with zero config." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       Navigation
+       ============================================================ -->
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/b" class="nav__logo"><img src="/wren-logo.svg" alt="Wren" class="nav__logo-img" />Wren</a>
+      <ul class="nav__links">
+        <li><a href="/tutorial/trees">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="#clients">Libraries</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="/admin">Admin</a></li>
+        <li><a href="#">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       Hero
+       ============================================================ -->
+  <section class="hero">
+    <div class="container">
+      <span class="hero__badge">Now available &middot; Cloud or self-hosted</span>
+      <h1 class="hero__title">Versioned tree storage for hierarchical data.</h1>
+      <p class="hero__sub">
+        Organise JSON documents into paths. Bundle whole subtrees with one fetch.
+        Versioning and multi-tenancy built in. Cloud hosted or self-hosted.
+      </p>
+      <div class="hero__ctas">
+        <a href="/admin" class="btn btn--primary">Open Admin UI</a>
+        <a href="/tutorial/trees" class="btn btn--secondary">Read the tutorial</a>
+      </div>
+
+      <!-- Code block -->
+      <div class="hero__code">
+        <div class="hero__code-header">
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <div class="hero__tabs">
+            <button class="hero__tab hero__tab--active" onclick="heroTab(this,'ts')">TypeScript</button>
+            <button class="hero__tab" onclick="heroTab(this,'py')">Python</button>
+            <button class="hero__tab" onclick="heroTab(this,'rest')">REST</button>
+          </div>
+        </div>
+        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @wren/client</span>
+<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+
+<span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl: <span class="tok-str">"https://…"</span>, apiKey: <span class="tok-str">"wren_…"</span> });
+
+<span class="tok-comment">// Create an event at /events/masters-2026</span>
+<span class="tok-keyword">const</span> event = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, { name: <span class="tok-str">"Masters 2026"</span>, city: <span class="tok-str">"Augusta"</span> });
+<span class="tok-keyword">await</span> wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, <span class="tok-str">"/masters-2026"</span>, event.id);
+
+<span class="tok-comment">// Fetch the whole events tree in one call</span>
+<span class="tok-keyword">const</span> full = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">getFull</span>(<span class="tok-str">"events"</span>);
+
+<span class="tok-comment">// Public read — no auth, just a URL</span>
+<span class="tok-keyword">const</span> pub = <span class="tok-keyword">await</span> <span class="tok-method">fetch</span>(<span class="tok-str">"https://api.example.com/orgs/tkd/tree/events/masters-2026"</span>);</pre>
+        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install wren-client</span>
+<span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>
+
+<span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(<span class="tok-str">"https://…"</span>, api_key=<span class="tok-str">"wren_…"</span>) <span class="tok-keyword">as</span> wren:
+    <span class="tok-comment"># Create an event at /events/masters-2026</span>
+    event = wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, {<span class="tok-str">"name"</span>: <span class="tok-str">"Masters 2026"</span>, <span class="tok-str">"city"</span>: <span class="tok-str">"Augusta"</span>})
+    wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, <span class="tok-str">"/masters-2026"</span>, event.id)
+
+    <span class="tok-comment"># Fetch the whole events tree in one call</span>
+    full = wren.trees.<span class="tok-method">get_full</span>(<span class="tok-str">"events"</span>)
+
+    <span class="tok-comment"># Public read — no auth, just a URL</span>
+    <span class="tok-keyword">import</span> httpx
+    pub = httpx.<span class="tok-method">get</span>(<span class="tok-str">"https://api.example.com/orgs/tkd/tree/events/masters-2026"</span>)</pre>
+        <pre id="hero-tab-rest" style="display:none"><span class="tok-comment"># Assign a document to a tree path</span>
+<span class="tok-method">PUT</span> <span class="tok-path">/api/v1/tree/events/masters-2026</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"documentId"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span> <span class="tok-arrow">}</span>
+
+<span class="tok-comment"># Read a single path</span>
+<span class="tok-method">GET</span> <span class="tok-path">/api/v1/tree/events/masters-2026</span>
+<span class="tok-arrow">→</span> <span class="tok-arrow">{</span> <span class="tok-key">"document"</span><span class="tok-arrow">:</span> <span class="tok-arrow">{ ... }</span><span class="tok-arrow">,</span> <span class="tok-key">"children"</span><span class="tok-arrow">:</span> <span class="tok-arrow">[ ... ] }</span>
+
+<span class="tok-comment"># Bundle the whole subtree in one request</span>
+<span class="tok-method">GET</span> <span class="tok-path">/api/v1/tree/events?full=true</span>
+<span class="tok-arrow">→</span> <span class="tok-arrow">{</span> <span class="tok-key">"nodes"</span><span class="tok-arrow">:</span> <span class="tok-arrow">[ { "path": "/masters-2026", "document": { ... } }, ... ] }</span>
+
+<span class="tok-comment"># Public read via the org slug — no auth required</span>
+<span class="tok-method">GET</span> <span class="tok-path">/orgs/tkd/tree/events/masters-2026</span>
+<span class="tok-arrow">→</span> gated by principal=* permission on tree:events</pre>
+      </div>
+      <script>
+        function heroTab(btn, id) {
+          document.querySelectorAll('.hero__tab').forEach(b => b.classList.remove('hero__tab--active'));
+          btn.classList.add('hero__tab--active');
+          ['ts','py','rest'].forEach(t => {
+            document.getElementById('hero-tab-' + t).style.display = t === id ? 'block' : 'none';
+          });
+        }
+      </script>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Features grid
+       ============================================================ -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="features__intro">
+        <p class="section-label">Features</p>
+        <h2 class="section-title">Built for hierarchical data.</h2>
+        <p class="section-sub">Trees, paths, and public URLs. Everything you need to store and serve nested JSON.</p>
+      </div>
+      <div class="features__grid">
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M3 10h10v4H3z"/><path d="M3 17h14v4H3z"/><path d="M13 7v3"/><path d="M13 14v3"/></svg></div>
+          <h3 class="feature-card__title">Paths as structure</h3>
+          <p class="feature-card__desc">Organise documents into named trees. Any hierarchy works: events, categories, org charts, taxonomies — the path <em>is</em> the data shape.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <h3 class="feature-card__title">Public read URLs</h3>
+          <p class="feature-card__desc">Grant <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">principal=*</code> read to any tree and every path is instantly public at <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">/orgs/{slug}/tree/…</code>. Zero client config.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l8-4 8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4"/><path d="M12 11v10"/></svg></div>
+          <h3 class="feature-card__title">Subtree bundling</h3>
+          <p class="feature-card__desc">Append <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?full=true</code> to fetch an entire branch with all documents resolved in a single request. Perfect for client-side caching.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l3-3"/><path d="M12 3v6l-3-3"/><circle cx="12" cy="17" r="4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg></div>
+          <h3 class="feature-card__title">Versioned at every node</h3>
+          <p class="feature-card__desc">Each document that lives at a path keeps its own version history. Swap in new versions without touching the tree. Roll back, diff, or time-travel.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+          <h3 class="feature-card__title">Label the whole tree</h3>
+          <p class="feature-card__desc">Serve a specific label across every document in a tree with one query param. <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?label=published</code> gives you a consistent snapshot.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg></div>
+          <h3 class="feature-card__title">Cloud or self-hosted</h3>
+          <p class="feature-card__desc">Start free on our cloud, or deploy to your own infrastructure with Docker. Bring your own Postgres. No vendor lock-in.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       How it works
+       ============================================================ -->
+  <section class="how" id="how-it-works">
+    <div class="container">
+      <div class="how__intro">
+        <p class="section-label">How it works</p>
+        <h2 class="section-title">Three steps to a live tree.</h2>
+        <p class="section-sub">From an empty org to a publicly readable hierarchy in a few REST calls.</p>
+      </div>
+      <div class="how__steps">
+
+        <div class="how__step">
+          <div class="how__step-num">1</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Create a path</h3>
+            <p class="how__step-desc">PUT to a tree path to create it. Folders can be empty — you can build the shape before the data lands.</p>
+          </div>
+        </div>
+
+        <div class="how__step">
+          <div class="how__step-num">2</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Attach a document</h3>
+            <p class="how__step-desc">Pass a <code style="font-family:var(--font-mono);font-size:0.9em;color:var(--color-primary)">documentId</code> to assign a JSON doc at that path. The doc keeps its own version history.</p>
+          </div>
+        </div>
+
+        <div class="how__step">
+          <div class="how__step-num">3</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Read it back</h3>
+            <p class="how__step-desc">GET a single node, GET a whole subtree with <code style="font-family:var(--font-mono);font-size:0.9em;color:var(--color-primary)">?full=true</code>, or expose it publicly and fetch it from any client.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       API reference snippet
+       ============================================================ -->
+  <section class="api-ref" id="api">
+    <div class="container">
+      <div class="api-ref__intro">
+        <p class="section-label">API Reference</p>
+        <h2 class="section-title">A handful of endpoints. Infinite hierarchy.</h2>
+        <p class="section-sub">The full API is documented at <a href="/docs" style="color:var(--color-primary)">/docs</a>. Here&rsquo;s the tree API in one glance.</p>
+      </div>
+      <div class="api-ref__block">
+        <div class="api-ref__block-header">
+          <span class="api-ref__block-lang">bash</span>
+        </div>
+        <pre><span class="tok-comment"># Assign a document to a path</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X PUT</span> <span class="tok-url">/api/v1/tree/events/masters-2026</span> \
+  <span class="tok-flag">-d</span> <span class="tok-data">'{"documentId": "abc"}'</span>
+
+<span class="tok-comment"># Create an empty folder (no document yet)</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X PUT</span> <span class="tok-url">/api/v1/tree/events/2027</span> <span class="tok-flag">-d</span> <span class="tok-data">'{}'</span>
+
+<span class="tok-comment"># Read a path with its children</span>
+<span class="tok-method">curl</span> <span class="tok-url">/api/v1/tree/events/masters-2026</span>
+
+<span class="tok-comment"># Bundle the whole tree at a specific label</span>
+<span class="tok-method">curl</span> <span class="tok-url">/api/v1/tree/events?full=true&amp;label=published</span>
+
+<span class="tok-comment"># Public read via org slug (no auth header)</span>
+<span class="tok-method">curl</span> <span class="tok-url">/orgs/tkd/tree/events/masters-2026</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Client Libraries
+       ============================================================ -->
+  <section class="clients" id="clients">
+    <div class="container">
+      <div class="clients__intro">
+        <p class="section-label">Client Libraries</p>
+        <h2 class="section-title">First-class TypeScript &amp; Python clients.</h2>
+        <p class="section-sub">Full tree API. Zero extra dependencies. Works in Node, Bun, and async Python.</p>
+      </div>
+      <div class="clients__grid">
+
+        <div class="client-card">
+          <div class="client-card__header">
+            <span class="client-card__lang">TypeScript &amp; JavaScript</span>
+            <code class="client-card__install">npm install @wren/client</code>
+          </div>
+          <pre><span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+
+<span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl, apiKey });
+
+<span class="tok-comment">// Assign, read, bundle — all strongly typed</span>
+<span class="tok-keyword">await</span> wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, <span class="tok-str">"/masters-2026"</span>, docId);
+<span class="tok-keyword">const</span> node = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">get</span>(<span class="tok-str">"events"</span>, <span class="tok-str">"/masters-2026"</span>);
+<span class="tok-keyword">const</span> full = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">getFull</span>(<span class="tok-str">"events"</span>, { label: <span class="tok-str">"published"</span> });
+<span class="tok-keyword">await</span> wren.trees.<span class="tok-method">delete</span>(<span class="tok-str">"events"</span>, <span class="tok-str">"/masters-2026"</span>);</pre>
+          <div class="client-card__footer">
+            <span class="client-card__tag">Node ≥ 18</span>
+            <span class="client-card__tag">Bun</span>
+            <span class="client-card__tag">Browser</span>
+            <span class="client-card__tag">Zero deps</span>
+          </div>
+        </div>
+
+        <div class="client-card">
+          <div class="client-card__header">
+            <span class="client-card__lang">Python</span>
+            <code class="client-card__install">pip install wren-client</code>
+          </div>
+          <pre><span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>, <span class="tok-path">AsyncWrenClient</span>
+
+<span class="tok-comment"># Sync</span>
+<span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(base_url, api_key=key) <span class="tok-keyword">as</span> wren:
+    wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, <span class="tok-str">"/masters-2026"</span>, doc_id)
+    node = wren.trees.<span class="tok-method">get</span>(<span class="tok-str">"events"</span>, <span class="tok-str">"/masters-2026"</span>)
+    full = wren.trees.<span class="tok-method">get_full</span>(<span class="tok-str">"events"</span>, label=<span class="tok-str">"published"</span>)
+
+<span class="tok-comment"># Async</span>
+<span class="tok-keyword">async with</span> <span class="tok-path">AsyncWrenClient</span>(base_url, api_key=key) <span class="tok-keyword">as</span> wren:
+    full = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">get_full</span>(<span class="tok-str">"events"</span>)</pre>
+          <div class="client-card__footer">
+            <span class="client-card__tag">Python ≥ 3.9</span>
+            <span class="client-card__tag">Sync + Async</span>
+            <span class="client-card__tag">httpx</span>
+            <span class="client-card__tag">Typed</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Pricing
+       ============================================================ -->
+  <section class="pricing" id="pricing">
+    <div class="container">
+      <div class="pricing__intro">
+        <p class="section-label">Pricing</p>
+        <h2 class="section-title">Start free. Scale when you&rsquo;re ready.</h2>
+        <p class="section-sub">Every plan includes the full API, Admin UI, versioning, labels, trees, and binary assets.</p>
+      </div>
+      <div class="pricing__grid">
+
+        <div class="pricing-card">
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Free</h3>
+            <div class="pricing-card__price">$0<span class="pricing-card__period">/month</span></div>
+            <p class="pricing-card__tagline">For personal projects and experiments.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>1 organisation</li>
+            <li>3 collections</li>
+            <li>1 000 documents</li>
+            <li>100 MB storage</li>
+            <li>10 000 API requests / day</li>
+            <li>Community support</li>
+          </ul>
+          <a href="/admin" class="btn btn--secondary pricing-card__cta">Get started</a>
+        </div>
+
+        <div class="pricing-card pricing-card--featured">
+          <div class="pricing-card__badge">Most popular</div>
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Hobby</h3>
+            <div class="pricing-card__price">$9<span class="pricing-card__period">/month</span></div>
+            <p class="pricing-card__tagline">For side projects and small teams.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>3 organisations</li>
+            <li>Unlimited collections</li>
+            <li>50 000 documents</li>
+            <li>5 GB storage</li>
+            <li>100 000 API requests / day</li>
+            <li>5 collaborators per org</li>
+            <li>API keys &amp; permissions</li>
+            <li>Email support</li>
+          </ul>
+          <a href="/admin" class="btn btn--primary pricing-card__cta">Get started</a>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Enterprise</h3>
+            <div class="pricing-card__price">Custom</div>
+            <p class="pricing-card__tagline">For production workloads and compliance.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>Unlimited organisations</li>
+            <li>Unlimited collections</li>
+            <li>Unlimited documents</li>
+            <li>Unlimited storage</li>
+            <li>Unlimited API requests</li>
+            <li>Unlimited collaborators</li>
+            <li>SSO &amp; audit logging</li>
+            <li>Self-hosted or managed</li>
+            <li>Dedicated support &amp; SLA</li>
+          </ul>
+          <a href="mailto:hello@wren.dev" class="btn btn--secondary pricing-card__cta">Contact us</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Footer
+       ============================================================ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>Wren</strong> &mdash; versioned tree storage</p>
+        <ul class="footer__links">
+          <li><a href="/admin">Admin UI</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="#">GitHub</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 Wren. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
