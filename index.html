@@ -14,7 +14,7 @@
        ============================================================ -->
   <nav class="nav">
     <div class="nav__inner">
-      <a href="/" class="nav__logo">Wren</a>
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="Wren" class="nav__logo-img" />Wren</a>
       <ul class="nav__links">
         <li><a href="/tutorial">Tutorial</a></li>
         <li><a href="/docs">Docs</a></li>
@@ -124,37 +124,37 @@
       <div class="features__grid">
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#x1F4C2;</div>
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l3-3"/><path d="M12 3v6l-3-3"/><circle cx="12" cy="17" r="4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg></div>
           <h3 class="feature-card__title">Versioned by default</h3>
           <p class="feature-card__desc">Every mutation creates a new version. Roll back, diff, or time-travel to any point. No extra setup.</p>
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#x1F3E2;</div>
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div>
           <h3 class="feature-card__title">Tenant isolation</h3>
           <p class="feature-card__desc">Each org gets its own Postgres schema. Isolation is structural &mdash; not a policy to misconfigure.</p>
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#x1F3F7;&#xFE0F;</div>
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
           <h3 class="feature-card__title">Label snapshots</h3>
           <p class="feature-card__desc">Pin any version as <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">published</code>, <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">draft</code>, or <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">staging</code>. Serve different audiences from the same document.</p>
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#x1F916;</div>
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg></div>
           <h3 class="feature-card__title">LLM-friendly</h3>
           <p class="feature-card__desc">Simple REST, JSON in and out. Safe for AI agents to write &mdash; every action is reversible.</p>
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#x1F3E0;</div>
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg></div>
           <h3 class="feature-card__title">Cloud or self-hosted</h3>
           <p class="feature-card__desc">Start free on our cloud, or deploy to your own infrastructure with Docker. Bring your own Postgres. No vendor lock-in.</p>
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#x26A1;</div>
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
           <h3 class="feature-card__title">Streamed responses</h3>
           <p class="feature-card__desc">All responses stream from Postgres to the client. Flat memory, no buffering regardless of result size.</p>
         </div>
