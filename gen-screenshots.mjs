@@ -229,20 +229,15 @@ await goto("#/collections/articles");
 await clickTab("Schema");
 await shot("08-schema.png");
 
-// ── 09. Tree browser ──────────────────────────────────────────────────────
-await goto("#/trees");
-await new Promise(r => setTimeout(r, 900));
-// Click Browse on the "site" tree
-await page.evaluate(() => {
-  const rows = [...document.querySelectorAll("tr, .tree-row, li")];
-  const siteRow = rows.find(el => el.textContent.includes("site"));
-  if (siteRow) {
-    const btn = siteRow.querySelector("button, a");
-    if (btn) btn.click();
-  }
-});
+// ── 09. Tree browser — file-browser view at root ─────────────────────────
+await goto("#/trees/site");
 await new Promise(r => setTimeout(r, 1200));
 await shot("09-tree.png");
+
+// ── 09b. Tree browser — drilled into a path with a document ──────────────
+await goto("#/trees/site?path=%2Ftournaments%2Fmasters-2026");
+await new Promise(r => setTimeout(r, 1200));
+await shot("09b-tree-path.png");
 
 // ── 10. API Keys ──────────────────────────────────────────────────────────
 await goto("#/settings/apikeys");
