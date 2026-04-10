@@ -326,34 +326,38 @@
         <li><a href="#getting-started">1. Getting started</a></li>
         <li class="tutorial-toc__sub"><a href="#login">Login &amp; account</a></li>
         <li class="tutorial-toc__sub"><a href="#org">Organisations</a></li>
-        <li><a href="#collections">2. Collections &amp; documents</a></li>
+        <li><a href="#building-blocks">2. Three building blocks</a></li>
+        <li class="tutorial-toc__sub"><a href="#bb-docs">Documents</a></li>
+        <li class="tutorial-toc__sub"><a href="#bb-versions">Versions</a></li>
+        <li class="tutorial-toc__sub"><a href="#bb-trees">Trees</a></li>
+        <li><a href="#collections">3. Collections &amp; documents</a></li>
         <li class="tutorial-toc__sub"><a href="#create-col">Create a collection</a></li>
         <li class="tutorial-toc__sub"><a href="#create-doc">Create a document</a></li>
         <li class="tutorial-toc__sub"><a href="#read-doc">Read &amp; list</a></li>
         <li class="tutorial-toc__sub"><a href="#update-doc">Update a document</a></li>
         <li class="tutorial-toc__sub"><a href="#delete-doc">Delete a document</a></li>
-        <li><a href="#binary">3. Binary assets</a></li>
+        <li><a href="#binary">4. Binary assets</a></li>
         <li class="tutorial-toc__sub"><a href="#binary-upload">Upload</a></li>
         <li class="tutorial-toc__sub"><a href="#binary-replace">Replace &amp; download</a></li>
-        <li><a href="#versioning">4. Versioning</a></li>
+        <li><a href="#versioning">5. Versioning</a></li>
         <li class="tutorial-toc__sub"><a href="#history">View history</a></li>
         <li class="tutorial-toc__sub"><a href="#diff">Diff versions</a></li>
         <li class="tutorial-toc__sub"><a href="#rollback">Rollback</a></li>
-        <li><a href="#labels">5. Labels</a></li>
-        <li><a href="#schemas">6. JSON Schemas</a></li>
+        <li><a href="#labels">6. Labels</a></li>
+        <li><a href="#schemas">7. JSON Schemas</a></li>
         <li class="tutorial-toc__sub"><a href="#schema-set">Set a schema</a></li>
         <li class="tutorial-toc__sub"><a href="#display-name">Display name rules</a></li>
-        <li><a href="#trees">7. Trees</a></li>
+        <li><a href="#trees">8. Trees</a></li>
         <li class="tutorial-toc__sub"><a href="#tree-browse">Browse a tree</a></li>
         <li class="tutorial-toc__sub"><a href="#tree-assign">Assign documents</a></li>
         <li class="tutorial-toc__sub"><a href="#tree-paths">Paths tab</a></li>
-        <li><a href="#apikeys">8. API keys</a></li>
-        <li><a href="#collab">9. Collaborators &amp; orgs</a></li>
+        <li><a href="#apikeys">9. API keys</a></li>
+        <li><a href="#collab">10. Collaborators &amp; orgs</a></li>
         <li class="tutorial-toc__sub"><a href="#invite">Invite a collaborator</a></li>
         <li class="tutorial-toc__sub"><a href="#accept">Accept an invite</a></li>
-        <li><a href="#permissions">10. Permissions</a></li>
-        <li><a href="#cli">11. CLI reference</a></li>
-        <li><a href="#clients">12. Client libraries</a></li>
+        <li><a href="#permissions">11. Permissions</a></li>
+        <li><a href="#cli">12. CLI reference</a></li>
+        <li><a href="#clients">13. Client libraries</a></li>
         <li class="tutorial-toc__sub"><a href="#clients-ts">TypeScript / Node / Bun</a></li>
         <li class="tutorial-toc__sub"><a href="#clients-py">Python</a></li>
       </ul>
@@ -362,10 +366,10 @@
     <main class="tutorial-body">
 
       <h1>Wren Tutorial</h1>
-      <p class="lead">From first login to labels, schemas, binary assets, tree navigation, and access control — a complete walkthrough of the Admin UI and CLI.</p>
+      <p class="lead">Three building blocks &mdash; documents, versions, and trees &mdash; and everything built on top of them: labels, schemas, binary assets, API keys, collaborators, and permissions. A complete walkthrough of the Admin UI and CLI.</p>
 
       <div class="callout callout--tip">
-        <strong>Focused on trees?</strong> If you&rsquo;re using Wren primarily as hierarchical storage &mdash; events, catalogues, taxonomies &mdash; start with the <a href="/tutorial/trees">tree tutorial</a> for a shorter, tree-first walkthrough.
+        <strong>Focused on trees?</strong> If you&rsquo;re using Wren primarily as hierarchical storage &mdash; events, catalogues, taxonomies &mdash; the <a href="/tutorial/trees">tree tutorial</a> is a shorter tree-first walkthrough.
       </div>
 
       <!-- ─────────────────────────────────────────────────────────── -->
@@ -422,8 +426,53 @@ PUT /api/org  {"orgId":"&lt;id&gt;"}</pre>
       <hr class="tutorial-divider" />
 
       <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="building-blocks">
+        <h2><span class="step-badge">2</span> Three building blocks</h2>
+
+        <p>Before you dive in, it helps to see the whole shape. Wren is built on three composable primitives. Each one is useful alone, and they all come together in the same API.</p>
+
+        <h3 id="bb-docs">Documents (in collections)</h3>
+        <p>A <strong>document</strong> is a JSON object. Documents live in named <strong>collections</strong> &mdash; schema-free by default, or validated by a JSON Schema when you&rsquo;re ready. Binary assets (images, PDFs, videos) are first-class and live in collections too. Everything in Wren ultimately hangs off a document.</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+          <pre>POST /api/v1/events
+{ "name": "Masters 2026", "city": "Augusta" }
+→ { "id": "abc", "version": 1, ... }</pre>
+        </div>
+        <p>Covered in <a href="#collections">section 3</a>, with binary assets in <a href="#binary">section 4</a>.</p>
+
+        <h3 id="bb-versions">Versions (and labels)</h3>
+        <p>Every mutation creates a new <strong>version</strong> &mdash; the old data is never overwritten. Roll back, diff any two versions, or pin a <strong>label</strong> like <code>published</code> or <code>draft</code> to serve a specific snapshot. Labels are how you build publish workflows without splitting your data across two collections.</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+          <pre>PUT /api/v1/events/abc   →   version 2
+POST /api/v1/events/abc/labels { "label": "published" }
+GET  /api/v1/events/abc?label=published   →   served at v2</pre>
+        </div>
+        <p>Covered in <a href="#versioning">section 5</a> and <a href="#labels">section 6</a>.</p>
+
+        <h3 id="bb-trees">Trees (paths pointing at documents)</h3>
+        <p>A <strong>tree</strong> is a named hierarchy of <strong>paths</strong>. Each path can point to a document in any collection, be an empty folder, or both. Trees give your data shape &mdash; a site map, an event calendar, a product catalogue &mdash; and let you fetch a whole branch in one request with <code>?full=true</code>. Combined with public permissions, a tree becomes a zero-config read API at <code>/orgs/{slug}/tree/…</code>.</p>
+
+        <div class="code-block paired--wide">
+          <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+          <pre>PUT /api/v1/tree/site/2026/masters { "documentId": "abc" }
+GET /api/v1/tree/site?full=true&amp;label=published</pre>
+        </div>
+        <p>Covered in <a href="#trees">section 8</a>.</p>
+
+        <div class="callout callout--info">
+          <strong>How they fit together.</strong> Documents store the data, versions keep the history, trees give the structure. You can use any one without the others &mdash; a schema-free collection with no labels or trees is a valid Wren app. But when you need them, each layer composes cleanly with the rest.
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="collections">
-        <h2><span class="step-badge">2</span> Collections &amp; documents</h2>
+        <h2><span class="step-badge">3</span> Collections &amp; documents</h2>
 
         <p>A <strong>collection</strong> is a named bucket for JSON documents. Collections are listed in the sidebar with their document counts.</p>
 
@@ -549,7 +598,7 @@ GET /pages/abc123?label=published</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="binary">
-        <h2><span class="step-badge">3</span> Binary assets</h2>
+        <h2><span class="step-badge">4</span> Binary assets</h2>
 
         <p>Collections can store binary files (images, videos, PDFs, etc.) instead of JSON. Set <strong>Collection type</strong> to <em>Binary assets</em> in the Schema tab to enable this mode.</p>
 
@@ -608,7 +657,7 @@ PUT /images/xyz   (multipart/form-data, field: file)</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="versioning">
-        <h2><span class="step-badge">4</span> Versioning</h2>
+        <h2><span class="step-badge">5</span> Versioning</h2>
 
         <p>Every mutation — create, update, rollback — produces a new numbered version. Versions start at 1, increment by 1, and are immutable. Nothing is ever deleted from the version history.</p>
 
@@ -665,7 +714,7 @@ wren rollback pages abc123 1</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="labels">
-        <h2><span class="step-badge">5</span> Labels</h2>
+        <h2><span class="step-badge">6</span> Labels</h2>
 
         <p>A <strong>label</strong> is a named pointer to a specific version — like a Git tag. Moving a label never changes the underlying versions. Common labels: <code>published</code>, <code>stable</code>, <code>draft</code>.</p>
 
@@ -713,7 +762,7 @@ GET /pages?label=published</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="schemas">
-        <h2><span class="step-badge">6</span> JSON Schemas</h2>
+        <h2><span class="step-badge">7</span> JSON Schemas</h2>
 
         <p>By default a new collection accepts any JSON object. Attach a <a href="https://json-schema.org/" target="_blank">JSON Schema</a> to enforce a strict shape — every write is validated and rejected with <code>422</code> if it fails.</p>
 
@@ -789,7 +838,7 @@ DELETE /pages/_schema</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="trees">
-        <h2><span class="step-badge">7</span> Trees</h2>
+        <h2><span class="step-badge">8</span> Trees</h2>
 
         <p>A <strong>tree</strong> maps URL-style paths to documents — like a filesystem or a CMS route table. A tenant can have multiple named trees (e.g. <code>main</code> and <code>staging</code>). The same document can appear in multiple trees at different paths.</p>
 
@@ -883,7 +932,7 @@ DELETE /tree/main/site/about</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="apikeys">
-        <h2><span class="step-badge">8</span> API keys</h2>
+        <h2><span class="step-badge">9</span> API keys</h2>
 
         <p>API keys let scripts and services authenticate without a user session. Keys are prefixed with <code>wren_</code> and passed as a <code>Bearer</code> token.</p>
 
@@ -921,7 +970,7 @@ Authorization: Bearer wren_abc123…</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="collab">
-        <h2><span class="step-badge">9</span> Collaborators &amp; orgs</h2>
+        <h2><span class="step-badge">10</span> Collaborators &amp; orgs</h2>
 
         <p>Invite other users to your organisation. They get their own login but share access to your collections, trees, and settings.</p>
 
@@ -992,7 +1041,7 @@ DELETE /api/members/&lt;userId&gt;</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="permissions">
-        <h2><span class="step-badge">10</span> Permissions</h2>
+        <h2><span class="step-badge">11</span> Permissions</h2>
 
         <img src="/img/12-permissions.png" alt="Permissions page with access rules" class="tutorial-screenshot">
 
@@ -1062,7 +1111,7 @@ DELETE /api/permissions/&lt;id&gt;</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="cli">
-        <h2><span class="step-badge">11</span> CLI reference</h2>
+        <h2><span class="step-badge">12</span> CLI reference</h2>
 
         <h3>Setup</h3>
         <div class="code-block paired--wide">
@@ -1154,7 +1203,7 @@ wren permissions delete &lt;id&gt;</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="clients">
-        <h2><span class="step-badge">12</span> Client libraries</h2>
+        <h2><span class="step-badge">13</span> Client libraries</h2>
 
         <p>Wren ships official client libraries for TypeScript/JavaScript and Python. Both cover the full API surface — documents, versions, labels, diff, schemas, trees, keys, invites, permissions — with complete type definitions.</p>
 

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wren — Documents, Versions, and Trees</title>
+  <meta name="description" content="Versioned JSON documents, hierarchical trees, and multi-tenant isolation in one API. Three things you'll never have to build again." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       Navigation
+       ============================================================ -->
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/c" class="nav__logo"><img src="/wren-logo.svg" alt="Wren" class="nav__logo-img" />Wren</a>
+      <ul class="nav__links">
+        <li><a href="/tutorial">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="#clients">Libraries</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="/admin">Admin</a></li>
+        <li><a href="#">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       Hero
+       ============================================================ -->
+  <section class="hero">
+    <div class="container">
+      <span class="hero__badge">Now available &middot; Cloud or self-hosted</span>
+      <h1 class="hero__title">Three things you&rsquo;ll never have to build again.</h1>
+      <p class="hero__sub">
+        Versioned documents. Hierarchical trees. Multi-tenant isolation. All in one API.
+        Cloud hosted or deploy to your own infrastructure.
+      </p>
+      <div class="hero__ctas">
+        <a href="/admin" class="btn btn--primary">Open Admin UI</a>
+        <a href="/tutorial" class="btn btn--secondary">Read the tutorial</a>
+      </div>
+
+      <!-- Code block -->
+      <div class="hero__code">
+        <div class="hero__code-header">
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <div class="hero__tabs">
+            <button class="hero__tab hero__tab--active" onclick="heroTab(this,'ts')">TypeScript</button>
+            <button class="hero__tab" onclick="heroTab(this,'py')">Python</button>
+            <button class="hero__tab" onclick="heroTab(this,'rest')">REST</button>
+          </div>
+        </div>
+        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @wren/client</span>
+<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+
+<span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl: <span class="tok-str">"https://…"</span>, apiKey: <span class="tok-str">"wren_…"</span> });
+
+<span class="tok-comment">// 1. Documents — create in a collection</span>
+<span class="tok-keyword">const</span> doc = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, { name: <span class="tok-str">"Masters 2026"</span> });
+
+<span class="tok-comment">// 2. Versions — every update creates a new one</span>
+<span class="tok-keyword">await</span> wren.documents.<span class="tok-method">update</span>(<span class="tok-str">"events"</span>, doc.id, { name: <span class="tok-str">"Masters 2026"</span>, champion: <span class="tok-str">"Scheffler"</span> });
+<span class="tok-keyword">await</span> wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, doc.id, <span class="tok-str">"published"</span>);
+
+<span class="tok-comment">// 3. Trees — attach to any path, fetch the whole branch in one call</span>
+<span class="tok-keyword">await</span> wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/2026/masters"</span>, doc.id);
+<span class="tok-keyword">const</span> bundle = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">getFull</span>(<span class="tok-str">"site"</span>, { label: <span class="tok-str">"published"</span> });</pre>
+        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install wren-client</span>
+<span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>
+
+<span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(<span class="tok-str">"https://…"</span>, api_key=<span class="tok-str">"wren_…"</span>) <span class="tok-keyword">as</span> wren:
+    <span class="tok-comment"># 1. Documents</span>
+    doc = wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, {<span class="tok-str">"name"</span>: <span class="tok-str">"Masters 2026"</span>})
+
+    <span class="tok-comment"># 2. Versions</span>
+    wren.documents.<span class="tok-method">update</span>(<span class="tok-str">"events"</span>, doc.id, {<span class="tok-str">"name"</span>: <span class="tok-str">"Masters 2026"</span>, <span class="tok-str">"champion"</span>: <span class="tok-str">"Scheffler"</span>})
+    wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, doc.id, <span class="tok-str">"published"</span>)
+
+    <span class="tok-comment"># 3. Trees</span>
+    wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/2026/masters"</span>, doc.id)
+    bundle = wren.trees.<span class="tok-method">get_full</span>(<span class="tok-str">"site"</span>, label=<span class="tok-str">"published"</span>)</pre>
+        <pre id="hero-tab-rest" style="display:none"><span class="tok-comment"># 1. Document — create in a collection</span>
+<span class="tok-method">POST</span> <span class="tok-path">/api/v1/events</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"name"</span><span class="tok-arrow">:</span> <span class="tok-str">"Masters 2026"</span> <span class="tok-arrow">}</span>
+<span class="tok-arrow">→</span> <span class="tok-arrow">{</span> <span class="tok-key">"id"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span><span class="tok-arrow">,</span> <span class="tok-key">"version"</span><span class="tok-arrow">:</span> <span class="tok-str">1</span><span class="tok-arrow">,</span> <span class="tok-arrow">...}</span>
+
+<span class="tok-comment"># 2. Version — every PUT creates a new one</span>
+<span class="tok-method">PUT</span> <span class="tok-path">/api/v1/events/abc</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"name"</span><span class="tok-arrow">:</span> <span class="tok-str">"Masters 2026"</span><span class="tok-arrow">,</span> <span class="tok-key">"champion"</span><span class="tok-arrow">:</span> <span class="tok-str">"Scheffler"</span> <span class="tok-arrow">}</span>
+<span class="tok-method">POST</span> <span class="tok-path">/api/v1/events/abc/labels</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"label"</span><span class="tok-arrow">:</span> <span class="tok-label">"published"</span> <span class="tok-arrow">}</span>
+
+<span class="tok-comment"># 3. Tree — attach at any path, bundle the branch</span>
+<span class="tok-method">PUT</span> <span class="tok-path">/api/v1/tree/site/2026/masters</span>
+<span class="tok-arrow">{</span> <span class="tok-key">"documentId"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span> <span class="tok-arrow">}</span>
+<span class="tok-method">GET</span> <span class="tok-path">/api/v1/tree/site?full=true&amp;label=published</span></pre>
+      </div>
+      <script>
+        function heroTab(btn, id) {
+          document.querySelectorAll('.hero__tab').forEach(b => b.classList.remove('hero__tab--active'));
+          btn.classList.add('hero__tab--active');
+          ['ts','py','rest'].forEach(t => {
+            document.getElementById('hero-tab-' + t).style.display = t === id ? 'block' : 'none';
+          });
+        }
+      </script>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Features grid
+       ============================================================ -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="features__intro">
+        <p class="section-label">Features</p>
+        <h2 class="section-title">Collections, versions, trees.</h2>
+        <p class="section-sub">Three primitives that compose. Pick the ones you need &mdash; they all come together.</p>
+      </div>
+      <div class="features__grid">
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <h3 class="feature-card__title">Schema-free documents</h3>
+          <p class="feature-card__desc">POST any JSON object into a collection. Attach a JSON Schema later if you want validation. Bring binary assets along for the ride.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l3-3"/><path d="M12 3v6l-3-3"/><circle cx="12" cy="17" r="4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg></div>
+          <h3 class="feature-card__title">Versioned by default</h3>
+          <p class="feature-card__desc">Every mutation creates a new version. Roll back, diff, or time-travel to any point. No extra setup.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+          <h3 class="feature-card__title">Label snapshots</h3>
+          <p class="feature-card__desc">Pin any version as <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">published</code>, <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">draft</code>, or <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">staging</code>. Serve different audiences from the same document.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M3 10h10v4H3z"/><path d="M3 17h14v4H3z"/><path d="M13 7v3"/><path d="M13 14v3"/></svg></div>
+          <h3 class="feature-card__title">Trees bundle hierarchy</h3>
+          <p class="feature-card__desc">Organise documents into named paths. Fetch whole subtrees with <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?full=true</code>. Public read URLs with zero config.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div>
+          <h3 class="feature-card__title">Tenant isolation</h3>
+          <p class="feature-card__desc">Each org gets its own Postgres schema. Isolation is structural &mdash; not a policy to misconfigure.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg></div>
+          <h3 class="feature-card__title">Cloud or self-hosted</h3>
+          <p class="feature-card__desc">Start free on our cloud, or deploy to your own infrastructure with Docker. Bring your own Postgres. No vendor lock-in.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       How it works
+       ============================================================ -->
+  <section class="how" id="how-it-works">
+    <div class="container">
+      <div class="how__intro">
+        <p class="section-label">How it works</p>
+        <h2 class="section-title">Three primitives. One API.</h2>
+        <p class="section-sub">Each one is useful on its own &mdash; together they replace a week of plumbing.</p>
+      </div>
+      <div class="how__steps">
+
+        <div class="how__step">
+          <div class="how__step-num">1</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Collections hold your data</h3>
+            <p class="how__step-desc">POST any JSON object. Schema-free by default, or attach a JSON Schema when you&rsquo;re ready to lock it down. Binary uploads are first-class.</p>
+          </div>
+        </div>
+
+        <div class="how__step">
+          <div class="how__step-num">2</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Versions remember everything</h3>
+            <p class="how__step-desc">Every write creates a version. Diff, roll back, or pin a label to serve a specific snapshot to your clients.</p>
+          </div>
+        </div>
+
+        <div class="how__step">
+          <div class="how__step-num">3</div>
+          <div class="how__step-body">
+            <h3 class="how__step-title">Trees give you structure</h3>
+            <p class="how__step-desc">Organise documents into a named hierarchy. Fetch a single path, bundle a subtree, or expose the whole thing as public URLs.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       API reference snippet
+       ============================================================ -->
+  <section class="api-ref" id="api">
+    <div class="container">
+      <div class="api-ref__intro">
+        <p class="section-label">API Reference</p>
+        <h2 class="section-title">A handful of endpoints. Documents, versions, trees.</h2>
+        <p class="section-sub">The full API is documented at <a href="/docs" style="color:var(--color-primary)">/docs</a>. Here&rsquo;s the shape of it.</p>
+      </div>
+      <div class="api-ref__block">
+        <div class="api-ref__block-header">
+          <span class="api-ref__block-lang">bash</span>
+        </div>
+        <pre><span class="tok-comment"># Create a document</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X POST</span> <span class="tok-url">/api/v1/events</span> \
+  <span class="tok-flag">-d</span> <span class="tok-data">'{"name": "Masters 2026"}'</span>
+
+<span class="tok-comment"># Update (creates version 2)</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X PUT</span> <span class="tok-url">/api/v1/events/abc</span> \
+  <span class="tok-flag">-d</span> <span class="tok-data">'{"name": "Masters 2026", "champion": "Scheffler"}'</span>
+
+<span class="tok-comment"># Pin a label</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X POST</span> <span class="tok-url">/api/v1/events/abc/labels</span> \
+  <span class="tok-flag">-d</span> <span class="tok-data">'{"label": "published"}'</span>
+
+<span class="tok-comment"># Attach to a tree path</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-X PUT</span> <span class="tok-url">/api/v1/tree/site/2026/masters</span> \
+  <span class="tok-flag">-d</span> <span class="tok-data">'{"documentId": "abc"}'</span>
+
+<span class="tok-comment"># Bundle the published snapshot of the whole site tree</span>
+<span class="tok-method">curl</span> <span class="tok-url">/api/v1/tree/site?full=true&amp;label=published</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Client Libraries
+       ============================================================ -->
+  <section class="clients" id="clients">
+    <div class="container">
+      <div class="clients__intro">
+        <p class="section-label">Client Libraries</p>
+        <h2 class="section-title">First-class TypeScript &amp; Python clients.</h2>
+        <p class="section-sub">Documents, versions, labels, trees. Full types. Zero extra dependencies. Works in Node, Bun, and async Python.</p>
+      </div>
+      <div class="clients__grid">
+
+        <div class="client-card">
+          <div class="client-card__header">
+            <span class="client-card__lang">TypeScript &amp; JavaScript</span>
+            <code class="client-card__install">npm install @wren/client</code>
+          </div>
+          <pre><span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+
+<span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl, apiKey });
+
+<span class="tok-comment">// Documents</span>
+<span class="tok-keyword">const</span> doc = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, data);
+
+<span class="tok-comment">// Versions &amp; labels</span>
+<span class="tok-keyword">const</span> hist = <span class="tok-keyword">await</span> wren.versions.<span class="tok-method">list</span>(<span class="tok-str">"events"</span>, doc.id);
+<span class="tok-keyword">await</span> wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, doc.id, <span class="tok-str">"published"</span>);
+
+<span class="tok-comment">// Trees</span>
+<span class="tok-keyword">await</span> wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/2026/masters"</span>, doc.id);
+<span class="tok-keyword">const</span> bundle = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">getFull</span>(<span class="tok-str">"site"</span>);</pre>
+          <div class="client-card__footer">
+            <span class="client-card__tag">Node ≥ 18</span>
+            <span class="client-card__tag">Bun</span>
+            <span class="client-card__tag">Browser</span>
+            <span class="client-card__tag">Zero deps</span>
+          </div>
+        </div>
+
+        <div class="client-card">
+          <div class="client-card__header">
+            <span class="client-card__lang">Python</span>
+            <code class="client-card__install">pip install wren-client</code>
+          </div>
+          <pre><span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>, <span class="tok-path">AsyncWrenClient</span>
+
+<span class="tok-comment"># Sync — documents, versions, trees</span>
+<span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(base_url, api_key=key) <span class="tok-keyword">as</span> wren:
+    doc = wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, data)
+    wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, doc.id, <span class="tok-str">"published"</span>)
+    wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/2026/masters"</span>, doc.id)
+
+<span class="tok-comment"># Async</span>
+<span class="tok-keyword">async with</span> <span class="tok-path">AsyncWrenClient</span>(base_url, api_key=key) <span class="tok-keyword">as</span> wren:
+    bundle = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">get_full</span>(<span class="tok-str">"site"</span>)</pre>
+          <div class="client-card__footer">
+            <span class="client-card__tag">Python ≥ 3.9</span>
+            <span class="client-card__tag">Sync + Async</span>
+            <span class="client-card__tag">httpx</span>
+            <span class="client-card__tag">Typed</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Pricing
+       ============================================================ -->
+  <section class="pricing" id="pricing">
+    <div class="container">
+      <div class="pricing__intro">
+        <p class="section-label">Pricing</p>
+        <h2 class="section-title">Start free. Scale when you&rsquo;re ready.</h2>
+        <p class="section-sub">Every plan includes the full API, Admin UI, versioning, labels, trees, and binary assets.</p>
+      </div>
+      <div class="pricing__grid">
+
+        <div class="pricing-card">
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Free</h3>
+            <div class="pricing-card__price">$0<span class="pricing-card__period">/month</span></div>
+            <p class="pricing-card__tagline">For personal projects and experiments.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>1 organisation</li>
+            <li>3 collections</li>
+            <li>1 000 documents</li>
+            <li>100 MB storage</li>
+            <li>10 000 API requests / day</li>
+            <li>Community support</li>
+          </ul>
+          <a href="/admin" class="btn btn--secondary pricing-card__cta">Get started</a>
+        </div>
+
+        <div class="pricing-card pricing-card--featured">
+          <div class="pricing-card__badge">Most popular</div>
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Hobby</h3>
+            <div class="pricing-card__price">$9<span class="pricing-card__period">/month</span></div>
+            <p class="pricing-card__tagline">For side projects and small teams.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>3 organisations</li>
+            <li>Unlimited collections</li>
+            <li>50 000 documents</li>
+            <li>5 GB storage</li>
+            <li>100 000 API requests / day</li>
+            <li>5 collaborators per org</li>
+            <li>API keys &amp; permissions</li>
+            <li>Email support</li>
+          </ul>
+          <a href="/admin" class="btn btn--primary pricing-card__cta">Get started</a>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Enterprise</h3>
+            <div class="pricing-card__price">Custom</div>
+            <p class="pricing-card__tagline">For production workloads and compliance.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>Unlimited organisations</li>
+            <li>Unlimited collections</li>
+            <li>Unlimited documents</li>
+            <li>Unlimited storage</li>
+            <li>Unlimited API requests</li>
+            <li>Unlimited collaborators</li>
+            <li>SSO &amp; audit logging</li>
+            <li>Self-hosted or managed</li>
+            <li>Dedicated support &amp; SLA</li>
+          </ul>
+          <a href="mailto:hello@wren.dev" class="btn btn--secondary pricing-card__cta">Contact us</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Footer
+       ============================================================ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>Wren</strong> &mdash; documents, versions, and trees</p>
+        <ul class="footer__links">
+          <li><a href="/admin">Admin UI</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="#">GitHub</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 Wren. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
