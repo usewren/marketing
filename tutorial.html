@@ -347,6 +347,7 @@
         <li><a href="#schemas">7. JSON Schemas</a></li>
         <li class="tutorial-toc__sub"><a href="#schema-set">Set a schema</a></li>
         <li class="tutorial-toc__sub"><a href="#display-name">Display name rules</a></li>
+        <li class="tutorial-toc__sub"><a href="#schema-grandfathering">Changing a schema</a></li>
         <li><a href="#trees">8. Trees</a></li>
         <li class="tutorial-toc__sub"><a href="#tree-browse">Browse a tree</a></li>
         <li class="tutorial-toc__sub"><a href="#tree-assign">Assign documents</a></li>
@@ -831,6 +832,24 @@ DELETE /pages/_schema</pre>
   "schema": {"type":"object","additionalProperties":true}
 }</pre>
           </div>
+        </div>
+
+        <h3 id="schema-grandfathering">Changing a schema on existing data</h3>
+        <p>Wren does not validate existing documents when you set or change a schema. The rules apply going forward:</p>
+        <ul>
+          <li><strong>POST a new document</strong> — validated against the current schema; rejected with <code>422</code> if it fails.</li>
+          <li><strong>PUT an update</strong> — same. Every write must satisfy the current schema.</li>
+          <li><strong>Existing documents</strong> — left untouched. If you tighten the schema, already-stored documents that no longer match are <em>grandfathered</em>: they keep working, but you cannot update them without also bringing them into compliance.</li>
+          <li><strong>Rollback</strong> — writes a new version containing the old data <em>without</em> running validation. This means you can roll a document back to a pre-schema version even after tightening the schema. The next PUT on that document, however, must satisfy the current rules.</li>
+          <li><strong>Reads</strong> — never validated. Clients always get whatever is stored.</li>
+        </ul>
+
+        <div class="callout callout--warn">
+          <strong>Migration is manual.</strong> There is no "run the new schema against every existing document" tool yet. If you need every doc to satisfy a stricter shape, you have to walk the collection yourself (list all, for each one: load, transform, PUT back) — and because PUT validates, any doc you miss will fail loudly the next time something tries to update it.
+        </div>
+
+        <div class="callout callout--tip">
+          <strong>Widen freely, tighten with care.</strong> Adding optional fields or removing <code>required</code> constraints is safe: existing docs still match. Adding new <code>required</code> fields, tightening types, or setting <code>additionalProperties: false</code> are the changes that strand existing data in "readable but not re-writable" purgatory. Test the new schema against a few real documents before shipping it.
         </div>
       </section>
 
