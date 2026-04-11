@@ -348,6 +348,7 @@
         <li class="tutorial-toc__sub"><a href="#schema-set">Set a schema</a></li>
         <li class="tutorial-toc__sub"><a href="#display-name">Display name rules</a></li>
         <li class="tutorial-toc__sub"><a href="#schema-grandfathering">Changing a schema</a></li>
+        <li class="tutorial-toc__sub"><a href="#schema-validate">Dry-run validation</a></li>
         <li><a href="#trees">8. Trees</a></li>
         <li class="tutorial-toc__sub"><a href="#tree-browse">Browse a tree</a></li>
         <li class="tutorial-toc__sub"><a href="#tree-assign">Assign documents</a></li>
@@ -851,6 +852,70 @@ DELETE /pages/_schema</pre>
         <div class="callout callout--tip">
           <strong>Widen freely, tighten with care.</strong> Adding optional fields or removing <code>required</code> constraints is safe: existing docs still match. Adding new <code>required</code> fields, tightening types, or setting <code>additionalProperties: false</code> are the changes that strand existing data in "readable but not re-writable" purgatory. Test the new schema against a few real documents before shipping it.
         </div>
+
+        <h3 id="schema-validate">Dry-run: validate existing docs against a schema</h3>
+        <p>Before tightening a schema, you can ask Wren to run it against every existing document in the collection and report which ones would fail &mdash; without actually changing anything. Useful as a pre-flight check, or as a CI gate for schema changes.</p>
+
+        <p>Hit <code>GET /api/v1/{collection}/_schema/validate</code> to run the <em>currently-stored</em> schema against every document (useful for spotting grandfathered docs from a previous tightening). Or <code>POST</code> with a schema in the body to dry-run a <em>proposed</em> schema before committing to it.</p>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># Validate against the currently-stored schema
+wren schema validate pages
+
+# Validate a proposed schema before saving it
+wren schema validate pages '{
+  "type":"object",
+  "required":["title","author"],
+  "properties":{
+    "title":{"type":"string"},
+    "author":{"type":"string"}
+  }
+}'
+
+# --json for the raw response (good for piping to jq)
+wren schema validate pages --json
+
+# --max / --limit for very large collections
+wren schema validate pages --max=50000 --limit=500</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre># Current schema against all existing docs
+GET /api/v1/pages/_schema/validate?max=10000&amp;limit=100
+
+# Proposed schema (wrapper form)
+POST /api/v1/pages/_schema/validate
+{"schema":{"type":"object","required":["title"],...}}</pre>
+          </div>
+        </div>
+
+        <p>The response reports totals plus up to <code>limit</code> failing documents with their id, current version, and the exact ajv error messages:</p>
+
+        <div class="code-block paired--wide" style="margin:16px 0 8px">
+          <div class="code-block__header"><span class="code-block__lang">json</span><span class="code-block__label">Response</span></div>
+          <pre>{
+  "collection": "pages",
+  "schemaSource": "proposed",
+  "checked": 150,
+  "limitReached": false,
+  "valid": 147,
+  "invalid": 3,
+  "failures": [
+    { "id": "abc", "version": 5, "errors": ["/author must be string"] },
+    { "id": "def", "version": 2, "errors": ["/title must NOT have fewer than 1 characters"] },
+    { "id": "ghi", "version": 1, "errors": ["/ must have required property 'author'"] }
+  ],
+  "failuresTruncated": false
+}</pre>
+        </div>
+
+        <div class="callout callout--info">
+          <strong>Exit codes gate deployments.</strong> <code>wren schema validate</code> exits with status 1 when any documents would fail. So <code>wren schema validate pages &amp;&amp; wren schema set pages '…' &amp;&amp; deploy.sh</code> is a safe pipeline: the schema only gets set, and the deploy only runs, if every existing document already passes.
+        </div>
+
+        <p>The endpoint is read-only. It requires <code>read</code> access to the collection (anyone who can read the data can dry-run a schema against it); schema <em>changes</em> still require <code>admin</code>. It caps at 50 000 documents per call &mdash; for larger collections, <code>limitReached: true</code> in the response tells you there's more to check.</p>
       </section>
 
       <hr class="tutorial-divider" />
