@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tree Tutorial — Wren</title>
-  <meta name="description" content="Build hierarchical JSON storage with Wren trees: paths, public URLs, subtree bundling, labels, and empty folders." />
+  <title>Tree Tutorial — WREN</title>
+  <meta name="description" content="Build hierarchical JSON storage with WREN trees: paths, public URLs, subtree bundling, labels, and empty folders." />
   <link rel="stylesheet" href="/styles.css" />
   <style>
     .tutorial-screenshot {
@@ -295,7 +295,7 @@
 
   <nav class="nav">
     <div class="nav__inner">
-      <a href="/b" class="nav__logo">Wren</a>
+      <a href="/b" class="nav__logo">WREN</a>
       <ul class="nav__links">
         <li><a href="/tutorial/trees" style="color:var(--color-primary);font-weight:600">Tutorial</a></li>
         <li><a href="/docs">API Docs</a></li>
@@ -335,14 +335,14 @@
       <p class="lead">Organise JSON documents into paths, build a hierarchy, and serve it publicly with zero config. The file browser in the Admin UI, the REST endpoints, and the <code>wren tree</code> CLI &mdash; end to end.</p>
 
       <div class="callout callout--related">
-        <strong>Related:</strong> Looking for the document/collection walkthrough instead? See the <a href="/tutorial">full Wren tutorial</a>.
+        <strong>Related:</strong> Looking for the document/collection walkthrough instead? See the <a href="/tutorial">full WREN tutorial</a>.
       </div>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="getting-started">
         <h2><span class="step-badge">1</span> Getting started</h2>
 
-        <p>Wren runs as a single Docker container backed by Postgres.</p>
+        <p>WREN runs as a single Docker container backed by Postgres.</p>
 
         <div class="code-block paired--wide">
           <div class="code-block__header"><span class="code-block__lang">bash</span></div>
@@ -353,7 +353,7 @@
 
         <p>Open the Admin UI, register an account, and you&rsquo;ll land in your personal organisation with an empty sidebar. This tutorial uses a running example: a taekwondo federation storing tournament data as a tree.</p>
 
-        <p>A <strong>tree</strong> in Wren is a named hierarchy of paths. Each path can hold a JSON document, be an empty folder, or both. Trees live alongside collections &mdash; in fact, the documents you attach to tree paths are stored in regular collections. Trees are just a way to organise them into a navigable hierarchy.</p>
+        <p>A <strong>tree</strong> in WREN is a named hierarchy of paths. Each path can hold a JSON document, be an empty folder, or both. Trees live alongside collections &mdash; in fact, the documents you attach to tree paths are stored in regular collections. Trees are just a way to organise them into a navigable hierarchy.</p>
 
         <div class="callout callout--tip">
           <strong>Mental model.</strong> A tree is like a filesystem. Paths are directories and files. The JSON document at <code>/events/masters-2026</code> is the &ldquo;file&rdquo; &mdash; it lives in some collection (say <code>events</code>) and has its own version history. Labels and schemas apply to the underlying document, not the path.
@@ -409,7 +409,7 @@
         <ol class="steps-inline">
           <li><span class="n">1</span> Optionally type a path segment (e.g. <code>cigra-open</code>).</li>
           <li><span class="n">2</span> Pick a document &mdash; the child path <code>/events/cigra-open</code> is created and the document attached.</li>
-          <li><span class="n">3</span> Leave the segment blank? Wren derives it from the document&rsquo;s <code>filename</code> field (for binary assets) or its display-name rule.</li>
+          <li><span class="n">3</span> Leave the segment blank? WREN derives it from the document&rsquo;s <code>filename</code> field (for binary assets) or its display-name rule.</li>
         </ol>
 
         <h3 id="create-inline">Create inline</h3>

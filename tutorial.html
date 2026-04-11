@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tutorial — Wren</title>
-  <meta name="description" content="A hands-on guide to Wren: collections, versioning, labels, schemas, binary assets, trees, API keys, collaborators, permissions, and the CLI." />
+  <title>Tutorial — WREN</title>
+  <meta name="description" content="A hands-on guide to WREN: collections, versioning, labels, schemas, binary assets, trees, API keys, collaborators, permissions, and the CLI." />
   <link rel="stylesheet" href="/styles.css" />
   <style>
     .tutorial-screenshot {
@@ -309,7 +309,7 @@
 
   <nav class="nav">
     <div class="nav__inner">
-      <a href="/" class="nav__logo">Wren</a>
+      <a href="/" class="nav__logo">WREN</a>
       <ul class="nav__links">
         <li><a href="/tutorial" style="color:var(--color-primary);font-weight:600">Tutorial</a></li>
         <li><a href="/docs">API Docs</a></li>
@@ -367,18 +367,18 @@
 
     <main class="tutorial-body">
 
-      <h1>Wren Tutorial</h1>
+      <h1>WREN Tutorial</h1>
       <p class="lead">Three building blocks &mdash; documents, versions, and trees &mdash; and everything built on top of them: labels, schemas, binary assets, API keys, collaborators, and permissions. A complete walkthrough of the Admin UI and CLI.</p>
 
       <div class="callout callout--tip">
-        <strong>Focused on trees?</strong> If you&rsquo;re using Wren primarily as hierarchical storage &mdash; events, catalogues, taxonomies &mdash; the <a href="/tutorial/trees">tree tutorial</a> is a shorter tree-first walkthrough.
+        <strong>Focused on trees?</strong> If you&rsquo;re using WREN primarily as hierarchical storage &mdash; events, catalogues, taxonomies &mdash; the <a href="/tutorial/trees">tree tutorial</a> is a shorter tree-first walkthrough.
       </div>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="getting-started">
         <h2><span class="step-badge">1</span> Getting started</h2>
 
-        <p>Wren runs as a single Docker container backed by Postgres. Start everything with:</p>
+        <p>WREN runs as a single Docker container backed by Postgres. Start everything with:</p>
 
         <div class="code-block paired--wide">
           <div class="code-block__header"><span class="code-block__lang">bash</span></div>
@@ -406,10 +406,10 @@ GET /api/auth/get-session</pre>
           </div>
         </div>
 
-        <img src="/img/01-login.png" alt="Wren login screen" class="tutorial-screenshot">
+        <img src="/img/01-login.png" alt="WREN login screen" class="tutorial-screenshot">
 
         <h3 id="org">Organisations</h3>
-        <p>When you sign up, Wren creates an organisation for you. Every collection, document, and tree belongs to an organisation — data is fully isolated between orgs. If you're a member of multiple orgs, a dropdown in the sidebar lets you switch the active one.</p>
+        <p>When you sign up, WREN creates an organisation for you. Every collection, document, and tree belongs to an organisation — data is fully isolated between orgs. If you're a member of multiple orgs, a dropdown in the sidebar lets you switch the active one.</p>
 
         <div class="paired">
           <div class="code-block">
@@ -431,10 +431,10 @@ PUT /api/org  {"orgId":"&lt;id&gt;"}</pre>
       <section class="tutorial-section" id="building-blocks">
         <h2><span class="step-badge">2</span> Three building blocks</h2>
 
-        <p>Before you dive in, it helps to see the whole shape. Wren is built on three composable primitives. Each one is useful alone, and they all come together in the same API.</p>
+        <p>Before you dive in, it helps to see the whole shape. WREN is built on three composable primitives. Each one is useful alone, and they all come together in the same API.</p>
 
         <h3 id="bb-docs">Documents (in collections)</h3>
-        <p>A <strong>document</strong> is a JSON object. Documents live in named <strong>collections</strong> &mdash; schema-free by default, or validated by a JSON Schema when you&rsquo;re ready. Binary assets (images, PDFs, videos) are first-class and live in collections too. Everything in Wren ultimately hangs off a document.</p>
+        <p>A <strong>document</strong> is a JSON object. Documents live in named <strong>collections</strong> &mdash; schema-free by default, or validated by a JSON Schema when you&rsquo;re ready. Binary assets (images, PDFs, videos) are first-class and live in collections too. Everything in WREN ultimately hangs off a document.</p>
 
         <div class="code-block paired--wide">
           <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
@@ -466,7 +466,7 @@ GET /api/v1/tree/site?full=true&amp;label=published</pre>
         <p>Covered in <a href="#trees">section 8</a>.</p>
 
         <div class="callout callout--info">
-          <strong>How they fit together.</strong> Documents store the data, versions keep the history, trees give the structure. You can use any one without the others &mdash; a schema-free collection with no labels or trees is a valid Wren app. But when you need them, each layer composes cleanly with the rest.
+          <strong>How they fit together.</strong> Documents store the data, versions keep the history, trees give the structure. You can use any one without the others &mdash; a schema-free collection with no labels or trees is a valid WREN app. But when you need them, each layer composes cleanly with the rest.
         </div>
       </section>
 
@@ -836,7 +836,7 @@ DELETE /pages/_schema</pre>
         </div>
 
         <h3 id="schema-grandfathering">Changing a schema on existing data</h3>
-        <p>Wren does not validate existing documents when you set or change a schema. The rules apply going forward:</p>
+        <p>WREN does not validate existing documents when you set or change a schema. The rules apply going forward:</p>
         <ul>
           <li><strong>POST a new document</strong> — validated against the current schema; rejected with <code>422</code> if it fails.</li>
           <li><strong>PUT an update</strong> — same. Every write must satisfy the current schema.</li>
@@ -854,7 +854,7 @@ DELETE /pages/_schema</pre>
         </div>
 
         <h3 id="schema-validate">Dry-run: validate existing docs against a schema</h3>
-        <p>Before tightening a schema, you can ask Wren to run it against every existing document in the collection and report which ones would fail &mdash; without actually changing anything. Useful as a pre-flight check, or as a CI gate for schema changes.</p>
+        <p>Before tightening a schema, you can ask WREN to run it against every existing document in the collection and report which ones would fail &mdash; without actually changing anything. Useful as a pre-flight check, or as a CI gate for schema changes.</p>
 
         <p>Hit <code>GET /api/v1/{collection}/_schema/validate</code> to run the <em>currently-stored</em> schema against every document (useful for spotting grandfathered docs from a previous tightening). Or <code>POST</code> with a schema in the body to dry-run a <em>proposed</em> schema before committing to it.</p>
 
@@ -1289,7 +1289,7 @@ wren permissions delete &lt;id&gt;</pre>
       <section class="tutorial-section" id="clients">
         <h2><span class="step-badge">13</span> Client libraries</h2>
 
-        <p>Wren ships official client libraries for TypeScript/JavaScript and Python. Both cover the full API surface — documents, versions, labels, diff, schemas, trees, keys, invites, permissions — with complete type definitions.</p>
+        <p>WREN ships official client libraries for TypeScript/JavaScript and Python. Both cover the full API surface — documents, versions, labels, diff, schemas, trees, keys, invites, permissions — with complete type definitions.</p>
 
         <!-- ── TypeScript ── -->
         <h3 id="clients-ts">TypeScript / Node / Bun</h3>
@@ -1420,14 +1420,14 @@ async def main():
   <footer class="footer">
     <div class="container">
       <div class="footer__inner">
-        <p class="footer__brand"><strong>Wren</strong> &mdash; self-hosted versioned JSON storage</p>
+        <p class="footer__brand"><strong>WREN</strong> &mdash; self-hosted versioned JSON storage</p>
         <ul class="footer__links">
           <li><a href="/tutorial">Tutorial</a></li>
           <li><a href="/admin">Admin UI</a></li>
           <li><a href="/docs">API Docs</a></li>
         </ul>
       </div>
-      <p class="footer__copy">&copy; 2026 Wren. Self-hosted. No vendor lock-in.</p>
+      <p class="footer__copy">&copy; 2026 WREN. Self-hosted. No vendor lock-in.</p>
     </div>
   </footer>
 
