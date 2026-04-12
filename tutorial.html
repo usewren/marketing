@@ -340,6 +340,7 @@
         <li class="tutorial-toc__sub"><a href="#read-doc">Read &amp; list</a></li>
         <li class="tutorial-toc__sub"><a href="#update-doc">Update a document</a></li>
         <li class="tutorial-toc__sub"><a href="#delete-doc">Delete a document</a></li>
+        <li class="tutorial-toc__sub"><a href="#natural-key">Natural keys &amp; upsert</a></li>
         <li><a href="#binary">4. Binary assets</a></li>
         <li class="tutorial-toc__sub"><a href="#binary-upload">Upload</a></li>
         <li class="tutorial-toc__sub"><a href="#binary-replace">Replace &amp; download</a></li>
@@ -598,6 +599,75 @@ GET /pages/abc123?label=published</pre>
             <pre>DELETE /pages/abc123</pre>
           </div>
         </div>
+
+        <h3 id="natural-key">Natural keys and upsert-by-key</h3>
+        <p>Every document has a UUID, but most content also has a human-readable identifier &mdash; a <code>slug</code>, a <code>sku</code>, a <code>path</code>. WREN lets you declare one field as the collection&rsquo;s <strong>natural key</strong> and then interact with documents by that value instead of the UUID.</p>
+
+        <p><strong>Step 1 &mdash; declare the key.</strong> Set <code>naturalKey</code> on the collection schema:</p>
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren schema set pages \
+  '{"type":"object","required":["slug","title"],...}' \
+  --natural-key=slug</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>PUT /api/v1/pages/_schema
+{
+  "naturalKey": "slug",
+  "schema": {"type":"object","required":["slug","title"],...}
+}</pre>
+          </div>
+        </div>
+
+        <p><strong>Step 2 &mdash; upsert.</strong> <code>PUT /api/v1/pages/by-key/about</code> creates the document if it doesn&rsquo;t exist, or updates it if it does &mdash; in a single transactional call. The 20-line list-then-find-then-put loop in every push script becomes one API call:</p>
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre># First run → 201 (created)
+wren upsert pages about \
+  '{"slug":"about","title":"About Us"}'
+
+# Second run → 200 (updated, version 2)
+wren upsert pages about \
+  '{"slug":"about","title":"About Us (updated)"}'</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>PUT /api/v1/pages/by-key/about
+{"slug":"about","title":"About Us"}
+→ 201 { "id": "abc", "version": 1, "naturalKey": "about", ... }
+
+PUT /api/v1/pages/by-key/about
+{"slug":"about","title":"About Us (updated)"}
+→ 200 { "id": "abc", "version": 2, ... }</pre>
+          </div>
+        </div>
+
+        <p><strong>Step 3 &mdash; read and delete by key.</strong></p>
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren get-by-key pages about
+wren delete-by-key pages about</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET    /api/v1/pages/by-key/about
+DELETE /api/v1/pages/by-key/about</pre>
+          </div>
+        </div>
+
+        <div class="callout callout--tip">
+          <strong>How keys auto-sync.</strong> The natural key is stored as a column on the document and updated on every write. If you rename <code>data.slug</code> from <code>"about"</code> to <code>"about-us"</code> via a regular PUT, the column moves too &mdash; the document is now addressable at <code>/by-key/about-us</code> and the old key is released.
+        </div>
+
+        <div class="callout callout--warn">
+          <strong>Uniqueness is enforced.</strong> Two documents in the same collection cannot share a key. WREN returns <code>409 Conflict</code> if a collision is detected. Deleted documents release their key slot (they&rsquo;re excluded from the unique index), so you can recreate at the same key after deletion.
+        </div>
+
+        <p>Public reads also work via the org slug: <code>GET /api/v1/orgs/{slug}/pages/by-key/about</code> (or the short alias <code>/orgs/{slug}/pages/by-key/about</code>), gated by the usual <code>principal=*</code> read rule on the collection.</p>
       </section>
 
       <hr class="tutorial-divider" />
