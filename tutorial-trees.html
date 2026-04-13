@@ -25,7 +25,7 @@
       gap: 0;
       max-width: var(--container-max);
       margin: 0 auto;
-      padding: 0 24px;
+      padding: var(--nav-height) 24px 0;
       min-height: calc(100vh - var(--nav-height));
     }
 
@@ -299,11 +299,14 @@
 
   <nav class="nav">
     <div class="nav__inner">
-      <a href="/b" class="nav__logo">WREN</a>
+      <a href="/b" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
       <ul class="nav__links">
         <li><a href="/tutorial/trees" style="color:var(--color-primary);font-weight:600">Tutorial</a></li>
-        <li><a href="/docs">API Docs</a></li>
-        <li><a href="/admin">Admin UI</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/b#clients">Libraries</a></li>
+        <li><a href="/b#pricing">Pricing</a></li>
+        <li><a href="/admin">Admin</a></li>
+        <li><a href="#">GitHub</a></li>
       </ul>
     </div>
   </nav>
