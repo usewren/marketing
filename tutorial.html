@@ -1125,6 +1125,30 @@ DELETE /api/keys/&lt;keyId&gt;
 Authorization: Bearer wren_abc123…</pre>
           </div>
         </div>
+
+        <h3 id="whoami">Self-check: who am I?</h3>
+        <p>After setting up a key, confirm it works and see what it can access with <code>GET /api/me</code>. The endpoint returns the calling principal, the org the request is scoped to, the caller's role, and all permission rules that apply — useful for scripts and agents that want to preflight scope before acting.</p>
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren me
+# or: wren auth whoami</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /api/me
+Authorization: Bearer wren_abc123…
+
+{
+  "principal": "key:a3f4e5d2",
+  "authMethod": "api_key",
+  "user": { "id": "…", "name": "Jane", "email": "…" },
+  "org":  { "id": "…", "slug": "coral-tide-fox", "own": true, "role": "owner" },
+  "apiKey": { "name": "ci-deploy", "prefix": "wren_abc1" },
+  "permissions": [ … ]
+}</pre>
+          </div>
+        </div>
       </section>
 
       <hr class="tutorial-divider" />

@@ -2,6 +2,8 @@
 
 > Self-hosted versioned JSON storage service. Every write creates a new immutable version. Multi-tenancy, labels, schemas, tree navigation, and fine-grained access control built in. Postgres-backed, deployed with Docker.
 
+This file is the LLM-friendly index for Wren. It is intended for AI agents and tools that want a fast orientation; follow the links below for full detail.
+
 Wren is an open-source backend service for storing versioned JSON documents. Collections are schema-free by default — POST any JSON and it is stored as version 1. Every subsequent PUT creates version 2, 3, and so on. The full history is always queryable. Labels (e.g. "published", "draft") act as named pointers to any version. Trees provide hierarchical path-based navigation for CMS-style use cases. Each organisation gets its own isolated Postgres schema.
 
 ## Key concepts
@@ -65,6 +67,9 @@ GET    /tree/{name}?full=true               full tree snapshot
 GET    /tree/{name}/{path}                  node + children
 PUT    /tree/{name}/{path}                  {documentId} → assign
 DELETE /tree/{name}/{path}                  unassign
+
+# Identity
+GET    /api/me                               principal, org, role, applicable permission rules (self-check)
 
 # Management
 GET    /api/keys                             list API keys

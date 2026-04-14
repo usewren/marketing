@@ -8,7 +8,7 @@ This document is the complete reference for LLMs and AI agents working with the 
 
 ## Overview
 
-Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. You can list versions, diff any two, label a snapshot, or roll back. Each organisation gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
+Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. Versions can be listed, diffed pairwise, labelled, or rolled back. Each organisation gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
 
 Base URL: configured at deploy time (e.g. `https://wren.example.com`). All paths below are relative to the base URL.
 
@@ -25,7 +25,20 @@ Keys are shown once at creation. Prefix format: `wren_` followed by random hex.
 
 ### Session cookie — used by browser / CLI
 After `POST /api/auth/sign-in/email`, the response sets `better-auth.session_token=<token>`.
-Send it as a cookie on subsequent requests.
+Subsequent requests authenticate by including this cookie.
+
+---
+
+## Operational behaviour
+
+Guarantees and non-guarantees agents commonly need before they act:
+
+- **Rate limits.** No rate limits are enforced by default. No `X-RateLimit-*` or `Retry-After` headers are sent. Deployments may put a reverse proxy in front with its own limits; that is out of band.
+- **Idempotency.** `POST /{collection}` is **not** idempotent — each call creates a new document. There is no `Idempotency-Key` header. If deduplication matters, declare a `naturalKey` on the collection schema and use `PUT /{collection}/by-key/{value}` (which is idempotent). For raw uploads, check for an existing document by natural key or label before creating.
+- **Dry-run.** There is no `?dry_run=true` flag on destructive operations. To preview: `GET` the document before `DELETE`, or `GET /{collection}/_schema` and run `POST /{collection}/_schema/validate` before `PUT`ting a new schema.
+- **Retries on 5xx.** `GET`, `PUT /{id}`, `DELETE /{id}`, and `PUT /by-key/{value}` are safe to retry — each is idempotent at the resource level (PUT overwrites, DELETE converges to deleted). `POST /{collection}` is not — retrying after a 5xx may produce duplicate documents.
+- **Writes are transactional.** Each mutation (create, update, delete, rollback, label change) commits atomically with its version row. Partial writes are not observable.
+- **Soft delete.** `DELETE` creates a tombstone and makes the document 404 on subsequent reads. Nothing is physically removed. The UUID is not reused.
 
 ---
 
@@ -67,6 +80,8 @@ Response 200:
   ]
 }
 ```
+
+An empty org returns 200 with `{"collections": []}`, not 404. Any authenticated principal (session or valid API key) sees every collection in the org; this endpoint is not per-collection gated, so a narrowly-scoped key will still see collection names it cannot read from. 401 is returned only when no (or invalid) credentials are sent.
 
 ---
 
@@ -374,7 +389,7 @@ Response 200: binary content — same headers as authenticated endpoint
 Response 403: collection not publicly accessible
 ```
 
-Use the filename-in-URL pattern for `<img>` tags, CDN configs, and CLI tools:
+The filename-in-URL pattern is recommended for `<img>` tags, CDN configs, and CLI tools. Example:
 ```html
 <img src="https://wren.example.com/api/v1/orgs/coral-tide-fox/images/{id}/raw/hero.jpg">
 ```
@@ -402,6 +417,34 @@ Response 201: { …ApiKey fields…, "key": "wren_a3f4e5d2…" }   ← full key 
 DELETE /api/keys/{id}
 Response 200: { "id": "…", "revoked": true }
 ```
+
+---
+
+## Identity & scope
+
+### Who am I
+A self-check endpoint designed for agents and clients holding an API key. Returns the caller's principal, the org this request is scoped to, the role held by the user, and the permission rules that apply. Intended to be called once on startup to confirm authentication and scope, avoiding 403-by-surprise on downstream requests. Works with both Bearer API keys and session cookies.
+
+```
+GET /api/me
+
+Response 200:
+{
+  "principal": "key:a3f4e5d2",
+  "authMethod": "api_key",
+  "user":   { "id": "user-uuid", "name": "Jane", "email": "jane@example.com" },
+  "org":    { "id": "org-uuid", "name": "Acme", "slug": "coral-tide-fox", "own": true, "role": "owner" },
+  "apiKey": { "id": "key-uuid", "name": "CI deploy", "prefix": "wren_a3f4e5", "lastUsedAt": "2026-04-14T08:00:00Z" },
+  "permissions": [
+    { "id": "perm-uuid", "principal": "*", "resource": "collection:articles", "access": "read", "labelFilter": "published", "filterLang": null, "filterExpr": null }
+  ]
+}
+```
+
+- `authMethod` is `"api_key"` or `"session"`.
+- `apiKey` is `null` for session-authenticated callers.
+- `org.role` is `"owner"` when `org.own` is true, else the member role (`admin`, `member`, …) or `"none"`.
+- `permissions` includes rules for this principal plus any `principal: "*"` rules. Use this to preflight "can I read collection X?" without making a speculative request.
 
 ---
 
@@ -496,17 +539,27 @@ Fine-grained access control rules. Only org owners can manage permissions.
 ```json
 {
   "id": "perm-uuid",
-  "principal": "member:<userId>  OR  key:<keyId>  OR  *",
-  "resource":  "collection:<name>  OR  collection:*  OR  tree:<name>  OR  tree:*  OR  *",
-  "access":    "none | read | write | admin",
-  "labelFilter": "published",          ← only allow access when this label is set (optional)
-  "filterLang": "jmespath",            ← optional data filter language: jq | jmespath | jsonata
-  "filterExpr": "category == 'news'",  ← optional data filter expression
+  "principal": "member:<userId>",
+  "resource":  "collection:articles",
+  "access":    "read",
+  "labelFilter": "published",
+  "filterLang": "jmespath",
+  "filterExpr": "category == 'news'",
   "auditReads":  false,
   "auditWrites": true,
   "createdAt": "2026-04-01T10:00:00Z"
 }
 ```
+
+Field values:
+
+- `principal` is one of `"member:<userId>"`, `"key:<keyId>"`, or `"*"` (anonymous / public).
+- `resource` is one of `"collection:<name>"`, `"collection:*"`, `"tree:<name>"`, `"tree:*"`, or `"*"` (all resources).
+- `access` is one of `"none"`, `"read"`, `"write"`, or `"admin"`.
+- `labelFilter` (optional) restricts access to documents where this label is set — e.g. only `published` versions.
+- `filterLang` (optional) selects the data filter language: `"jq"`, `"jmespath"`, or `"jsonata"`.
+- `filterExpr` (optional) is the filter expression in the chosen language.
+- `auditReads` / `auditWrites` (boolean) turn on audit logging for matching requests.
 
 ### List rules
 ```
