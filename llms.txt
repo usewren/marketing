@@ -46,6 +46,9 @@ POST   /{collection}                         create document → {id, version:1,
 GET    /{collection}/{id}                    get document (?label=)
 PUT    /{collection}/{id}                    update → new version
 DELETE /{collection}/{id}                    soft delete
+GET    /{collection}/by-key/{value}          get document by natural key (collection must declare naturalKey)
+PUT    /{collection}/by-key/{value}          idempotent upsert by natural key — create if absent, update if present
+DELETE /{collection}/by-key/{value}          soft delete by natural key
 
 # Versions
 GET    /{collection}/{id}/versions           list all versions
@@ -58,8 +61,9 @@ POST   /{collection}/{id}/labels             {label, version?} → pin label
 
 # Schemas
 GET    /{collection}/_schema
-PUT    /{collection}/_schema                 {schema, displayName, collectionType}
+PUT    /{collection}/_schema                 {schema, displayName, collectionType, naturalKey?}
 DELETE /{collection}/_schema
+POST   /{collection}/_schema/validate        dry-run: validate a schema against existing docs before writing
 
 # Trees
 GET    /tree                                 list trees

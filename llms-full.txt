@@ -141,6 +141,43 @@ DELETE /{collection}/{id}
 Response 200: { "id": "uuid", "deleted": true }
 ```
 
+### Natural keys — upsert / read / delete by external identifier
+A collection can declare one document field as its natural key (commonly `slug`). Once declared, the `by-key/{value}` routes address documents by that value instead of the UUID. `PUT /by-key/{value}` is a **transactional upsert** — create if absent, update if present — which makes it the idempotent alternative to `POST` for ingestion scripts.
+
+Declare a natural key on the collection schema:
+```
+PUT /{collection}/_schema
+{ "schema": { … }, "naturalKey": "slug" }
+```
+
+Upsert (create-or-update) by key:
+```
+PUT /{collection}/by-key/{value}
+Content-Type: application/json
+{ "slug": "hello", "title": "Hello" }   ← data[naturalKey] must match {value} in the URL
+
+Response 201: <DocumentResponse>   ← created
+Response 200: <DocumentResponse>   ← updated (new version)
+Response 400: body's natural-key field disagrees with URL {value}
+Response 409: another document already owns this key (rename collision)
+```
+
+Get by key:
+```
+GET /{collection}/by-key/{value}
+GET /{collection}/by-key/{value}?label=published
+
+Response 200: <DocumentResponse>
+Response 404: no document with that key
+```
+
+Soft delete by key:
+```
+DELETE /{collection}/by-key/{value}
+
+Response 200: { "id": "uuid", "deleted": true }
+```
+
 ### Get tree paths for a document
 ```
 GET /{collection}/{id}/paths
@@ -275,7 +312,8 @@ PUT /{collection}/_schema
     }
   },
   "displayName": "{title}",       ← field used as human-readable name in Admin UI
-  "collectionType": "json"        ← "json" (default) or "binary"
+  "collectionType": "json",       ← "json" (default) or "binary"
+  "naturalKey": "slug"            ← optional; declares a field as the document's natural key (see Documents)
 }
 
 Response 200: <Schema>
@@ -286,6 +324,34 @@ Response 422: invalid JSON Schema
 ```
 DELETE /{collection}/_schema
 Response 200: { "collection": "articles", "deleted": true }
+```
+
+### Dry-run: validate a schema against existing documents
+Read-only. Runs the current schema (or a proposed one in the request body) against every existing document in the collection and reports which ones would fail — without touching anything. Useful before changing a schema on a collection with live data.
+```
+GET  /{collection}/_schema/validate                    ← validates current stored schema
+POST /{collection}/_schema/validate                    ← validates a proposed schema
+Content-Type: application/json
+{ "schema": { "type": "object", "required": ["title"], … } }
+  or just the bare JSON Schema as the whole body
+
+Optional query params:
+  max      — cap documents checked (default 10000, hard max 50000)
+  limit    — cap number of failure details returned (default 100, hard max 1000)
+
+Response 200:
+{
+  "collection":        "articles",
+  "schemaSource":      "current" | "proposed",
+  "checked":           42,
+  "limitReached":      false,
+  "valid":             40,
+  "invalid":           2,
+  "failures":          [ { "id": "uuid", "version": 3, "errors": ["/title must be string"] } ],
+  "failuresTruncated": false
+}
+Response 404: no schema set and no proposed schema in body
+Response 422: invalid JSON Schema
 ```
 
 ---
@@ -381,6 +447,8 @@ Response 200: binary content with correct Content-Type and Content-Disposition: 
 Requires a `principal='*'` read permission on the collection.
 The org slug is required in the URL since there is no session to identify the tenant.
 
+Note the URL-shape split: **all public (no-auth) reads** — raw assets, collection GETs, tree GETs, and `llms.txt` — use the versioned, org-scoped prefix `/api/v1/orgs/{slug}/...`. **All authenticated endpoints** elsewhere in this document use the unversioned shape with the tenant inferred from credentials. Agents generalising URL shape from one set to the other will guess wrong.
+
 ```
 GET /api/v1/orgs/{slug}/{collection}/{id}/raw
 GET /api/v1/orgs/{slug}/{collection}/{id}/raw/filename.jpg   ← recommended: append real filename for browsers/tools
@@ -433,7 +501,7 @@ Response 200:
   "principal": "key:a3f4e5d2",
   "authMethod": "api_key",
   "user":   { "id": "user-uuid", "name": "Jane", "email": "jane@example.com" },
-  "org":    { "id": "org-uuid", "name": "Acme", "slug": "coral-tide-fox", "own": true, "role": "owner" },
+  "org":    { "id": "org-uuid", "name": "Acme", "slug": "coral-tide-fox", "role": "owner" },
   "apiKey": { "id": "key-uuid", "name": "CI deploy", "prefix": "wren_a3f4e5", "lastUsedAt": "2026-04-14T08:00:00Z" },
   "permissions": [
     { "id": "perm-uuid", "principal": "*", "resource": "collection:articles", "access": "read", "labelFilter": "published", "filterLang": null, "filterExpr": null }
@@ -443,7 +511,7 @@ Response 200:
 
 - `authMethod` is `"api_key"` or `"session"`.
 - `apiKey` is `null` for session-authenticated callers.
-- `org.role` is `"owner"` when `org.own` is true, else the member role (`admin`, `member`, …) or `"none"`.
+- `org.role` is `"owner"` for the caller's own workspace or orgs they own, else the `org_members` role (`admin`, `member`, …), or `"none"`. Use `role` — there is no separate `own` flag.
 - `permissions` includes rules for this principal plus any `principal: "*"` rules. Use this to preflight "can I read collection X?" without making a speculative request.
 
 ---
