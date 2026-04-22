@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Deploy Tutorial</title>
+  <meta name="description" content="Deploy a static site to WREN in 5 minutes. Preview before going live. Promote when ready." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/tutorial/deploy" style="color:var(--color-primary);font-weight:600">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/#clients">Libraries</a></li>
+        <li><a href="/#pricing">Pricing</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="tutorial-layout">
+    <aside class="tutorial-sidebar">
+      <div class="tutorial-sidebar__inner">
+        <h4 class="tutorial-sidebar__title">Deploy Tutorial</h4>
+        <nav>
+          <ul class="tutorial-sidebar__list">
+            <li><a href="#prereqs">Prerequisites</a></li>
+            <li><a href="#create-site">1. Create a site</a></li>
+            <li><a href="#first-deploy">2. First deploy</a></li>
+            <li><a href="#see-it-live">3. See it live</a></li>
+            <li><a href="#make-changes">4. Make changes</a></li>
+            <li><a href="#deploy-preview">5. Deploy as preview</a></li>
+            <li><a href="#promote">6. Promote to published</a></li>
+            <li><a href="#add-data">7. Add JSON data</a></li>
+            <li><a href="#rollback">8. Rollback</a></li>
+            <li><a href="#cleanup">9. Cleanup &amp; --clean</a></li>
+            <li><a href="#whats-next">What's next</a></li>
+          </ul>
+        </nav>
+        <div class="tutorial-sidebar__also">
+          <h5>Other tutorials</h5>
+          <a href="/tutorial">Full WREN tutorial</a>
+          <a href="/tutorial/trees">Trees tutorial</a>
+        </div>
+      </div>
+    </aside>
+
+    <main class="tutorial-main">
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="prereqs">
+        <h2>Deploy Tutorial</h2>
+        <p>Deploy a static site to WREN, preview changes before going live, and promote when ready. Takes about 10 minutes.</p>
+
+        <h3 id="prereqs">Prerequisites</h3>
+        <ol class="steps-inline">
+          <li><span class="n">1</span> A running WREN instance (local Docker or <a href="https://wren.aemwip.com">wren.aemwip.com</a>)</li>
+          <li><span class="n">2</span> The WREN CLI installed: <code>bun install -g @wren/cli</code> (or run from the repo with <code>bun run cli/index.ts</code>)</li>
+          <li><span class="n">3</span> An account &mdash; sign up via the <a href="/admin">Admin UI</a></li>
+        </ol>
+
+        <div class="callout callout--info">
+          <strong>Configure the CLI.</strong> Point it at your server and sign in:
+        </div>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren config --url https://wren.aemwip.com
+wren auth login -e you@example.com -p yourpassword
+wren me   # confirm: shows your principal, org, and role</pre>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="create-site">
+        <h2><span class="step-badge">1</span> Create a simple site</h2>
+        <p>Let&rsquo;s make a minimal static site to deploy. Create a folder with a few files:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>mkdir my-site && cd my-site
+
+cat &gt; index.html &lt;&lt;'EOF'
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;My WREN Site&lt;/title&gt;
+  &lt;link rel="stylesheet" href="/assets/style.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;Hello from WREN!&lt;/h1&gt;
+  &lt;p&gt;Deployed with &lt;code&gt;wren deploy&lt;/code&gt;.&lt;/p&gt;
+  &lt;a href="/about.html"&gt;About&lt;/a&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+EOF
+
+cat &gt; about.html &lt;&lt;'EOF'
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;About &mdash; My WREN Site&lt;/title&gt;
+  &lt;link rel="stylesheet" href="/assets/style.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;About&lt;/h1&gt;
+  &lt;p&gt;This site is versioned and served by WREN.&lt;/p&gt;
+  &lt;a href="/"&gt;Home&lt;/a&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+EOF
+
+mkdir -p assets
+cat &gt; assets/style.css &lt;&lt;'EOF'
+body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+h1 { color: #4338ca; }
+a { color: #6366f1; }
+EOF</pre>
+        </div>
+        <p>You now have <code>index.html</code>, <code>about.html</code>, and <code>assets/style.css</code>.</p>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="first-deploy">
+        <h2><span class="step-badge">2</span> First deploy</h2>
+        <p>Deploy the folder to a WREN tree. The <code>--public</code> flag creates a permission rule so anyone can view the site.</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren deploy . --tree my-site --public</pre>
+        </div>
+
+        <p>Output:</p>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">output</span></div>
+          <pre>Found 3 files in .
+Creating binary collection: my-site-assets
+  Uploaded 3 files...
+Created public read permission for tree:my-site
+
+Deployed to tree "my-site":  3 uploaded, 0 unchanged, 3 new paths
+
+Preview:  https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html</pre>
+        </div>
+
+        <div class="callout callout--info">
+          <strong>What just happened:</strong>
+          <ol style="margin:.5rem 0 0;padding-left:1.2rem">
+            <li>A binary collection <code>my-site-assets</code> was created to store your files</li>
+            <li>Each file was uploaded as a versioned binary document</li>
+            <li>Each file was assigned to a tree path matching its local path</li>
+            <li>A <code>principal=*</code> read permission was added so the site is public</li>
+          </ol>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="see-it-live">
+        <h2><span class="step-badge">3</span> See it live</h2>
+        <p>Open the URL from the output in your browser. Your site is live &mdash; HTML, CSS, and all. Links between pages work because tree paths match your directory structure.</p>
+
+        <p>You can also check it from the CLI:</p>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren tree view my-site</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">output</span></div>
+          <pre>  /about.html       [my-site-assets v1]  size: 234
+  /assets/style.css [my-site-assets v1]  size: 168
+  /index.html       [my-site-assets v1]  size: 265</pre>
+        </div>
+
+        <p>Every file is at version 1. The tree serves them at their local paths.</p>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="make-changes">
+        <h2><span class="step-badge">4</span> Make a change</h2>
+        <p>Edit <code>index.html</code> &mdash; change the heading:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">html</span></div>
+          <pre>&lt;h1&gt;Hello from WREN! &mdash; Updated&lt;/h1&gt;
+&lt;p&gt;This is version 2 of the site.&lt;/p&gt;</pre>
+        </div>
+
+        <p>Re-deploy. Only the changed file uploads:</p>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren deploy . --tree my-site</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">output</span></div>
+          <pre>Found 3 files in .
+
+Deployed to tree "my-site":  1 uploaded, 2 unchanged, 0 new paths</pre>
+        </div>
+
+        <p>WREN detected that <code>about.html</code> and <code>style.css</code> haven&rsquo;t changed (same file size) and skipped them. Only <code>index.html</code> was uploaded as version 2.</p>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="deploy-preview">
+        <h2><span class="step-badge">5</span> Deploy as preview</h2>
+        <p>What if you want to test changes before the public sees them? Deploy with a label:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># Make another change
+sed -i '' 's/Updated/v3 Preview/' index.html
+
+# Deploy with --label preview
+wren deploy . --tree my-site --label preview</pre>
+        </div>
+
+        <p>The public site is unchanged &mdash; visitors still see the current version. You can see the preview by adding <code>?label=preview</code> to any URL:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># Public site (unchanged):
+open https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html
+
+# Your preview (new version):
+open https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html?label=preview</pre>
+        </div>
+
+        <div class="callout callout--info">
+          <strong>How labels control visibility:</strong> If you created a permission with <code>labelFilter: "published"</code>, anonymous visitors would <em>only</em> see the published label. The <code>--public</code> flag on the first deploy didn&rsquo;t set a labelFilter, so visitors currently see the latest version. To enable preview &rarr; publish flow, set a labelFilter on the permission rule via the Admin UI or the API.
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="promote">
+        <h2><span class="step-badge">6</span> Promote to published</h2>
+        <p>Happy with the preview? Promote it:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren promote my-site --from preview</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">output</span></div>
+          <pre>Promoting 3 documents in tree "my-site" → label "published" (from "preview")...
+Done: 3 documents labeled "published".
+
+Public: https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html?label=published</pre>
+        </div>
+
+        <p>The <code>published</code> label now points to the same versions as <code>preview</code>. If your permission has <code>labelFilter: "published"</code>, the public site is updated.</p>
+
+        <p>You can also promote without a source label &mdash; this labels the current (latest) version of every document in the tree:</p>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren promote my-site   # defaults to --label published</pre>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="add-data">
+        <h2><span class="step-badge">7</span> Add JSON data alongside your site</h2>
+        <p>WREN isn&rsquo;t just file hosting. Your site can read structured data from a collection via the API:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># Create a JSON collection for your site's content
+wren create pages '{"slug":"home","title":"Welcome","body":"This content is stored in WREN."}'
+wren create pages '{"slug":"about","title":"About Us","body":"We are a team building with WREN."}'
+
+# Your site's JavaScript can fetch from the public API:
+# GET /api/v1/orgs/your-slug/pages</pre>
+        </div>
+
+        <p>Now your static site <em>and</em> its content data live in the same system. When you promote, both the HTML files and the JSON content can move to <code>published</code> together.</p>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="rollback">
+        <h2><span class="step-badge">8</span> Rollback</h2>
+        <p>Every file upload creates a new version. You can roll back any individual file:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># See version history for a document
+wren versions my-site-assets &lt;document-id&gt;
+
+# Roll back to version 1
+wren rollback my-site-assets &lt;document-id&gt; 1
+
+# Re-promote to make the rollback live
+wren promote my-site</pre>
+        </div>
+
+        <p>Or roll back the <em>entire site</em> by promoting an older label. If you labeled yesterday&rsquo;s deploy as <code>v1</code>, just re-promote it:</p>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren promote my-site --from v1 --label published</pre>
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="cleanup">
+        <h2><span class="step-badge">9</span> Cleanup: remove deleted files</h2>
+        <p>If you delete a file locally and redeploy, the old tree path stays by default. Use <code>--clean</code> to remove paths that no longer exist in your local directory:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>rm about.html
+wren deploy . --tree my-site --clean</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">output</span></div>
+          <pre>Found 2 files in .
+
+Deployed to tree "my-site":  0 uploaded, 2 unchanged, 0 new paths, 1 removed</pre>
+        </div>
+
+        <p><code>/about.html</code> is removed from the tree. The document still exists in the collection (soft-deleted or just unassigned) &mdash; nothing is permanently lost.</p>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="whats-next">
+        <h2>What&rsquo;s next</h2>
+        <ul style="line-height:2">
+          <li><a href="/tutorial">Full WREN tutorial</a> &mdash; covers the Admin UI, collections, schemas, labels, permissions, and more</li>
+          <li><a href="/docs">API Docs</a> &mdash; interactive reference for every endpoint</li>
+          <li><a href="/projects">Projects</a> &mdash; see live sites deployed on this WREN instance</li>
+          <li><a href="/admin">Admin UI</a> &mdash; browse your deployed files, manage permissions, and edit content</li>
+        </ul>
+
+        <div class="callout callout--info">
+          <strong>Quick reference:</strong>
+          <div class="code-block" style="margin-top:.75rem">
+            <pre>wren deploy ./dist --tree mysite --public       # first deploy
+wren deploy ./dist --tree mysite --label preview # preview deploy
+wren promote mysite --from preview               # go live
+wren promote mysite                              # label current as published
+wren deploy ./dist --tree mysite --clean          # remove deleted files
+wren tree view mysite                            # inspect the tree</pre>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/admin">Admin UI</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="/projects">Projects</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Deploy, Version, Serve</title>
+  <meta name="description" content="Deploy your static site with one command. Version every file. Preview before going live. Self-hosted or cloud." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="theme-color" content="#4338ca" />
+  <style>
+    .compare { padding: 5rem 0; background: var(--color-bg-lavender); }
+    .compare__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+    .compare-card { background: var(--color-white); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem; }
+    .compare-card--wren { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
+    .compare-card h3 { font-size: 1.1rem; margin: 0 0 1rem; }
+    .compare-card ul { list-style: none; padding: 0; margin: 0; }
+    .compare-card li { padding: .35rem 0; font-size: .95rem; color: var(--color-muted); }
+    .compare-card li::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: .5rem; vertical-align: middle; }
+    .compare-card li.yes::before { background: var(--color-success); }
+    .compare-card li.no::before { background: var(--color-border); }
+    .compare-card li.yes { color: var(--color-text); }
+    .compare-card--wren h3 { color: var(--color-primary); }
+
+    .workflow { padding: 5rem 0; }
+    .workflow__steps { display: grid; gap: 2.5rem; margin-top: 2rem; }
+    .workflow__step { display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: start; }
+    .workflow__step-num { width: 44px; height: 44px; border-radius: 12px; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.2rem; flex-shrink: 0; }
+    .workflow__step-body h3 { margin: 0 0 .5rem; font-size: 1.15rem; }
+    .workflow__step-body p { margin: 0; color: var(--color-muted); line-height: 1.6; }
+    .workflow__code { margin-top: .75rem; background: var(--color-code-bg); color: #e2e8f0; padding: 1rem 1.25rem; border-radius: 8px; font-family: var(--font-mono); font-size: .9rem; overflow-x: auto; line-height: 1.5; }
+    .workflow__code .cmd { color: var(--color-code-value); }
+    .workflow__code .flag { color: var(--color-code-key); }
+    .workflow__code .cmt { color: #64748b; }
+    .workflow__code .url { color: var(--color-primary-light); }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="#compare">Compare</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       Hero
+       ============================================================ -->
+  <section class="hero">
+    <div class="container">
+      <span class="hero__badge">Now available &middot; Cloud or self-hosted</span>
+      <h1 class="hero__title">Deploy your site.<br>Version your data.<br>One command.</h1>
+      <p class="hero__sub">
+        Static files and structured content in one system. Every update versioned.
+        Preview before going live. Promote when ready. Self-hosted or cloud.
+      </p>
+      <div class="hero__ctas">
+        <a href="/tutorial/deploy" class="btn btn--primary">Deploy tutorial</a>
+        <a href="/projects" class="btn btn--secondary">See live projects</a>
+      </div>
+
+      <div class="hero__code">
+        <div class="hero__code-header">
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <span class="hero__code-dot"></span>
+          <div class="hero__tabs">
+            <button class="hero__tab hero__tab--active" onclick="heroTab(this,'deploy')">Deploy</button>
+            <button class="hero__tab" onclick="heroTab(this,'preview')">Preview</button>
+            <button class="hero__tab" onclick="heroTab(this,'promote')">Promote</button>
+          </div>
+        </div>
+        <pre id="hero-tab-deploy"><span class="tok-comment"># Deploy your site in one command</span>
+<span class="tok-method">wren deploy</span> <span class="tok-path">./dist</span> <span class="tok-flag">--tree</span> <span class="tok-str">mysite</span> <span class="tok-flag">--public</span>
+
+<span class="tok-arrow">Found 47 files in ./dist</span>
+<span class="tok-arrow">Creating binary collection: mysite-assets</span>
+<span class="tok-arrow">  Uploaded 47 files...</span>
+<span class="tok-arrow">Created public read permission for tree:mysite</span>
+
+<span class="tok-arrow">Deployed to tree "mysite":  47 uploaded, 0 unchanged, 47 new paths</span>
+<span class="tok-arrow">Preview:  https://wren.example.com/orgs/acme/tree/mysite/index.html</span></pre>
+        <pre id="hero-tab-preview" style="display:none"><span class="tok-comment"># Make changes, deploy as preview (public sees old version)</span>
+<span class="tok-method">wren deploy</span> <span class="tok-path">./dist</span> <span class="tok-flag">--tree</span> <span class="tok-str">mysite</span> <span class="tok-flag">--label</span> <span class="tok-str">preview</span>
+
+<span class="tok-arrow">Deployed to tree "mysite":  3 uploaded, 44 unchanged</span>
+<span class="tok-arrow">Label: preview</span>
+
+<span class="tok-comment"># Check it yourself — public site is unchanged</span>
+<span class="tok-method">open</span> <span class="tok-url">https://wren.example.com/orgs/acme/tree/mysite/index.html?label=preview</span></pre>
+        <pre id="hero-tab-promote" style="display:none"><span class="tok-comment"># Happy with the preview? Make it live.</span>
+<span class="tok-method">wren promote</span> <span class="tok-str">mysite</span> <span class="tok-flag">--from</span> <span class="tok-str">preview</span>
+
+<span class="tok-arrow">Promoting 47 documents in tree "mysite" → label "published"...</span>
+<span class="tok-arrow">Done: 47 documents labeled "published".</span>
+
+<span class="tok-comment"># Changed your mind? Roll back any file to any version.</span>
+<span class="tok-method">wren rollback</span> <span class="tok-str">mysite-assets</span> <span class="tok-str">abc123</span> <span class="tok-str">2</span>
+<span class="tok-method">wren promote</span> <span class="tok-str">mysite</span></pre>
+      </div>
+      <script>
+        function heroTab(btn, id) {
+          document.querySelectorAll('.hero__tab').forEach(b => b.classList.remove('hero__tab--active'));
+          btn.classList.add('hero__tab--active');
+          ['deploy','preview','promote'].forEach(t => {
+            document.getElementById('hero-tab-' + t).style.display = t === id ? 'block' : 'none';
+          });
+        }
+      </script>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Features
+       ============================================================ -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="features__intro">
+        <p class="section-label">Why WREN</p>
+        <h2 class="section-title">Your files and your data. One place. Versioned.</h2>
+        <p class="section-sub">No CI/CD pipeline. No separate CMS. No build step. Just upload and serve.</p>
+      </div>
+      <div class="features__grid">
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <h3 class="feature-card__title">One-command deploy</h3>
+          <p class="feature-card__desc"><code style="font-family:var(--font-mono);font-size:.85em">wren deploy ./dist --tree mysite</code> uploads your files, creates the tree, and gives you a URL. Done.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l3-3"/><path d="M12 3v6l-3-3"/><circle cx="12" cy="17" r="4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg></div>
+          <h3 class="feature-card__title">Every file versioned</h3>
+          <p class="feature-card__desc">Every upload creates a new version. Diff any two, roll back to any point. Full history for HTML, CSS, images &mdash; everything.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+          <h3 class="feature-card__title">Preview &rarr; Promote</h3>
+          <p class="feature-card__desc">Deploy with <code style="font-family:var(--font-mono);font-size:.85em">--label preview</code>. Test at <code style="font-family:var(--font-mono);font-size:.85em">?label=preview</code>. Promote to <code style="font-family:var(--font-mono);font-size:.85em">published</code> when ready. One label controls what&rsquo;s live.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <h3 class="feature-card__title">Content + code together</h3>
+          <p class="feature-card__desc">Your static files and your JSON data live in the same system. One tree, one permission model, one label makes everything live atomically.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div>
+          <h3 class="feature-card__title">API-first data</h3>
+          <p class="feature-card__desc">Collections are queryable, filterable, faceted. Your site&rsquo;s data is also a REST API. Schemas, labels, natural keys &mdash; built in.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg></div>
+          <h3 class="feature-card__title">Self-hosted or cloud</h3>
+          <p class="feature-card__desc">One Docker image. Bring your own Postgres. No vendor lock-in. Your data, your servers, your rules.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       How it works (deploy workflow)
+       ============================================================ -->
+  <section class="workflow" id="workflow">
+    <div class="container">
+      <div class="features__intro">
+        <p class="section-label">How it works</p>
+        <h2 class="section-title">Deploy. Preview. Promote.</h2>
+        <p class="section-sub">Three steps from local build to live site. No CI pipeline, no build service, no waiting.</p>
+      </div>
+      <div class="workflow__steps">
+
+        <div class="workflow__step">
+          <div class="workflow__step-num">1</div>
+          <div class="workflow__step-body">
+            <h3>Deploy your build output</h3>
+            <p>Point <code>wren deploy</code> at your <code>dist/</code> folder. It scans every file, uploads only what changed (size-based diffing), assigns each to a tree path, and prints your live URL. First deploy auto-creates the binary collection and public permission.</p>
+            <div class="workflow__code">
+              <span class="cmd">wren deploy</span> ./dist <span class="flag">--tree</span> mysite <span class="flag">--public</span><br>
+              <span class="cmt"># 47 files uploaded, live at /orgs/acme/tree/mysite/index.html</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="workflow__step">
+          <div class="workflow__step-num">2</div>
+          <div class="workflow__step-body">
+            <h3>Preview before going live</h3>
+            <p>Deploy with <code>--label preview</code>. New versions are created but the public site is unchanged &mdash; visitors still see the published label. Add <code>?label=preview</code> to any URL to see the new version yourself.</p>
+            <div class="workflow__code">
+              <span class="cmd">wren deploy</span> ./dist <span class="flag">--tree</span> mysite <span class="flag">--label</span> preview<br>
+              <span class="cmt"># 3 files changed. Public site unchanged.</span><br>
+              <span class="cmt"># Preview: .../tree/mysite/index.html?label=preview</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="workflow__step">
+          <div class="workflow__step-num">3</div>
+          <div class="workflow__step-body">
+            <h3>Promote to published</h3>
+            <p>One command moves the <code>published</code> label to every document&rsquo;s current version. Static files <em>and</em> JSON data go live atomically. No race condition between &ldquo;the site deployed but the data hasn&rsquo;t synced.&rdquo;</p>
+            <div class="workflow__code">
+              <span class="cmd">wren promote</span> mysite <span class="flag">--from</span> preview<br>
+              <span class="cmt"># 47 documents labeled "published". Site is live.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Comparison
+       ============================================================ -->
+  <section class="compare" id="compare">
+    <div class="container">
+      <div class="features__intro">
+        <p class="section-label">Compare</p>
+        <h2 class="section-title">What you get vs. what you&rsquo;d build.</h2>
+        <p class="section-sub">WREN replaces both the hosting layer and the content backend.</p>
+      </div>
+      <div class="compare__grid">
+
+        <div class="compare-card">
+          <h3>Vercel / Netlify</h3>
+          <ul>
+            <li class="yes">One-command deploy</li>
+            <li class="yes">Preview deployments</li>
+            <li class="no">No structured data store</li>
+            <li class="no">No per-file version history</li>
+            <li class="no">No rollback to arbitrary version</li>
+            <li class="no">Not self-hostable</li>
+            <li class="no">Content needs a separate CMS</li>
+          </ul>
+        </div>
+
+        <div class="compare-card">
+          <h3>Headless CMS + CDN</h3>
+          <ul>
+            <li class="no">Doesn&rsquo;t host your files</li>
+            <li class="yes">Structured content editing</li>
+            <li class="yes">Preview / draft mode</li>
+            <li class="no">No file versioning</li>
+            <li class="no">Content and code deploy separately</li>
+            <li class="no">Two systems to manage</li>
+            <li class="no">Data sync race conditions</li>
+          </ul>
+        </div>
+
+        <div class="compare-card compare-card--wren">
+          <h3>WREN</h3>
+          <ul>
+            <li class="yes">One-command deploy</li>
+            <li class="yes">Preview via labels</li>
+            <li class="yes">Structured JSON collections</li>
+            <li class="yes">Every file versioned + diffable</li>
+            <li class="yes">Rollback any file, any version</li>
+            <li class="yes">Content + files go live atomically</li>
+            <li class="yes">Self-hosted with Docker</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Pricing
+       ============================================================ -->
+  <section class="pricing" id="pricing">
+    <div class="container">
+      <div class="pricing__intro">
+        <p class="section-label">Pricing</p>
+        <h2 class="section-title">Start free. Scale when you&rsquo;re ready.</h2>
+        <p class="section-sub">Every plan includes deploy, versioning, labels, trees, and the full REST API.</p>
+      </div>
+      <div class="pricing__grid">
+
+        <div class="pricing-card">
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Free</h3>
+            <div class="pricing-card__price">$0<span class="pricing-card__period">/month</span></div>
+            <p class="pricing-card__tagline">For personal projects and experiments.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>1 organisation</li>
+            <li>3 collections</li>
+            <li>1 000 documents</li>
+            <li>100 MB storage</li>
+            <li>10 000 API requests / day</li>
+            <li>Community support</li>
+          </ul>
+          <a href="/admin" class="btn btn--secondary pricing-card__cta">Get started</a>
+        </div>
+
+        <div class="pricing-card pricing-card--featured">
+          <div class="pricing-card__badge">Most popular</div>
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Hobby</h3>
+            <div class="pricing-card__price">$9<span class="pricing-card__period">/month</span></div>
+            <p class="pricing-card__tagline">For side projects and small teams.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>3 organisations</li>
+            <li>Unlimited collections</li>
+            <li>50 000 documents</li>
+            <li>5 GB storage</li>
+            <li>100 000 API requests / day</li>
+            <li>5 collaborators per org</li>
+            <li>API keys &amp; permissions</li>
+            <li>Email support</li>
+          </ul>
+          <a href="/admin" class="btn btn--primary pricing-card__cta">Get started</a>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-card__header">
+            <h3 class="pricing-card__name">Enterprise</h3>
+            <div class="pricing-card__price">Custom</div>
+            <p class="pricing-card__tagline">For production workloads and compliance.</p>
+          </div>
+          <ul class="pricing-card__features">
+            <li>Unlimited everything</li>
+            <li>SSO &amp; audit logging</li>
+            <li>Self-hosted or managed</li>
+            <li>Dedicated support &amp; SLA</li>
+          </ul>
+          <a href="mailto:hello@wren.dev" class="btn btn--secondary pricing-card__cta">Contact us</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/admin">Admin UI</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="/projects">Projects</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
