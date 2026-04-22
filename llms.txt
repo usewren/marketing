@@ -1,10 +1,10 @@
 # Wren
 
-> Self-hosted versioned JSON storage service. Every write creates a new immutable version. Multi-tenancy, labels, schemas, tree navigation, and fine-grained access control built in. Postgres-backed, deployed with Docker.
+> Self-hosted versioned JSON storage and static site deployment. Every write creates a new immutable version. Deploy files and data together, preview before going live, promote when ready. Postgres-backed, deployed with Docker.
 
 This file is the LLM-friendly index for Wren. It is intended for AI agents and tools that want a fast orientation; follow the links below for full detail.
 
-Wren is an open-source backend service for storing versioned JSON documents. Collections are schema-free by default — POST any JSON and it is stored as version 1. Every subsequent PUT creates version 2, 3, and so on. The full history is always queryable. Labels (e.g. "published", "draft") act as named pointers to any version. Trees provide hierarchical path-based navigation for CMS-style use cases. Each organisation gets its own isolated Postgres schema.
+Wren is an open-source backend service that combines versioned JSON storage with static site deployment. Deploy a directory of HTML/CSS/JS files with `wren deploy`, version every change, preview via labels, and promote to published when ready. Collections store structured JSON data alongside your files — one system, one tree, one label controls what's live. Each organisation gets its own isolated Postgres schema.
 
 ## Key concepts
 
@@ -12,15 +12,17 @@ Wren is an open-source backend service for storing versioned JSON documents. Col
 - **Documents** — JSON objects stored with a UUID; every mutation creates a new version
 - **Versions** — immutable snapshots; list, diff, or roll back to any point in history
 - **Labels** — named pointers to a specific version (`published`, `draft`, `staging`, etc.)
-- **Trees** — hierarchical path assignment (`/site/about`, `/blog/2026/hello`) for CMS navigation
-- **Binary assets** — collections can store files (images, PDFs) alongside JSON metadata
+- **Trees** — hierarchical path assignment (`/site/about`, `/blog/2026/hello`) for CMS navigation and static site serving
+- **Deploy** — `wren deploy ./dist --tree mysite` uploads files, assigns tree paths, and serves the site. `wren promote` moves the published label atomically.
+- **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata
 - **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
 - **Permissions** — fine-grained rules per principal (user or API key) per resource, with optional label and data filters
 - **API keys** — long-lived Bearer tokens for programmatic access
 
 ## Documentation
 
-- [Tutorial](/tutorial): Complete step-by-step walkthrough — Admin UI, CLI, TypeScript client, Python client
+- [Deploy tutorial](/tutorial/deploy): Deploy a static site, preview, promote — 10-minute walkthrough
+- [Full tutorial](/tutorial): Complete step-by-step walkthrough — Admin UI, CLI, TypeScript client, Python client
 - [API Reference](/docs): Interactive Scalar UI over the OpenAPI 3.1 spec; live request examples for every endpoint
 - [OpenAPI spec](/openapi.json): Machine-readable OpenAPI 3.1 specification
 - [Full LLM reference](/llms-full.txt): Complete API and client library reference in plain text

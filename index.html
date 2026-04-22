@@ -29,6 +29,15 @@
       </ul>
     </div>
   </nav>
+  <script>
+    document.querySelector('.nav__logo').addEventListener('click', e => {
+      e.preventDefault();
+      const variants = ['/', '/d', '/a', '/b'];
+      const current = location.pathname;
+      const idx = variants.indexOf(current);
+      location.href = variants[(idx + 1) % variants.length];
+    });
+  </script>
 
   <!-- ============================================================
        Hero

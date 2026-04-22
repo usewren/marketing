@@ -30,6 +30,17 @@
     </div>
   </nav>
 
+  <script>
+    // Logo click cycles through homepage variants
+    document.querySelector('.nav__logo').addEventListener('click', e => {
+      e.preventDefault();
+      const variants = ['/', '/d', '/a', '/b'];
+      const current = location.pathname === '/c' ? '/' : location.pathname;
+      const idx = variants.indexOf(current);
+      location.href = variants[(idx + 1) % variants.length];
+    });
+  </script>
+
   <!-- ============================================================
        Hero
        ============================================================ -->
