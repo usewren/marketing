@@ -382,6 +382,7 @@ Response 200:
 ### Get a node and its children
 ```
 GET /tree/{name}/{path}
+GET /tree/{name}/{path}?label=published   ← document at the labeled version
 e.g. GET /tree/main/blog/hello
 
 Response 200:
@@ -395,6 +396,8 @@ Response 200:
 }
 Response 404: path not found
 ```
+
+The `?label=` parameter resolves the document at a specific labeled version instead of `current_version`. Permission rules with a `labelFilter` apply this automatically for public reads — so a `principal='*'` rule with `labelFilter: "published"` means anonymous visitors always see the published version, while authenticated users can pass `?label=preview` to see unpublished changes. This enables a deploy → preview → promote workflow for static sites.
 
 ### Assign a document to a path
 ```
