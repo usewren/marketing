@@ -10,6 +10,50 @@
   <link rel="alternate icon" href="/favicon.ico" />
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#4338ca" />
+  <style>
+    .tutorial-layout {
+      display: grid; grid-template-columns: 220px 1fr; gap: 0;
+      max-width: var(--container-max); margin: 0 auto;
+      padding: var(--nav-height) 24px 0; min-height: calc(100vh - var(--nav-height));
+    }
+    .tutorial-sidebar {
+      position: sticky; top: calc(var(--nav-height) + 24px); align-self: start;
+      padding: 32px 20px 32px 0; font-size: 14px;
+      max-height: calc(100vh - var(--nav-height) - 48px); overflow-y: auto;
+    }
+    .tutorial-sidebar__title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-muted); margin-bottom: 12px; }
+    .tutorial-sidebar__list { list-style: none; display: flex; flex-direction: column; gap: 2px; padding: 0; }
+    .tutorial-sidebar__list a { display: block; padding: 5px 8px; border-radius: 4px; color: var(--color-muted); font-size: 13px; }
+    .tutorial-sidebar__list a:hover { background: #f5f3ff; color: var(--color-text); }
+    .tutorial-sidebar__also { margin-top: 24px; font-size: 13px; }
+    .tutorial-sidebar__also h5 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-muted); margin: 0 0 8px; }
+    .tutorial-sidebar__also a { display: block; padding: 4px 0; color: var(--color-primary); }
+    .tutorial-main { padding: 48px 0 80px 32px; border-left: 1px solid var(--color-border); min-width: 0; }
+    .tutorial-section { margin-bottom: 48px; }
+    .tutorial-section h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+    .tutorial-section h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+    .tutorial-section p { color: var(--color-muted); margin-bottom: 16px; max-width: 680px; line-height: 1.7; }
+    .tutorial-section p code, .tutorial-section li code { font-family: var(--font-mono); font-size: 0.85em; background: #f5f3ff; border: 1px solid var(--color-border); border-radius: 3px; padding: 1px 5px; color: var(--color-primary-dark); }
+    .tutorial-divider { border: none; border-top: 1px solid var(--color-border); margin: 40px 0; }
+    .step-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--color-primary); color: #fff; font-size: 13px; font-weight: 700; }
+    .code-block { background: var(--color-code-bg); border-radius: 8px; overflow: hidden; font-size: 13px; margin: 12px 0 20px; max-width: 680px; }
+    .code-block__header { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .code-block__lang { font-family: var(--font-mono); font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.06em; }
+    .code-block pre { padding: 14px 16px; overflow-x: auto; line-height: 1.65; color: #e2e8f0; margin: 0; }
+    .callout { border-radius: 8px; padding: 14px 16px; margin: 20px 0; font-size: 14px; max-width: 680px; line-height: 1.6; }
+    .callout--info { background: #f0fdf4; border-left: 3px solid #10b981; color: #065f46; }
+    .callout strong { font-weight: 700; }
+    .callout code { font-family: var(--font-mono); font-size: 0.85em; background: rgba(0,0,0,0.08); border-radius: 3px; padding: 1px 4px; }
+    .steps-inline { list-style: none; margin: 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    .steps-inline li { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--color-muted); line-height: 1.6; }
+    .steps-inline li .n { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--color-border); color: var(--color-text); font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    @media (max-width: 768px) {
+      .tutorial-layout { grid-template-columns: 1fr; overflow-x: hidden; padding-left: 16px; padding-right: 16px; }
+      .tutorial-sidebar { display: none; }
+      .tutorial-main { border-left: none; padding-left: 0; }
+      pre { font-size: 12px; }
+    }
+  </style>
 </head>
 <body>
 

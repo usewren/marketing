@@ -303,9 +303,12 @@
     }
 
     @media (max-width: 768px) {
-      .tutorial-layout { grid-template-columns: 1fr; }
+      .tutorial-layout { grid-template-columns: 1fr; overflow-x: hidden; padding-left: 16px; padding-right: 16px; }
       .tutorial-toc { display: none; }
       .tutorial-body { border-left: none; padding-left: 0; }
+      .tutorial-screenshot { width: 100%; height: auto; }
+      .paired { grid-template-columns: 1fr; }
+      pre { font-size: 12px; }
     }
   </style>
 </head>
