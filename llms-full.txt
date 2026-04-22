@@ -793,14 +793,46 @@ Response objects are Python dataclasses. Fields use `snake_case` (e.g. `created_
 
 ---
 
+## Projects directory
+
+### List public projects
+Public, no authentication required. Returns every org that has at least one `principal='*'` permission rule. For each tree, the response includes an `entryUrl` if the tree has an `/index.html` path — indicating it serves a browsable site or app.
+```
+GET /api/v1/projects
+
+Response 200:
+{
+  "projects": [
+    {
+      "name": "Ruben Reusser",
+      "slug": "tkd",
+      "url": "https://wren.example.com/api/v1/orgs/tkd",
+      "collections": [
+        { "name": "media", "access": "read", "labelFilter": null, "url": "…/orgs/tkd/media" }
+      ],
+      "trees": [
+        { "name": "tkdbern", "url": "…/orgs/tkd/tree/tkdbern?full=true", "entryUrl": "…/orgs/tkd/tree/tkdbern/index.html" },
+        { "name": "events",  "url": "…/orgs/tkd/tree/events?full=true",  "entryUrl": null }
+      ]
+    }
+  ]
+}
+```
+
+A human-friendly HTML view is available at `/projects`.
+
+---
+
 ## System endpoints
 
 ```
-GET /health        → { "status": "ok" }
-GET /openapi.json  → OpenAPI 3.1 specification
-GET /docs          → Interactive Scalar API explorer
-GET /llms.txt      → Concise LLM-friendly site summary (this file's index)
-GET /llms-full.txt → This document
-GET /robots.txt    → Crawler permissions
-GET /sitemap.xml   → XML sitemap
+GET /health          → { "status": "ok" }
+GET /openapi.json    → OpenAPI 3.1 specification
+GET /docs            → Interactive Scalar API explorer
+GET /projects        → Public project directory (HTML)
+GET /api/v1/projects → Public project directory (JSON)
+GET /llms.txt        → Concise LLM-friendly site summary (this file's index)
+GET /llms-full.txt   → This document
+GET /robots.txt      → Crawler permissions
+GET /sitemap.xml     → XML sitemap
 ```

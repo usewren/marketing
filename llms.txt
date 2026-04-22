@@ -75,6 +75,9 @@ DELETE /tree/{name}/{path}                  unassign
 # Identity
 GET    /api/me                               principal, org, role, applicable permission rules (self-check)
 
+# Projects (public, no auth)
+GET    /api/v1/projects                      list all orgs with public permissions, collections, trees, entry URLs
+
 # Management
 GET    /api/keys                             list API keys
 POST   /api/keys                             {name} → create key (shown once)
