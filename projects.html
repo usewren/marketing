@@ -132,6 +132,30 @@
       padding: 4rem 1rem;
       color: var(--color-muted);
     }
+    .project-card__sites {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .site-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .45rem .9rem;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 500;
+      text-decoration: none;
+      background: var(--color-primary);
+      color: #fff;
+      transition: background .15s;
+    }
+    .site-link:hover {
+      background: var(--color-primary-dark);
+    }
+    .site-link__icon {
+      font-size: .8rem;
+    }
   </style>
 </head>
 <body>
@@ -190,12 +214,23 @@
 
         el.innerHTML = `<div class="projects-grid">${projects.map(p => {
           const initial = (p.name || p.slug).charAt(0).toUpperCase();
-          const collections = p.collections.map(c =>
-            `<a href="${esc(c.url)}" class="resource-chip" title="Collection: ${esc(c.name)}${c.labelFilter ? ` (label: ${esc(c.labelFilter)})` : ""}">
-              <span class="resource-chip__icon">&#128196;</span>${esc(c.name)}${c.labelFilter ? ` <small style="color:var(--text-muted)">${esc(c.labelFilter)}</small>` : ""}
+
+          // Trees with an index.html entry point are "sites" — shown as prominent visit buttons
+          const sites = p.trees.filter(t => t.entryUrl);
+          const plainTrees = p.trees.filter(t => !t.entryUrl);
+
+          const siteLinks = sites.map(t =>
+            `<a href="${esc(t.entryUrl)}" class="site-link" target="_blank" title="Open ${esc(t.name)}">
+              <span class="site-link__icon">&#127760;</span>${esc(t.name)}
             </a>`
           ).join("");
-          const trees = p.trees.map(t =>
+
+          const collections = p.collections.map(c =>
+            `<a href="${esc(c.url)}" class="resource-chip" title="Collection: ${esc(c.name)}${c.labelFilter ? ` (label: ${esc(c.labelFilter)})` : ""}">
+              <span class="resource-chip__icon">&#128196;</span>${esc(c.name)}${c.labelFilter ? ` <small style="color:var(--color-muted)">${esc(c.labelFilter)}</small>` : ""}
+            </a>`
+          ).join("");
+          const trees = plainTrees.map(t =>
             `<a href="${esc(t.url)}" class="resource-chip" title="Tree: ${esc(t.name)}">
               <span class="resource-chip__icon">&#127795;</span>${esc(t.name)}
             </a>`
@@ -209,6 +244,7 @@
                 <span class="project-card__slug">${esc(p.slug)}</span>
               </div>
             </div>
+            ${siteLinks ? `<div><p class="project-card__section">Sites &amp; Apps</p><div class="project-card__sites">${siteLinks}</div></div>` : ""}
             ${collections ? `<div><p class="project-card__section">Collections</p><div class="project-card__resources">${collections}</div></div>` : ""}
             ${trees ? `<div><p class="project-card__section">Trees</p><div class="project-card__resources">${trees}</div></div>` : ""}
             <div class="project-card__links">
