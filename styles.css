@@ -152,6 +152,23 @@ a:hover {
   text-decoration: none;
 }
 
+.nav__hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  color: var(--color-text);
+}
+.nav__hamburger svg { width: 24px; height: 24px; }
+
+/* Prevent anchor-linked headings from underlapping the fixed nav */
+[id] {
+  scroll-margin-top: calc(var(--nav-height) + 16px);
+}
+
 /* ============================================================
    Hero — gradient background with organic shapes
    ============================================================ */
@@ -964,8 +981,28 @@ section {
   }
 
   .nav__links {
-    gap: 16px;
+    display: none;
+    position: fixed;
+    top: var(--nav-height);
+    left: 0;
+    right: 0;
+    background: #fff;
+    flex-direction: column;
+    padding: 12px 20px 20px;
+    gap: 4px;
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    z-index: 99;
   }
+  .nav__links.open { display: flex; }
+  .nav__links a {
+    padding: 10px 0;
+    font-size: 1rem;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .nav__links li:last-child a { border-bottom: none; }
+
+  .nav__hamburger { display: flex; }
 
   .hero {
     padding-top: calc(var(--nav-height) + 52px);
