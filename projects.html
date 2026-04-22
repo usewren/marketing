@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Projects</title>
+  <meta name="description" content="Public projects hosted on this WREN instance." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="theme-color" content="#4338ca" />
+  <style>
+    .projects-hero {
+      padding: calc(var(--nav-height) + 3rem) 0 2rem;
+      text-align: center;
+    }
+    .projects-hero h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin: 0 0 .5rem;
+    }
+    .projects-hero p {
+      color: var(--color-muted);
+      font-size: 1.1rem;
+      margin: 0;
+    }
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+      padding: 0 0 4rem;
+    }
+    .project-card {
+      background: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .project-card:hover {
+      border-color: var(--color-primary);
+      box-shadow: 0 2px 12px rgba(99, 102, 241, .1);
+    }
+    .project-card__header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+    }
+    .project-card__icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--color-primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .project-card__name {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    .project-card__slug {
+      font-size: .85rem;
+      color: var(--color-muted);
+      font-family: var(--font-mono);
+    }
+    .project-card__section {
+      font-size: .8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--color-muted);
+      margin: 0;
+    }
+    .project-card__resources {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .resource-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .3rem .7rem;
+      border-radius: 6px;
+      font-size: .85rem;
+      font-family: var(--font-mono);
+      text-decoration: none;
+      background: var(--color-bg-lavender);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      transition: border-color .15s, background .15s;
+    }
+    .resource-chip:hover {
+      border-color: var(--color-primary);
+      background: rgba(99, 102, 241, .08);
+    }
+    .resource-chip__icon {
+      font-size: .75rem;
+    }
+    .project-card__links {
+      display: flex;
+      gap: .75rem;
+      margin-top: auto;
+      padding-top: .5rem;
+      border-top: 1px solid var(--color-border);
+    }
+    .project-card__link {
+      font-size: .85rem;
+      color: var(--color-primary);
+      text-decoration: none;
+    }
+    .project-card__link:hover {
+      text-decoration: underline;
+    }
+    .projects-empty {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--color-muted);
+    }
+    .projects-loading {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--color-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/tutorial">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects" style="font-weight:600">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="projects-hero">
+      <h1>Projects</h1>
+      <p>Public-facing sites and APIs powered by this WREN instance.</p>
+    </div>
+
+    <div id="projects-content">
+      <div class="projects-loading">Loading projects&hellip;</div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; documents, versions, and trees</p>
+        <ul class="footer__links">
+          <li><a href="/admin">Admin UI</a></li>
+          <li><a href="/docs">API Docs</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+  <script>
+    (async () => {
+      const el = document.getElementById("projects-content");
+      try {
+        const res = await fetch("/api/v1/projects");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { projects } = await res.json();
+
+        if (!projects.length) {
+          el.innerHTML = `<div class="projects-empty">
+            <p>No public projects yet.</p>
+            <p style="font-size:.9rem">Create a collection, add a <code>principal=*</code> read permission, and it will appear here automatically.</p>
+          </div>`;
+          return;
+        }
+
+        el.innerHTML = `<div class="projects-grid">${projects.map(p => {
+          const initial = (p.name || p.slug).charAt(0).toUpperCase();
+          const collections = p.collections.map(c =>
+            `<a href="${esc(c.url)}" class="resource-chip" title="Collection: ${esc(c.name)}${c.labelFilter ? ` (label: ${esc(c.labelFilter)})` : ""}">
+              <span class="resource-chip__icon">&#128196;</span>${esc(c.name)}${c.labelFilter ? ` <small style="color:var(--text-muted)">${esc(c.labelFilter)}</small>` : ""}
+            </a>`
+          ).join("");
+          const trees = p.trees.map(t =>
+            `<a href="${esc(t.url)}" class="resource-chip" title="Tree: ${esc(t.name)}">
+              <span class="resource-chip__icon">&#127795;</span>${esc(t.name)}
+            </a>`
+          ).join("");
+
+          return `<div class="project-card">
+            <div class="project-card__header">
+              <div class="project-card__icon">${initial}</div>
+              <div>
+                <p class="project-card__name">${esc(p.name)}</p>
+                <span class="project-card__slug">${esc(p.slug)}</span>
+              </div>
+            </div>
+            ${collections ? `<div><p class="project-card__section">Collections</p><div class="project-card__resources">${collections}</div></div>` : ""}
+            ${trees ? `<div><p class="project-card__section">Trees</p><div class="project-card__resources">${trees}</div></div>` : ""}
+            <div class="project-card__links">
+              <a href="${esc(p.url)}/llms.txt" class="project-card__link">llms.txt</a>
+            </div>
+          </div>`;
+        }).join("")}</div>`;
+      } catch (err) {
+        el.innerHTML = `<div class="projects-empty"><p>Failed to load projects.</p><p style="font-size:.85rem;color:var(--text-muted)">${esc(String(err))}</p></div>`;
+      }
+    })();
+
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+  </script>
+
+</body>
+</html>
