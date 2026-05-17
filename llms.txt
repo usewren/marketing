@@ -1,6 +1,6 @@
 # Wren
 
-> Self-hosted versioned JSON storage and static site deployment. Every write creates a new immutable version. Deploy files and data together, preview before going live, promote when ready. Postgres-backed, deployed with Docker.
+> Self-hosted versioned JSON storage, static site deployment, and queryable collections. Every write creates a new immutable version. Deploy files and data together, preview before going live, promote when ready. Query with projection, aggregation, and materialized views. Postgres-backed, deployed with Docker.
 
 This file is the LLM-friendly index for Wren. It is intended for AI agents and tools that want a fast orientation; follow the links below for full detail.
 
@@ -63,9 +63,19 @@ POST   /{collection}/{id}/labels             {label, version?} → pin label
 
 # Schemas
 GET    /{collection}/_schema
-PUT    /{collection}/_schema                 {schema, displayName, collectionType, naturalKey?}
+PUT    /{collection}/_schema                 {schema, displayName, collectionType, naturalKey?, indexes?}
 DELETE /{collection}/_schema
 POST   /{collection}/_schema/validate        dry-run: validate a schema against existing docs before writing
+
+# Query
+POST   /{collection}/_query                  filter + projection + aggregation (JSON body)
+GET    /{collection}?select=a,b&where=x:y    field projection + SQL-level filtering on list
+
+# Materialized queries
+GET    /{collection}/_materialized            list materialized queries
+PUT    /{collection}/_materialized/{name}     create/update (auto-refreshes on write)
+GET    /{collection}/_materialized/{name}     read result
+DELETE /{collection}/_materialized/{name}     remove
 
 # Trees
 GET    /tree                                 list trees

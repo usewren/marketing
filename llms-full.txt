@@ -279,6 +279,82 @@ Fetch a labelled version: `GET /{collection}/{id}?label=published`
 
 ---
 
+## Query API
+
+The list endpoint and a dedicated `_query` endpoint support SQL-level filtering, field projection, and aggregation — replacing the need for hand-built index documents.
+
+### Projection and filtering on the list endpoint
+```
+GET /{collection}?select=title,category&where=category:news&limit=10
+
+Response 200:
+{
+  "collection": "articles",
+  "items": [{ "id": "…", "version": 1, "data": { "title": "…", "category": "news" } }],
+  "total": 3
+}
+```
+
+`?select=` returns only the named fields from `data`. `?where=` filters at the SQL level (not post-query). Operators: `:` (equals), `=`, `!=`, `>`, `>=`, `<`, `<=`, `~*` (regex), `@>` (containment). Combine with `AND`/`OR`.
+
+### Query endpoint (projection + aggregation)
+```
+POST /{collection}/_query
+{
+  "select": ["title", "category"],
+  "where": "category:news",
+  "aggregate": {
+    "groupBy": ["category"],
+    "metrics": {
+      "count": { "count": "title" },
+      "authors": { "countDistinct": "author" }
+    }
+  },
+  "label": "published",
+  "limit": 100,
+  "cursor": "…"
+}
+```
+
+Without `aggregate`, returns projected documents (same shape as list endpoint, with cursor pagination). With `aggregate`, returns metric rows:
+
+```
+Response 200 (aggregate):
+{
+  "rows": [
+    { "key": { "category": "news" }, "count": 12, "authors": 4 },
+    { "key": { "category": "opinion" }, "count": 3, "authors": 2 }
+  ]
+}
+```
+
+Metric ops (v1): `count`, `countDistinct`, `sum`, `min`, `max`, `avg`. `groupBy` accepts field paths plus `$documentId`, `$path`, `$collection`. Array paths with `[]` are unnested before aggregation — e.g. `report.divisions[].categories[].ranked[].gmsId` flattens the nested array and counts/aggregates over the leaf values.
+
+### Materialized queries
+Named, persisted query results that auto-refresh on every write to the source collection. The result is stored as a versioned document, so it participates in labels and the promote workflow.
+
+```
+PUT /{collection}/_materialized/{name}
+{ "query": { "select": ["title", "category"] }, "refreshOn": "write" }
+
+Response 200: { "collection": "articles", "name": "slim-list", "refreshOn": "write", "resultDocId": "…" }
+```
+
+```
+GET /{collection}/_materialized/{name}
+
+Response 200:
+{
+  "collection": "articles",
+  "name": "slim-list",
+  "result": { "id": "…", "version": 3, "data": { "items": […], "refreshedAt": "…" } }
+}
+```
+
+Max 5 materialized queries per collection. `refreshOn: "write"` triggers on every create/update/delete; `refreshOn: "manual"` requires an explicit PUT to refresh.
+
+---
+
 ## JSON Schemas
 
 Schemas are optional. When set, every create/update is validated before writing.
