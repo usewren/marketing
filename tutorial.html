@@ -1298,8 +1298,81 @@ DELETE /api/permissions/&lt;id&gt;</pre>
       <hr class="tutorial-divider" />
 
       <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="query">
+        <h2><span class="step-badge">12</span> Querying documents</h2>
+
+        <p>The Query API lets you filter, project, and aggregate across documents without fetching full objects. This replaces hand-built index documents.</p>
+
+        <h3 id="query-select">Field projection</h3>
+        <p>Add <code>?select=</code> to the list endpoint to return only the fields you need:</p>
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren query articles --select title,category</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">http</span><span class="code-block__label">REST</span></div>
+            <pre>GET /articles?select=title,category
+
+{ "items": [
+    { "id":"…", "data": { "title":"…", "category":"…" } }
+  ] }</pre>
+          </div>
+        </div>
+
+        <h3 id="query-where">SQL-level filtering</h3>
+        <p>Add <code>?where=</code> to filter at the database level (faster than post-query filtering):</p>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">http</span></div>
+          <pre>GET /articles?select=title&amp;where=category:course-review
+GET /articles?where=count>5
+GET /articles?where=tags@>["sports"]</pre>
+        </div>
+
+        <h3 id="query-aggregate">Aggregation</h3>
+        <p>Use <code>POST /_query</code> with an <code>aggregate</code> body to group and count without fetching every document:</p>
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">CLI</span></div>
+            <pre>wren query articles --json '{
+  "aggregate": {
+    "groupBy": ["category"],
+    "metrics": {
+      "count": {"count":"title"}
+    }
+  }
+}'</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">json</span><span class="code-block__label">Response</span></div>
+            <pre>{ "rows": [
+    { "key": {"category":"news"}, "count": 12 },
+    { "key": {"category":"opinion"}, "count": 3 }
+  ] }</pre>
+          </div>
+        </div>
+
+        <h3 id="query-materialized">Materialized queries</h3>
+        <p>Save a query so its result auto-refreshes on every write. The result is a versioned document &mdash; it participates in labels and the promote workflow.</p>
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre>wren materialized set articles by-category \
+  --query '{"aggregate":{"groupBy":["category"],"metrics":{"count":{"count":"title"}}}}'
+
+# Read the result anytime
+wren materialized get articles by-category</pre>
+        </div>
+
+        <div class="callout callout--info">
+          <strong>Index declarations.</strong> For large collections, add indexes to speed up queries. Set them on the schema: <code>"indexes": [{"path":"category","kind":"btree"}, {"path":"title","kind":"trigram"}]</code>. Kinds: <code>btree</code> (exact match), <code>gin</code> (JSONB containment), <code>trigram</code> (regex / ILIKE search).
+        </div>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="cli">
-        <h2><span class="step-badge">12</span> CLI reference</h2>
+        <h2><span class="step-badge">13</span> CLI reference</h2>
 
         <h3>Setup</h3>
         <div class="code-block paired--wide">
