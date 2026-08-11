@@ -902,12 +902,64 @@ A human-friendly HTML view is available at `/projects`.
 
 ---
 
+## wren.js — Client-side data binding
+
+A zero-dependency web components library served at `/wren.js`. Drop it into any HTML page to declaratively bind WREN data — no build step, no framework.
+
+```html
+<script src="/wren.js"></script>
+
+<!-- List with projection -->
+<wren-list collection="events" select="name,date,city" limit="20">
+  <template><div>{{name}} — {{city}} ({{date}})</div></template>
+</wren-list>
+
+<!-- Query with aggregation -->
+<wren-query collection="events"
+  q='{"aggregate":{"groupBy":["country"],"metrics":{"n":{"count":"name"}}}}'>
+  <template><div>{{country}}: {{n}}</div></template>
+</wren-query>
+
+<!-- Materialized view -->
+<wren-materialized collection="events" name="overview">
+  <template><div>{{name}} — {{startDate}}</div></template>
+</wren-materialized>
+
+<!-- Single document -->
+<wren-doc collection="articles" key="hello-world">
+  <template><h1>{{title}}</h1><p>{{body}}</p></template>
+</wren-doc>
+
+<!-- Full tree -->
+<wren-tree tree="site">
+  <template><div>{{path}}: {{title}}</div></template>
+</wren-tree>
+```
+
+Components: `wren-list`, `wren-query`, `wren-materialized`, `wren-doc`, `wren-tree`.
+
+**Configuration** (on the `<script>` tag or on each component):
+- `data-org="tkd"` — explicit org slug (auto-detected from `/orgs/{slug}/` URL if omitted)
+- `data-base="https://wren.example.com/api/v1/orgs/tkd"` — explicit API base for custom domains
+- `data-origin="https://wren.example.com"` — explicit WREN origin for cross-origin setups
+
+**Template syntax:** `{{field}}` with dot paths (`{{report.name}}`). `{{{field}}}` for unescaped HTML.
+
+**Slots:** `<div slot="loading">`, `<div slot="empty">`, `<div slot="error">` for custom loading/empty/error states.
+
+**Events:** each component dispatches `wren-load` with `event.detail` containing the raw API response.
+
+**Programmatic access:** `window.Wren.fetch(url)`, `window.Wren.resolveBase(element)`, `window.Wren.renderTemplate(tmpl, data)`.
+
+---
+
 ## System endpoints
 
 ```
 GET /health          → { "status": "ok" }
 GET /openapi.json    → OpenAPI 3.1 specification
 GET /docs            → Interactive Scalar API explorer
+GET /wren.js         → Client-side web components library
 GET /projects        → Public project directory (HTML)
 GET /api/v1/projects → Public project directory (JSON)
 GET /llms.txt        → Concise LLM-friendly site summary (this file's index)

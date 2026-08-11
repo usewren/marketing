@@ -29,6 +29,7 @@ Wren is an open-source backend service that combines versioned JSON storage with
 
 ## Client libraries
 
+- **wren.js** (browser): `<script src="/wren.js">` — zero-dependency web components for declarative data binding (`<wren-list>`, `<wren-query>`, `<wren-materialized>`, `<wren-doc>`, `<wren-tree>`). Auto-detects org from URL; works on custom domains via `data-base` attribute.
 - **TypeScript / JavaScript**: `npm install @wren/client` — Node ≥18, Bun, Browser; zero runtime dependencies; full types
 - **Python**: `pip install wren-client` — Python ≥3.9; sync (`WrenClient`) and async (`AsyncWrenClient`) via httpx; dataclasses
 
