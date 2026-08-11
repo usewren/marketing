@@ -340,6 +340,34 @@ wren create pages '{"slug":"about","title":"About Us","body":"We are a team buil
         </div>
 
         <p>Now your static site <em>and</em> its content data live in the same system. When you promote, both the HTML files and the JSON content can move to <code>published</code> together.</p>
+
+        <p>The easiest way to display this data in your HTML is <strong>wren.js</strong> &mdash; a one-line script that gives you web components for data binding:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">html</span></div>
+          <pre>&lt;!-- Add to your index.html --&gt;
+&lt;script src="/wren.js"&gt;&lt;/script&gt;
+
+&lt;!-- List pages from the collection --&gt;
+&lt;wren-list collection="pages" select="title,body"&gt;
+  &lt;template&gt;
+    &lt;article&gt;
+      &lt;h2&gt;{{title}}&lt;/h2&gt;
+      &lt;p&gt;{{body}}&lt;/p&gt;
+    &lt;/article&gt;
+  &lt;/template&gt;
+&lt;/wren-list&gt;
+
+&lt;!-- Or fetch a single page by its slug --&gt;
+&lt;wren-doc collection="pages" key="about"&gt;
+  &lt;template&gt;
+    &lt;h1&gt;{{title}}&lt;/h1&gt;
+    &lt;p&gt;{{body}}&lt;/p&gt;
+  &lt;/template&gt;
+&lt;/wren-doc&gt;</pre>
+        </div>
+
+        <p>No JavaScript to write &mdash; the components auto-detect the org from the URL, fetch the data, and render the template. See the <a href="/tutorial#wrenjs">full wren.js tutorial</a> for aggregation, materialized views, custom domains, and more.</p>
       </section>
 
       <hr class="tutorial-divider" />
