@@ -953,6 +953,61 @@ Components: `wren-list`, `wren-query`, `wren-materialized`, `wren-doc`, `wren-tr
 
 ---
 
+## Webhooks
+
+Register HTTP endpoints that receive batched notifications when data changes. Events within a configurable time window (default 5 seconds) are grouped into one delivery — so `wren promote` labeling 50 documents produces one webhook call, not 50.
+
+### Create a webhook
+```
+POST /api/v1/webhooks
+{ "url": "https://example.com/hook", "events": ["document.created", "document.updated"] }
+
+Response 201:
+{ "id": "…", "url": "…", "events": [...], "secret": "hmac-signing-key-shown-once", "enabled": true }
+```
+
+`events` filters which event types trigger this webhook. Empty array = all events. Available types: `document.created`, `document.updated`, `document.deleted`, `label.set`, `tree.assigned`, `tree.removed`, `schema.updated`.
+
+### Webhook payload
+```json
+{
+  "batchKey": "orgId:357304433",
+  "events": [
+    { "type": "document.created", "payload": { "collection": "articles", "id": "uuid" } },
+    { "type": "document.updated", "payload": { "collection": "articles", "id": "uuid" } }
+  ],
+  "deliveredAt": "2026-05-19T12:00:00Z"
+}
+```
+
+Headers: `X-Wren-Signature` (HMAC-SHA256 of body using the webhook secret), `X-Wren-Delivery` (batch key).
+
+### Retry and auto-disable
+- Retries with exponential backoff: 1s, 2s, 4s, 8s, 16s (5 attempts max)
+- Each attempt logged to the delivery log
+- After 10 consecutive batch failures, the webhook is auto-disabled
+- Re-enable with `PUT /api/v1/webhooks/{id}` with `{"enabled": true}`
+
+### Delivery log
+```
+GET /api/v1/webhooks/{id}/deliveries
+
+Response 200:
+{ "deliveries": [{ "batchKey": "…", "eventCount": 3, "attempt": 1, "statusCode": 200, "deliveredAt": "…" }] }
+```
+
+### Replay
+```
+POST /api/v1/webhooks/{id}/replay
+{ "since": "2026-05-19T00:00:00Z" }
+
+Response 200: { "replayed": 42, "batchKey": "orgId:replay:1716123456789" }
+```
+
+Re-delivers all events since the given timestamp. Events are retained for 7 days.
+
+---
+
 ## System endpoints
 
 ```

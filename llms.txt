@@ -91,6 +91,14 @@ GET    /api/me                               principal, org, role, applicable pe
 # Projects (public, no auth)
 GET    /api/v1/projects                      list all orgs with public permissions, collections, trees, entry URLs
 
+# Webhooks
+GET    /api/v1/webhooks                      list webhooks
+POST   /api/v1/webhooks                      create (returns signing secret once)
+PUT    /api/v1/webhooks/{id}                 update url/events/enabled
+DELETE /api/v1/webhooks/{id}                 delete
+GET    /api/v1/webhooks/{id}/deliveries      delivery log
+POST   /api/v1/webhooks/{id}/replay          re-deliver past events
+
 # Management
 GET    /api/keys                             list API keys
 POST   /api/keys                             {name} → create key (shown once)
