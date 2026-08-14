@@ -707,6 +707,7 @@ Field values:
 - `filterLang` (optional) selects the data filter language: `"jq"`, `"jmespath"`, or `"jsonata"`.
 - `filterExpr` (optional) is the filter expression in the chosen language.
 - `auditReads` / `auditWrites` (boolean) turn on audit logging for matching requests.
+- `alias` (optional) short name for the public URL. When set on a `principal='*'` rule, the collection/tree is accessible at `/orgs/{slug}/{alias}` in addition to its real name. Lowercase alphanumeric + hyphens, unique per org, no reserved keywords.
 
 ### List rules
 ```

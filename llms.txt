@@ -110,7 +110,7 @@ POST   /api/invites                          {email, role?} → invite
 DELETE /api/invites/{id}                     revoke invite
 POST   /api/invites/accept                   {token} → accept by token
 GET    /api/permissions                      list permission rules
-POST   /api/permissions                      create rule
+POST   /api/permissions                      create rule (supports optional alias for public URLs)
 PUT    /api/permissions/{id}                 update rule
 DELETE /api/permissions/{id}                 delete rule
 ```
