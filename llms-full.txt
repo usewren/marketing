@@ -954,6 +954,37 @@ Components: `wren-list`, `wren-query`, `wren-materialized`, `wren-doc`, `wren-tr
 
 ---
 
+## Document references (`$ref`)
+
+Documents can reference other documents, tree paths, or query results. Add `?depth=N` to any GET endpoint to resolve references server-side.
+
+### Reference types
+```json
+{ "author": { "$ref": "authors", "$id": "uuid" } }
+{ "category": { "$ref": "categories", "$key": "news" } }
+{ "nav": { "$ref": "tree:site", "$path": "/", "$limit": 5 } }
+{ "recent": { "$ref": "query:articles", "$select": ["title"], "$limit": 3 } }
+{ "stats": { "$ref": "query:articles", "$q": {"aggregate":{...}} } }
+```
+
+### Resolution
+```
+GET /articles/abc              → $ref objects returned as-is
+GET /articles/abc?depth=1      → one level resolved
+GET /articles/abc?depth=2      → two levels deep (nested refs resolved)
+GET /articles?depth=1           → works on list endpoints too
+```
+
+- **Document refs** resolve to the referenced document's `data`
+- **Tree refs** resolve to an array of `{path, documentId, data}` nodes, capped by `$limit`
+- **Query refs** resolve to items (projection) or rows (aggregation)
+- **Loop detection**: circular refs get `{$circular: true}` marker
+- **Depth limit**: max 5, default 0 (no resolution, backwards compatible)
+- **Batch fetching**: all refs at one depth level resolved in one SQL query per collection
+- **Not-found refs**: get `{$notFound: true}` marker
+
+---
+
 ## Webhooks
 
 Register HTTP endpoints that receive batched notifications when data changes. Events within a configurable time window (default 5 seconds) are grouped into one delivery — so `wren promote` labeling 50 documents produces one webhook call, not 50.

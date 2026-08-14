@@ -16,7 +16,9 @@ Wren is an open-source backend service that combines versioned JSON storage with
 - **Deploy** — `wren deploy ./dist --tree mysite` uploads files, assigns tree paths, and serves the site. `wren promote` moves the published label atomically.
 - **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata
 - **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
-- **Permissions** — fine-grained rules per principal (user or API key) per resource, with optional label and data filters
+- **$ref resolution** — documents can reference other documents, tree paths, or queries; add `?depth=N` to resolve server-side with loop detection
+- **Webhooks** — batched HTTP notifications on data changes with HMAC signing, retry, and replay
+- **Permissions** — fine-grained rules per principal, with optional label/data filters and public aliases
 - **API keys** — long-lived Bearer tokens for programmatic access
 
 ## Documentation

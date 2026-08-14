@@ -1518,8 +1518,42 @@ wren permissions create \
       <hr class="tutorial-divider" />
 
       <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="tutorial-section" id="refs">
+        <h2><span class="step-badge">16</span> Document references ($ref)</h2>
+
+        <p>Documents can reference other documents, tree paths, or query results. Add <code>?depth=N</code> to any GET to resolve references server-side.</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">json</span><span class="code-block__label">Document with refs</span></div>
+          <pre>{
+  "title": "Dashboard",
+  "author": { "$ref": "authors", "$id": "uuid-123" },
+  "nav": { "$ref": "tree:site", "$path": "/", "$limit": 5 },
+  "recent": { "$ref": "query:articles", "$select": ["title"], "$limit": 3 }
+}</pre>
+        </div>
+
+        <div class="paired">
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">Without depth</span></div>
+            <pre>GET /articles/abc
+# "author": {"$ref":"authors","$id":"uuid"}</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block__header"><span class="code-block__lang">bash</span><span class="code-block__label">With ?depth=1</span></div>
+            <pre>GET /articles/abc?depth=1
+# "author": {"name":"Jane","email":"..."}</pre>
+          </div>
+        </div>
+
+        <p>Ref types: <code>$ref: "collection"</code> + <code>$id</code> or <code>$key</code> (document), <code>$ref: "tree:name"</code> + <code>$path</code>/<code>$limit</code> (tree nodes), <code>$ref: "query:collection"</code> + <code>$select</code>/<code>$q</code> (live query). Circular refs get <code>$circular: true</code>. Max depth: 5.</p>
+      </section>
+
+      <hr class="tutorial-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="cli">
-        <h2><span class="step-badge">16</span> CLI reference</h2>
+        <h2><span class="step-badge">17</span> CLI reference</h2>
 
         <h3>Setup</h3>
         <div class="code-block paired--wide">
@@ -1611,7 +1645,7 @@ wren permissions delete &lt;id&gt;</pre>
 
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="clients">
-        <h2><span class="step-badge">17</span> Client libraries</h2>
+        <h2><span class="step-badge">18</span> Client libraries</h2>
 
         <p>WREN ships official client libraries for TypeScript/JavaScript and Python. Both cover the full API surface — documents, versions, labels, diff, schemas, trees, keys, invites, permissions — with complete type definitions.</p>
 
