@@ -59,9 +59,10 @@
       <section class="guide-section" id="people">
         <h2>2. People and keys</h2>
         <ul>
-          <li><strong>People:</strong> invite collaborators with <code>POST /api/v1/invites {"email": "…", "role": "member"}</code> (or <code>"admin"</code>).</li>
-          <li><strong>One API key per script, CI job and agent</strong> (Admin UI → API Keys, or <code>wren keys create</code>). Store keys as secrets, never in code or page source. A key always acts in the org it was created in.</li>
-          <li><strong>Least privilege:</strong> keys created by the org owner bypass all permission rules. For a restricted writer, create the key from a member account and give it <code>key:&lt;keyId&gt;</code> rules, for example write access to one collection only.</li>
+          <li><strong>People and groups:</strong> invite people straight into groups (Admin UI → Collaborators, or <code>POST /api/v1/invites {"email": "…", "role": "member", "groupIds": ["…"]}</code>). <strong>Groups decide what people can see and change:</strong> every org starts with <em>Editors</em> (read and write everything) and <em>Viewers</em> (read everything), and you can add your own, e.g. "Results team" with write access to <code>results</code> only. <strong>The role decides what they can manage:</strong> admins handle people, keys, permissions and groups; members don't. Invite links only work for the invited email address and expire after 7 days.</li>
+          <li><strong>One API key per script, CI job and agent</strong> (Admin UI → API Keys, or <code>wren keys create</code>). Store keys as secrets, never in code or page source. A key always acts in the org it was created in, <strong>with its creator's access there</strong>, so any member can create keys for their own scripts.</li>
+          <li><strong>Least privilege:</strong> give a key <code>key:&lt;keyId&gt;</code> rules to narrow it, for example write access to one collection only. A key with rules of its own uses only those. The org owner's keys bypass all rules, so create restricted keys from a member account.</li>
+          <li><strong>Support:</strong> admins can <em>View as</em> a member (Collaborators → Members) to see exactly what they see, for up to an hour. Anything changed meanwhile is recorded as made by the admin on the member's behalf.</li>
           <li><strong>CLI:</strong> <code>export WREN_URL=… WREN_API_KEY=wren_…</code>. Keys don't expire mid-run the way login sessions do.</li>
         </ul>
       </section>

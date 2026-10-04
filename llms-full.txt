@@ -790,9 +790,36 @@ Response 200: { "invites": [{ "id": "…", "orgId": "…", "orgName": "Acme", "o
 
 ---
 
+## Groups, roles and keys
+
+- **Role** (member | admin) decides what someone may *manage*: admins handle invites, members, keys, permissions and groups. The org owner can do everything and bypasses permission rules.
+- **Groups** decide which *data* people can see and change. Every org starts with `Editors` (write on `*`) and `Viewers` (read on `*`). Rules name a group as principal `group:<groupId>`.
+- **Access** for a member = their own `member:<userId>` rules plus their groups' rules. The most specific resource wins (`collection:x` over `collection:*` over `*`); at equal specificity a personal rule beats a group rule; among groups the highest access wins. Non-members get nothing.
+- **API keys** act as their creator in the key's org. Any member may create keys. A key with `key:<keyId>` rules of its own uses only those (narrowing). Members list and revoke their own keys; admins all.
+
+```
+GET    /api/v1/groups                                    groups with members and rules (admin)
+POST   /api/v1/groups                                    {name, description?, access?: read|write} → group (+ rule on *)
+PUT    /api/v1/groups/{id}                               {name?, description?}
+DELETE /api/v1/groups/{id}                               also removes the group's rules
+PUT    /api/v1/groups/{id}/members/{userId}              add a member of the org
+DELETE /api/v1/groups/{id}/members/{userId}              remove
+POST   /api/v1/invites                                   {email, role?: member|admin, groupIds?: [...]} → joins the groups on accept
+```
+
+Invite links only work for an account with the invited email; the in-app "received invites" list needs a confirmed email.
+
+### Impersonation (org admins)
+```
+POST   /api/v1/members/{userId}/impersonate    admin/owner, browser session; not the owner; 1 hour
+GET    /api/v1/impersonation                   current state (also in /api/v1/me as "impersonating")
+DELETE /api/v1/impersonation                   end it
+```
+While impersonating, the admin's session acts as the member in that org only; org management (keys, permissions, invites, members, groups, webhooks, org) returns 403. Every change is recorded with `impersonatedBy` (version history), every request is audit-logged with both identities.
+
 ## Permissions
 
-Fine-grained access control rules. Only org owners can manage permissions.
+Fine-grained access control rules, managed by org owners and admins. Principals: `*` (anyone, public), `member:<userId>`, `group:<groupId>`, `key:<keyId>`.
 
 ### Permission rule shape
 ```json

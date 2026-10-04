@@ -164,7 +164,7 @@
         <ul>
           <li>One key per agent; revoke it when you're done (<code>wren keys revoke</code>).</li>
           <li>Use <code>/mcp?readonly=1</code> for agents that only need to answer questions.</li>
-          <li>To limit what a key can touch, give it <code>key:&lt;keyId&gt;</code> permission rules, for example write access to one collection only. The org owner's keys bypass all rules, so for a restricted agent use a key created by a member account.</li>
+          <li>A key acts with its creator's access in the org (their groups and rules). To limit what an agent can touch, give its key <code>key:&lt;keyId&gt;</code> permission rules, for example write access to one collection only; a key with rules of its own uses only those. The org owner's keys bypass all rules, so for a restricted agent create the key from a member account.</li>
           <li>Keep <code>promote_tree</code> behind a human confirmation; MCP clients show the destructive hint for it.</li>
           <li>Everything an agent writes is versioned. Nothing is overwritten, and <code>diff_versions</code> shows exactly what it changed.</li>
         </ul>
