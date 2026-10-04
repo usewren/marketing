@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Take an org live</title>
+  <meta name="description" content="End-to-end checklist for going live with a usewren (WREN) org: slug, API keys, data model, public rules, first release, custom domain, AI agents (MCP), edge settings and backups." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+  <nav class="nav"><div class="nav__inner">
+    <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+    <ul class="nav__links">
+      <li><a href="/concepts">Concepts</a></li>
+      <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+      <li><a href="/tutorial/deploy">Tutorial</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/projects">Projects</a></li>
+    </ul>
+  </div></nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">Steps</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#org">1. Org and slug</a></li>
+        <li><a href="#people">2. People and keys</a></li>
+        <li><a href="#model">3. Data model</a></li>
+        <li><a href="#public">4. Decide what's public</a></li>
+        <li><a href="#release">5. First release</a></li>
+        <li><a href="#domain">6. Your domain</a></li>
+        <li><a href="#agents">7. AI agents</a></li>
+        <li><a href="#edge">8. Edge settings</a></li>
+        <li><a href="#ops">9. Email, backups &amp; upgrades</a></li>
+        <li><a href="#checklist">Launch checklist</a></li>
+        <li><a href="#after">After launch</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">How-to</p>
+        <h1>Take an org live</h1>
+        <p class="guide-lede">From an empty account to a site on your own domain, with data, scripts and AI agents writing safely, and a way back if something goes wrong. Each step links to the detailed guide.</p>
+      </header>
+
+      <section class="guide-section" id="org">
+        <h2>1. Org and slug</h2>
+        <p>Every account is an org. Sign up in the <a href="/admin">Admin UI</a>, then give the org a readable slug <strong>before</strong> you share any URL. Public URLs and custom domains contain the slug, and changing it later breaks them.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · org owner</span></div>
+<pre>PUT /api/v1/org/slug
+{"slug": "tkd-tracker"}          # 3–40 chars: lowercase letters, digits, hyphens</pre></div>
+        <p>More: <a href="/guides/public-urls">Find your org slug and build public URLs</a>.</p>
+      </section>
+
+      <section class="guide-section" id="people">
+        <h2>2. People and keys</h2>
+        <ul>
+          <li><strong>People:</strong> invite collaborators with <code>POST /api/v1/invites {"email": "…", "role": "member"}</code> (or <code>"admin"</code>).</li>
+          <li><strong>One API key per script, CI job and agent</strong> (Admin UI → API Keys, or <code>wren keys create</code>). Store keys as secrets, never in code or page source. A key always acts in the org it was created in.</li>
+          <li><strong>Least privilege:</strong> keys created by the org owner bypass all permission rules. For a restricted writer, create the key from a member account and give it <code>key:&lt;keyId&gt;</code> rules, for example write access to one collection only.</li>
+          <li><strong>CLI:</strong> <code>export WREN_URL=… WREN_API_KEY=wren_…</code>. Keys don't expire mid-run the way login sessions do.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="model">
+        <h2>3. Data model</h2>
+        <p>As an admin, once per collection: declare a JSON Schema and a <strong>natural key</strong>, so every writer can upsert with <code>PUT …/by-key/{key}</code> and re-runs never create duplicates. Use ISO dates (<code>2026-10-04</code>) so <code>where</code> filters work.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>PUT /api/v1/events/_schema
+{"naturalKey": "slug", "schema": {"type": "object", "required": ["slug", "name", "date"]}}</pre></div>
+        <p>More: <a href="/guides/update-without-duplicates">Update data and files without duplicates</a>. For numbers you recompute after every write (standings, totals), add a materialized query.</p>
+      </section>
+
+      <section class="guide-section" id="public">
+        <h2>4. Decide what's public</h2>
+        <p>Nothing is public until you add a <code>principal: "*"</code> read rule. Decide per tree and collection:</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What</th><th>Public rule</th><th>Why</th></tr></thead>
+            <tbody>
+              <tr><td>The site (tree)</td><td><code>{"resource":"tree:mysite","labelFilter":"published"}</code></td><td>Visitors see released pages only; deploys stay private until promote</td></tr>
+              <tr><td>Live data (scores, feeds)</td><td><code>{"resource":"collection:results"}</code>, no label filter</td><td>Visible the moment it's written</td></tr>
+              <tr><td>Curated data (articles)</td><td><code>{"resource":"collection:articles","labelFilter":"published"}</code></td><td>Released together with the site</td></tr>
+              <tr><td>Personal or internal data</td><td>none</td><td>Stays private; read it with a key</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout--warn"><p><strong>Public means discoverable.</strong> Everything a <code>*</code> rule allows is listed at <code>/api/v1/projects</code> and in <code>/orgs/{slug}/llms.txt</code>, including sample documents. Read both before launch.</p></div>
+      </section>
+
+      <section class="guide-section" id="release">
+        <h2>5. First release</h2>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren deploy ./dist --tree mysite --label preview --public   # creates the published-only rule
+curl -H "Authorization: Bearer $WREN_API_KEY" "$WREN_URL/api/v1/tree/mysite/index.html?label=preview"
+wren promote mysite --from preview --label release-1        # name the release, for rollback
+wren promote mysite --from preview                          # go live, in one transaction</pre></div>
+        <p>More: <a href="/guides/publish-site">Publish a site and keep drafts private</a> and <a href="/concepts#promote">Deploy, preview, promote</a>.</p>
+      </section>
+
+      <section class="guide-section" id="domain">
+        <h2>6. Your domain</h2>
+        <p>A small Cloudflare Worker maps your domain onto the public tree. It needs no API key, and it also gives the domain its own MCP endpoint:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">toml · wrangler.toml [vars]</span></div>
+<pre>UPSTREAM = "https://wren.aemwip.com/orgs/tkd-tracker/tree/mysite"
+MCP      = "https://wren.aemwip.com/orgs/tkd-tracker/mcp?tree=mysite"</pre></div>
+        <p>More: <a href="/guides/custom-domain">Serve a site on your own domain</a>.</p>
+      </section>
+
+      <section class="guide-section" id="agents">
+        <h2>7. AI agents</h2>
+        <ul>
+          <li><strong>Your own agents</strong> connect to <code>https://&lt;wren-host&gt;/mcp</code> with their own key. They write to <code>preview</code> by default, and you promote.</li>
+          <li><strong>Visitors' agents</strong> use <code>https://your-domain/mcp</code>: public, read-only, and limited to the site that domain shows (<code>?tree=</code>). Other trees and collections stay invisible. A key from another org is refused.</li>
+          <li>Give agents that only answer questions <code>/mcp?readonly=1</code>.</li>
+        </ul>
+        <p>More: <a href="/guides/mcp">Connect AI agents with MCP</a>.</p>
+      </section>
+
+      <section class="guide-section" id="edge">
+        <h2>8. Edge settings (Cloudflare in front of WREN)</h2>
+        <ul>
+          <li><strong>Scripts get <code>403 error code: 1010</code>?</strong> Turn off Browser Integrity Check for the WREN hostname (Configuration Rule), and add a WAF skip rule if Bot Fight Mode is on. See <a href="/guides/python#denied">Use WREN from Python</a>.</li>
+          <li><strong>Caching:</strong> WREN sends <code>max-age=60</code> on public reads and <code>no-store</code> on errors and on everything authenticated. Make sure no Cache Rule or Browser Cache TTL overrides that with hours.</li>
+          <li><strong>HTTPS only:</strong> share <code>https://</code> URLs; plain <code>http://</code> redirects.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="ops">
+        <h2>9. Email, backups and upgrades (self-hosted)</h2>
+        <ul>
+          <li><strong>Email:</strong> set <code>SMTP_URL</code> and <code>MAIL_FROM</code> so sign-ups get a confirmation email, password resets work, and invites are delivered. Without them nothing is sent: links are written to the server log, and invite responses include the link to share yourself. Set <code>BETTER_AUTH_URL</code> to your public <code>https://</code> address so the links point there. Once delivery works, you can require confirmation with <code>REQUIRE_EMAIL_VERIFICATION=true</code>.</li>
+          <li><strong>Back up Postgres daily</strong> with <code>pg_dump -Fc</code>. Every org lives in its own schema in that one database, and file contents are stored in it too, so one dump is the whole instance. Keep a week of daily dumps plus monthly ones, and keep a copy off the machine.</li>
+          <li><strong>Prove the backup restores:</strong> restore into a throwaway Postgres container regularly and compare table counts. A 2.4 GB dump restores in about 4–5 minutes on a desktop machine.</li>
+          <li><strong>Upgrades:</strong> pin the image tag, take a backup, then pull and restart. Database migrations run automatically at startup (look for <code>applying vN</code> in the log). Check <code>/health</code> afterwards.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="checklist">
+        <h2>Launch checklist</h2>
+        <ul>
+          <li>☐ Slug set and final</li>
+          <li>☐ One key per script, CI job and agent, stored as secrets; no keys in page source or git</li>
+          <li>☐ Schemas and natural keys declared for collections that scripts write</li>
+          <li>☐ Public rules reviewed: site with <code>labelFilter: "published"</code>; live data deliberately without; nothing personal public</li>
+          <li>☐ <code>/orgs/{slug}/llms.txt</code> and <code>/api/v1/projects</code> read through: nothing there you don't want public</li>
+          <li>☐ First release promoted, and a named release label exists for rollback</li>
+          <li>☐ Domain serves <code>/</code>, deep links and assets; a missing page returns 404</li>
+          <li>☐ <code>https://your-domain/mcp</code> without a key shows only this site</li>
+          <li>☐ Edge: no 1010 for your scripts; no long cache overrides</li>
+          <li>☐ Email delivery configured (<code>SMTP_URL</code>, <code>MAIL_FROM</code>, <code>BETTER_AUTH_URL</code>); a test sign-up receives its confirmation</li>
+          <li>☐ Backups scheduled, one restore tested</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="after">
+        <h2>After launch</h2>
+        <ul>
+          <li><strong>Roll back:</strong> <code>wren promote mysite --from release-1</code>. It's one transaction, and nothing is lost.</li>
+          <li><strong>Rotate a key:</strong> create the new one, switch the script over, then revoke the old one (<code>wren keys revoke</code>).</li>
+          <li><strong>See what changed:</strong> every write is a version, so <code>…/versions</code> and <code>…/diff</code> show what a script or an agent did.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer"><div class="container">
+    <div class="footer__inner">
+      <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+      <ul class="footer__links"><li><a href="/concepts">Concepts</a></li><li><a href="/guides">Guides</a></li><li><a href="/docs">API Docs</a></li><li><a href="https://github.com/usewren">GitHub (usewren)</a></li></ul>
+    </div>
+    <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+  </div></footer>
+</body>
+</html>

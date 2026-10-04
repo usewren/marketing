@@ -29,6 +29,7 @@
         <li><a href="#before">Before you start</a></li>
         <li><a href="#worker">The Worker</a></li>
         <li><a href="#deploy">Deploy it</a></li>
+        <li><a href="#mcp">AI agents (MCP)</a></li>
         <li><a href="#data">Data on the same domain</a></li>
         <li><a href="#caching">Caching</a></li>
         <li><a href="#dont">Don't</a></li>
@@ -62,6 +63,13 @@
 <pre>export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === "/mcp") {                            // AI agents: this domain's MCP endpoint
+      const headers = new Headers();
+      for (const h of ["content-type", "accept", "authorization", "mcp-protocol-version"]) {
+        const v = request.headers.get(h); if (v) headers.set(h, v);
+      }
+      return fetch(env.MCP, { method: request.method, headers, body: request.method === "POST" ? request.body : undefined });
+    }
     if (request.method !== "GET" &amp;&amp; request.method !== "HEAD") {
       return new Response("Method not allowed", { status: 405 });
     }
@@ -86,7 +94,8 @@ compatibility_date = "2026-10-01"
 routes = [{ pattern = "www.example.com", custom_domain = true }]
 
 [vars]
-UPSTREAM = "https://wren.aemwip.com/orgs/oak-spur-spur/tree/mysite"</pre></div>
+UPSTREAM = "https://wren.aemwip.com/orgs/oak-spur-spur/tree/mysite"
+MCP      = "https://wren.aemwip.com/orgs/oak-spur-spur/mcp?tree=mysite"</pre></div>
         <p>Rewrite <code>/about</code> to <code>/about/index.html</code> only if your site uses folder-style pages. If it has flat files like <code>/about.html</code>, drop that line.</p>
       </section>
 
@@ -96,6 +105,16 @@ UPSTREAM = "https://wren.aemwip.com/orgs/oak-spur-spur/tree/mysite"</pre></div>
 <pre>npx wrangler deploy
 curl -sI https://www.example.com/ | head -5      # 200, content-type: text/html</pre></div>
         <p>From now on you only deploy to WREN (<code>wren deploy</code>, then <code>wren promote</code>). The Worker doesn't change.</p>
+      </section>
+
+      <section class="guide-section" id="mcp">
+        <h2>AI agents on your domain</h2>
+        <p>The <code>/mcp</code> route in the Worker gives your domain its own MCP endpoint, scoped to what the domain shows: <code>https://www.example.com/mcp</code>.</p>
+        <ul>
+          <li><strong>Without a key</strong> (anyone's agent): read-only, published content only, and only the tree named in <code>?tree=</code>. Other trees and collections of the org stay invisible. To also expose some collections, list them: <code>…/mcp?tree=mysite&amp;collections=results,standings</code>.</li>
+          <li><strong>With a key</strong> (your own agents): full tools, but only for keys of this org. A key from another org gets 403, so the domain can't be used as a door into a different org.</li>
+        </ul>
+        <p>Without the Worker, the same endpoint is <code>https://&lt;wren-host&gt;/orgs/{slug}/mcp?tree=mysite</code>. See <a href="/guides/mcp">Connect AI agents with MCP</a>.</p>
       </section>
 
       <section class="guide-section" id="data">

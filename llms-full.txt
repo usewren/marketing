@@ -575,6 +575,37 @@ The filename-in-URL pattern is recommended for `<img>` tags, CDN configs, and CL
 
 ---
 
+## MCP (AI agents)
+
+Built-in Model Context Protocol endpoint, one per server: `POST /mcp`.
+- Transport: Streamable HTTP, stateless JSON responses (no SSE stream, no session id). GET/DELETE → 405.
+- Protocol versions: 2025-06-18, 2025-03-26, 2024-11-05.
+- Auth: `Authorization: Bearer wren_…` (or a session cookie). Missing/invalid → HTTP 401 with `WWW-Authenticate: Bearer`.
+- Org: from the key, like the REST API. Several orgs → configure the endpoint once per key.
+- Tools call the REST API in-process, so permissions, label filters and org isolation apply unchanged.
+- `/mcp?readonly=1` exposes only read tools.
+- Org-bound endpoint `/orgs/{slug}/mcp` (what a custom domain's /mcp maps to):
+  - without a key: public, read-only tools site_info, list_tree, read_file, query_documents, get_document over the public routes (only what principal '*' rules allow, at their label)
+  - `?tree=<name>` scopes to one site (collection tools hidden unless `&collections=a,b`); site_info then describes only that scope
+  - with a key: full tools below, but only for keys of {slug} (other orgs → 403); unknown slug → 404
+
+| Tool | Maps to | Notes |
+|---|---|---|
+| whoami | GET /api/v1/me | adds public URL patterns for the slug |
+| list_collections | GET /api/v1/collections | |
+| query_documents | POST /api/v1/{collection}/_query | where, select, label, aggregate, limit ≤ 1000, cursor |
+| get_document | GET …/{id}, …/by-key/{key}, …/{id}/versions/{n} | optional label |
+| list_versions / diff_versions | …/{id}/versions, …/{id}/diff | |
+| list_tree / read_file | GET /api/v1/tree[/{name}?full=true], GET /api/v1/tree/{name}/{path} | text files ≤ 256 KB returned as text |
+| write_document | PUT …/by-key/{key}, PUT …/{id} or POST …/{collection} | then labels the version "preview" (label:"" for none) |
+| write_file | tree lookup → multipart PUT/POST + tree PUT | new files go to "<tree>-assets"; labels "preview" |
+| set_label | POST …/{id}/labels | destructiveHint |
+| promote_tree | POST /api/v1/tree/{name}/_promote | from "preview" → "published", one transaction; destructiveHint |
+
+Setup examples (Claude Code, Cursor, VS Code, mcp-remote): /guides/mcp
+
+---
+
 ## Public access
 
 Nothing is public by default. A tree or collection becomes publicly readable only through a permission rule with `principal: "*"`.
