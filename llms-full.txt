@@ -584,6 +584,10 @@ Built-in Model Context Protocol endpoint, one per server: `POST /mcp`.
 - Org: from the key, like the REST API. Several orgs → configure the endpoint once per key.
 - Tools call the REST API in-process, so permissions, label filters and org isolation apply unchanged.
 - `/mcp?readonly=1` exposes only read tools.
+- Org-bound endpoint `/orgs/{slug}/mcp` (what a custom domain's /mcp maps to):
+  - without a key: public, read-only tools site_info, list_tree, read_file, query_documents, get_document over the public routes (only what principal '*' rules allow, at their label)
+  - `?tree=<name>` scopes to one site (collection tools hidden unless `&collections=a,b`); site_info then describes only that scope
+  - with a key: full tools below, but only for keys of {slug} (other orgs → 403); unknown slug → 404
 
 | Tool | Maps to | Notes |
 |---|---|---|

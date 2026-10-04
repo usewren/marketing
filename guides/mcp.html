@@ -50,7 +50,12 @@
       <section class="guide-section" id="how">
         <h2>How it works</h2>
         <ul>
-          <li><strong>One endpoint per server, not per org.</strong> <code>https://&lt;host&gt;/mcp</code>. The org comes from the API key, exactly like the REST API: an agent sees and changes only what its key may.</li>
+          <li><strong>Two endpoints.</strong>
+            <ul>
+              <li><code>https://&lt;host&gt;/mcp</code> is for your own agents. The org comes from the API key, exactly like the REST API, so an agent sees and changes only what its key may.</li>
+              <li><code>https://&lt;host&gt;/orgs/{slug}/mcp</code> is bound to one org; it's what a custom domain's <code>/mcp</code> maps to. Without a key it's public and read-only, and <code>?tree=mysite</code> scopes it to the one site that domain shows. With a key it gives the full tools, but only for keys of that org. See <a href="/guides/custom-domain#mcp">AI agents on your domain</a>.</li>
+            </ul>
+          </li>
           <li><strong>Same rules as the API.</strong> Every tool calls the REST API internally, so permissions, label filters and org isolation are enforced by the same code.</li>
           <li><strong>Preview first.</strong> Write tools label new versions <code>preview</code> by default. Going live is a separate tool (<code>promote_tree</code>), marked destructive so clients ask before running it.</li>
           <li><strong>Read-only mode.</strong> <code>/mcp?readonly=1</code> exposes only the read tools.</li>
