@@ -64,7 +64,8 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 - **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
 - **$ref resolution** — documents can reference other documents, tree paths, or queries; add `?depth=N` to resolve server-side with loop detection
 - **Webhooks** — batched HTTP notifications on data changes with HMAC signing, retry, and replay
-- **Permissions** — rules per principal (`*`, `member:<userId>`, `key:<keyId>`), with optional label/data filters and public aliases
+- **Permissions** — rules per principal (`*`, `member:<userId>`, `group:<groupId>`, `key:<keyId>`), with optional label/data filters and public aliases
+- **Groups** — people get data access through groups (every org starts with Editors = write `*`, Viewers = read `*`); invites choose role (member|admin, what they may manage) and groups (what data). API keys act as their creator; `key:` rules narrow a key. Org admins can impersonate ("view as") a member within the org; changes are recorded with `impersonatedBy`.
 - **API keys** — long-lived Bearer tokens, scoped to the org they were created in
 
 ## Documentation
