@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WREN — Documents, Versions, and Trees</title>
-  <meta name="description" content="Versioned JSON documents, hierarchical trees, and multi-tenant isolation in one API, with a built-in MCP server for AI agents. Open to every agent, private to yours." />
+  <title>WREN — Open to every agent. Private to yours.</title>
+  <meta name="description" content="Versioned data and sites with a built-in MCP server. Anyone's AI agent can read what you publish; only yours reach the rest, with your permissions — and every change is a version you can review, promote or roll back." />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="alternate icon" href="/favicon.ico" />
@@ -49,15 +49,16 @@
        ============================================================ -->
   <section class="hero">
     <div class="container">
-      <span class="hero__badge">Now available &middot; Cloud or self-hosted</span>
-      <h1 class="hero__title">Three things you&rsquo;ll never have to build again.</h1>
+      <span class="hero__badge">MCP built in &middot; Cloud or self-hosted</span>
+      <h1 class="hero__title">Open to every agent.<br>Private to yours.</h1>
       <p class="hero__sub">
-        Versioned documents. Hierarchical trees. Multi-tenant isolation. All in one API.
-        Share it with your team and your AI agents &mdash; open to every agent, private to yours.
+        Keep your data and sites in WREN. Anyone&rsquo;s AI agent can read what you publish;
+        only your agents reach the rest, with your permissions &mdash; and every change they make
+        is a version you review, promote, or roll back.
       </p>
       <div class="hero__ctas">
-        <a href="/admin" class="btn btn--primary">Open Admin UI</a>
-        <a href="/tutorial" class="btn btn--secondary">Read the tutorial</a>
+        <a href="/guides/mcp" class="btn btn--primary">Connect your agent</a>
+        <a href="/admin" class="btn btn--secondary">Open Admin UI</a>
       </div>
 
       <!-- Code block -->
@@ -67,135 +68,46 @@
           <span class="hero__code-dot"></span>
           <span class="hero__code-dot"></span>
           <div class="hero__tabs">
-            <button class="hero__tab hero__tab--active" onclick="heroTab(this,'ts')">TypeScript</button>
-            <button class="hero__tab" onclick="heroTab(this,'py')">Python</button>
-            <button class="hero__tab" onclick="heroTab(this,'rest')">REST</button>
+            <button class="hero__tab hero__tab--active" onclick="heroTab(this,'chat')">In practice</button>
+            <button class="hero__tab" onclick="heroTab(this,'claude')">Claude Code</button>
+            <button class="hero__tab" onclick="heroTab(this,'cursor')">Cursor</button>
           </div>
         </div>
-        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @usewren/client</span>
-<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@usewren/client"</span>;
+        <pre id="hero-tab-chat"><span class="tok-comment">you</span>    Add today&rsquo;s results to the tournament site.
 
-<span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl: <span class="tok-str">"https://…"</span>, apiKey: <span class="tok-str">"wren_…"</span> });
+<span class="tok-comment">agent</span>  <span class="tok-method">write_document</span>(<span class="tok-str">"fights"</span>, { round: <span class="tok-str">"final"</span>, winner: <span class="tok-str">"Lea"</span> })
+       <span class="tok-arrow">&rarr; version 7, labeled</span> <span class="tok-label">preview</span>
+       <span class="tok-method">write_file</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/results.html"</span>, &hellip;)
+       <span class="tok-arrow">&rarr; version 12, labeled</span> <span class="tok-label">preview</span> <span class="tok-arrow">&middot; public site unchanged</span>
 
-<span class="tok-comment">// 1. Documents — create in a collection</span>
-<span class="tok-keyword">const</span> doc = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, { name: <span class="tok-str">"Masters 2026"</span> });
+       Preview is ready. Promote it?
 
-<span class="tok-comment">// 2. Versions — every update creates a new one</span>
-<span class="tok-keyword">await</span> wren.documents.<span class="tok-method">update</span>(<span class="tok-str">"events"</span>, doc.id, { name: <span class="tok-str">"Masters 2026"</span>, champion: <span class="tok-str">"Scheffler"</span> });
-<span class="tok-keyword">await</span> wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, doc.id, <span class="tok-str">"published"</span>);
+<span class="tok-comment">you</span>    Yes.
 
-<span class="tok-comment">// 3. Trees — attach to any path, fetch the whole branch in one call</span>
-<span class="tok-keyword">await</span> wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/2026/masters"</span>, doc.id);
-<span class="tok-keyword">const</span> bundle = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">getFull</span>(<span class="tok-str">"site"</span>, { label: <span class="tok-str">"published"</span> });</pre>
-        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install usewren-client</span>
-<span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>
+<span class="tok-comment">agent</span>  <span class="tok-method">promote_tree</span>(<span class="tok-str">"site"</span>, from: <span class="tok-str">"preview"</span>)
+       <span class="tok-arrow">&rarr; live in one transaction &middot; roll back any time</span></pre>
+        <pre id="hero-tab-claude" style="display:none"><span class="tok-comment"># Your own org &mdash; opens a browser to sign in and choose the org</span>
+<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren <span class="tok-url">https://wren.aemwip.com/mcp/login</span>
 
-<span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(<span class="tok-str">"https://…"</span>, api_key=<span class="tok-str">"wren_…"</span>) <span class="tok-keyword">as</span> wren:
-    <span class="tok-comment"># 1. Documents</span>
-    doc = wren.documents.<span class="tok-method">create</span>(<span class="tok-str">"events"</span>, {<span class="tok-str">"name"</span>: <span class="tok-str">"Masters 2026"</span>})
-
-    <span class="tok-comment"># 2. Versions</span>
-    wren.documents.<span class="tok-method">update</span>(<span class="tok-str">"events"</span>, doc.id, {<span class="tok-str">"name"</span>: <span class="tok-str">"Masters 2026"</span>, <span class="tok-str">"champion"</span>: <span class="tok-str">"Scheffler"</span>})
-    wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"events"</span>, doc.id, <span class="tok-str">"published"</span>)
-
-    <span class="tok-comment"># 3. Trees</span>
-    wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/2026/masters"</span>, doc.id)
-    bundle = wren.trees.<span class="tok-method">get_full</span>(<span class="tok-str">"site"</span>, label=<span class="tok-str">"published"</span>)</pre>
-        <pre id="hero-tab-rest" style="display:none"><span class="tok-comment"># 1. Document — create in a collection</span>
-<span class="tok-method">POST</span> <span class="tok-path">/api/v1/events</span>
-<span class="tok-arrow">{</span> <span class="tok-key">"name"</span><span class="tok-arrow">:</span> <span class="tok-str">"Masters 2026"</span> <span class="tok-arrow">}</span>
-<span class="tok-arrow">→</span> <span class="tok-arrow">{</span> <span class="tok-key">"id"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span><span class="tok-arrow">,</span> <span class="tok-key">"version"</span><span class="tok-arrow">:</span> <span class="tok-str">1</span><span class="tok-arrow">,</span> <span class="tok-arrow">...}</span>
-
-<span class="tok-comment"># 2. Version — every PUT creates a new one</span>
-<span class="tok-method">PUT</span> <span class="tok-path">/api/v1/events/abc</span>
-<span class="tok-arrow">{</span> <span class="tok-key">"name"</span><span class="tok-arrow">:</span> <span class="tok-str">"Masters 2026"</span><span class="tok-arrow">,</span> <span class="tok-key">"champion"</span><span class="tok-arrow">:</span> <span class="tok-str">"Scheffler"</span> <span class="tok-arrow">}</span>
-<span class="tok-method">POST</span> <span class="tok-path">/api/v1/events/abc/labels</span>
-<span class="tok-arrow">{</span> <span class="tok-key">"label"</span><span class="tok-arrow">:</span> <span class="tok-label">"published"</span> <span class="tok-arrow">}</span>
-
-<span class="tok-comment"># 3. Tree — attach at any path, bundle the branch</span>
-<span class="tok-method">PUT</span> <span class="tok-path">/api/v1/tree/site/2026/masters</span>
-<span class="tok-arrow">{</span> <span class="tok-key">"documentId"</span><span class="tok-arrow">:</span> <span class="tok-str">"abc"</span> <span class="tok-arrow">}</span>
-<span class="tok-method">GET</span> <span class="tok-path">/api/v1/tree/site?full=true&amp;label=published</span></pre>
+<span class="tok-comment"># Everyone&rsquo;s public data &mdash; no account needed</span>
+<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren-public <span class="tok-url">https://wren.aemwip.com/mcp</span></pre>
+        <pre id="hero-tab-cursor" style="display:none"><span class="tok-comment">// .cursor/mcp.json</span>
+<span class="tok-arrow">{</span>
+  <span class="tok-key">"mcpServers"</span><span class="tok-arrow">: {</span>
+    <span class="tok-key">"wren"</span><span class="tok-arrow">:</span>        <span class="tok-arrow">{</span> <span class="tok-key">"url"</span><span class="tok-arrow">:</span> <span class="tok-str">"https://wren.aemwip.com/mcp/login"</span> <span class="tok-arrow">},</span>
+    <span class="tok-key">"wren-public"</span><span class="tok-arrow">: {</span> <span class="tok-key">"url"</span><span class="tok-arrow">:</span> <span class="tok-str">"https://wren.aemwip.com/mcp"</span> <span class="tok-arrow">}</span>
+  <span class="tok-arrow">}</span>
+<span class="tok-arrow">}</span></pre>
       </div>
       <script>
         function heroTab(btn, id) {
           document.querySelectorAll('.hero__tab').forEach(b => b.classList.remove('hero__tab--active'));
           btn.classList.add('hero__tab--active');
-          ['ts','py','rest'].forEach(t => {
+          ['chat','claude','cursor'].forEach(t => {
             document.getElementById('hero-tab-' + t).style.display = t === id ? 'block' : 'none';
           });
         }
       </script>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       Features grid
-       ============================================================ -->
-  <section class="features" id="features">
-    <div class="container">
-      <div class="features__intro">
-        <p class="section-label">Features</p>
-        <h2 class="section-title">Collections, versions, trees.</h2>
-        <p class="section-sub">Three primitives that compose. Pick the ones you need &mdash; they all come together.</p>
-      </div>
-      <div class="features__grid">
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-          <h3 class="feature-card__title">Schema-free documents</h3>
-          <p class="feature-card__desc">POST any JSON object into a collection. Attach a JSON Schema later if you want validation. Bring binary assets along for the ride.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l3-3"/><path d="M12 3v6l-3-3"/><circle cx="12" cy="17" r="4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg></div>
-          <h3 class="feature-card__title">Versioned by default</h3>
-          <p class="feature-card__desc">Every mutation creates a new version. Roll back, diff, or time-travel to any point. No extra setup.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
-          <h3 class="feature-card__title">Label snapshots</h3>
-          <p class="feature-card__desc">Pin any version as <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">published</code>, <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">draft</code>, or <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">staging</code>. Serve different audiences from the same document.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M3 10h10v4H3z"/><path d="M3 17h14v4H3z"/><path d="M13 7v3"/><path d="M13 14v3"/></svg></div>
-          <h3 class="feature-card__title">Trees bundle hierarchy</h3>
-          <p class="feature-card__desc">Organize documents into named paths. Fetch whole subtrees with <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?full=true</code>. Make a tree public with one rule &mdash; only its <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">published</code> versions.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-          <h3 class="feature-card__title">Query your data</h3>
-          <p class="feature-card__desc">Filter, project, and aggregate across documents. Return only the fields you need. Materialized queries auto-refresh on write.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
-          <h3 class="feature-card__title">wren.js data binding</h3>
-          <p class="feature-card__desc">Drop <code style="font-family:var(--font-mono);font-size:0.8em">&lt;script src="/wren.js"&gt;</code> into any HTML page. Web components like <code style="font-family:var(--font-mono);font-size:0.8em">&lt;wren-list&gt;</code> bind your data declaratively &mdash; no framework needed.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg></div>
-          <h3 class="feature-card__title">Built for AI agents</h3>
-          <p class="feature-card__desc">A built-in MCP server and <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">llms.txt</code>. Agents read your public data with no key and work in your private data as you &mdash; every write reversible. <a href="#agents" style="color:var(--color-primary)">How&nbsp;it&nbsp;works&nbsp;&rarr;</a></p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 8l3 3-3 3"/></svg></div>
-          <h3 class="feature-card__title">Deploy, preview, promote</h3>
-          <p class="feature-card__desc"><code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">wren deploy</code> to a preview, check it, then promote the whole site in one transaction. Roll back the same way.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
-          <h3 class="feature-card__title">Work together</h3>
-          <p class="feature-card__desc">Invite people by email straight into groups like Editors or Viewers. Admins can view the org as a member to help &mdash; and every change made that way is recorded as such.</p>
-        </div>
-
-      </div>
     </div>
   </section>
 
@@ -205,8 +117,8 @@
   <section class="agents" id="agents">
     <div class="container">
       <div class="agents__intro">
-        <p class="section-label">AI agents</p>
-        <h2 class="section-title">Open to every agent. Private to yours.</h2>
+        <p class="section-label">How it works</p>
+        <h2 class="section-title">Three ways in. All of them safe.</h2>
         <p class="section-sub">One server, one MCP endpoint. What you publish, anyone&rsquo;s agent can find and use. What you keep private, only your agents reach &mdash; with your permissions, and nothing they do is permanent.</p>
       </div>
       <div class="agents__grid">
@@ -223,14 +135,41 @@
           <p class="agents__desc">Agent writes land as new versions labeled <code>preview</code>. Review the diff, promote what&rsquo;s good, roll back what isn&rsquo;t. Nothing is overwritten.</p>
         </div>
       </div>
-      <div class="agents__code">
-        <pre><span class="tok-comment"># Read anyone&rsquo;s public data &mdash; no account needed</span>
-<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren-public <span class="tok-url">https://wren.aemwip.com/mcp</span>
-
-<span class="tok-comment"># Work in your own org &mdash; opens a browser to sign in and choose the org</span>
-<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren <span class="tok-url">https://wren.aemwip.com/mcp/login</span></pre>
-      </div>
       <p class="agents__more"><a href="/guides/mcp">Set up Claude Code, Cursor or VS Code &rarr;</a></p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Features grid
+       ============================================================ -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="features__intro">
+        <p class="section-label">Features</p>
+        <h2 class="section-title">What your agents work with.</h2>
+        <p class="section-sub">Versioned collections and sites your team already uses &mdash; the same data, the same permissions, for people and agents.</p>
+      </div>
+      <div class="features__grid">
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div>
+          <h3 class="feature-card__title">Tenant isolation</h3>
+          <p class="feature-card__desc">Each org gets its own Postgres schema. An agent signed in to one org can&rsquo;t see another &mdash; isolation is structural, not a policy to misconfigure.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 8l3 3-3 3"/></svg></div>
+          <h3 class="feature-card__title">Deploy, preview, promote</h3>
+          <p class="feature-card__desc"><code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">wren deploy</code> to a preview, check it, then promote the whole site in one transaction. Roll back the same way.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <h3 class="feature-card__title">Work together</h3>
+          <p class="feature-card__desc">Invite people by email straight into groups like Editors or Viewers. Admins can view the org as a member to help &mdash; and every change made that way is recorded as such.</p>
+        </div>
+
+      </div>
     </div>
   </section>
 
@@ -456,7 +395,7 @@
   <footer class="footer">
     <div class="container">
       <div class="footer__inner">
-        <p class="footer__brand"><strong>WREN</strong> &mdash; documents, versions, and trees</p>
+        <p class="footer__brand"><strong>WREN</strong> &mdash; open to every agent, private to yours</p>
         <ul class="footer__links">
           <li><a href="/admin">Admin UI</a></li>
           <li><a href="/docs">API Docs</a></li>
