@@ -63,6 +63,11 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 
 - [Concepts](/concepts): Documents, versions, labels, trees — how a URL resolves to a version, and why promote is atomic
 - [Guides](/guides): How-to guides and case studies, e.g. [a live tournament tracker](/guides/tournament-tracker) as built and idealized
+  - [Publish a site and keep drafts private](/guides/publish-site): labelFilter rule, deploy as preview, atomic promote, rollback
+  - [Find your org slug and build public URLs](/guides/public-urls): private → public URL mapping; what 401/403/404/405 mean
+  - [Update data and files without duplicates](/guides/update-without-duplicates): upsert by natural key, replace files in place, clean up orphans
+  - [Use WREN from Python](/guides/python): requests/urllib, cursor pagination, Cloudflare 403 error 1010
+  - [Serve a site on your own domain](/guides/custom-domain): Cloudflare Worker mapping a domain onto a public tree
 - [Deploy tutorial](/tutorial/deploy): Deploy a static site, preview, promote — 10-minute walkthrough
 - [Full tutorial](/tutorial): Complete step-by-step walkthrough — Admin UI, CLI, TypeScript client, Python client
 - [API Reference](/docs): Interactive Scalar UI over the OpenAPI 3.1 spec; live request examples for every endpoint

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Serve a WREN site on your own domain</title>
+  <meta name="description" content="How-to: put a usewren (WREN) site on your own domain with a Cloudflare Worker: map the domain to a public tree, handle directory URLs, keep caching sane, and avoid shipping API keys." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+  <nav class="nav"><div class="nav__inner">
+    <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+    <ul class="nav__links">
+      <li><a href="/concepts">Concepts</a></li>
+      <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+      <li><a href="/tutorial/deploy">Tutorial</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/projects">Projects</a></li>
+    </ul>
+  </div></nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#before">Before you start</a></li>
+        <li><a href="#worker">The Worker</a></li>
+        <li><a href="#deploy">Deploy it</a></li>
+        <li><a href="#data">Data on the same domain</a></li>
+        <li><a href="#caching">Caching</a></li>
+        <li><a href="#dont">Don't</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/public-urls">Public URLs</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">How-to</p>
+        <h1>Serve a WREN site on your own domain</h1>
+        <p class="guide-lede">Your site already has a public URL like <code>/orgs/{slug}/tree/mysite/index.html</code>. A few lines of Cloudflare Worker turn that into <code>https://www.example.com/</code>.</p>
+      </header>
+
+      <section class="guide-section" id="before">
+        <h2>Before you start</h2>
+        <ul>
+          <li>The tree is public: a <code>principal: "*"</code> read rule on <code>tree:mysite</code> (see <a href="/guides/publish-site">Publish a site</a>). Check it by opening <code>https://&lt;wren-host&gt;/orgs/{slug}/tree/mysite/index.html</code> in a private window.</li>
+          <li>Your domain's DNS is on Cloudflare (any plan), and you have <code>wrangler</code> installed.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="worker">
+        <h2>The Worker</h2>
+        <p>It maps paths onto the tree, adds <code>index.html</code> for directory URLs (WREN doesn't), and forwards only what the browser needs. No API key is involved, because the tree is public.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · src/index.js</span></div>
+<pre>export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (request.method !== "GET" &amp;&amp; request.method !== "HEAD") {
+      return new Response("Method not allowed", { status: 405 });
+    }
+    let path = url.pathname;
+    if (path.endsWith("/")) path += "index.html";            // directory → index.html
+    else if (!/\.[a-z0-9]+$/i.test(path)) path += "/index.html"; // /about → /about/index.html
+
+    const upstream = `${env.UPSTREAM}${path}${url.search}`;
+    const res = await fetch(upstream, {
+      headers: { Accept: request.headers.get("Accept") ?? "*/*" },  // WREN negotiates bytes vs JSON on Accept
+    });
+
+    const out = new Response(res.body, res);
+    out.headers.delete("set-cookie");
+    return out;
+  },
+};</pre></div>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">toml · wrangler.toml</span></div>
+<pre>name = "mysite"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+routes = [{ pattern = "www.example.com", custom_domain = true }]
+
+[vars]
+UPSTREAM = "https://wren.aemwip.com/orgs/oak-spur-spur/tree/mysite"</pre></div>
+        <p>Rewrite <code>/about</code> to <code>/about/index.html</code> only if your site uses folder-style pages. If it has flat files like <code>/about.html</code>, drop that line.</p>
+      </section>
+
+      <section class="guide-section" id="deploy">
+        <h2>Deploy it</h2>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>npx wrangler deploy
+curl -sI https://www.example.com/ | head -5      # 200, content-type: text/html</pre></div>
+        <p>From now on you only deploy to WREN (<code>wren deploy</code>, then <code>wren promote</code>). The Worker doesn't change.</p>
+      </section>
+
+      <section class="guide-section" id="data">
+        <h2>Data on the same domain</h2>
+        <p>Pages can call WREN's public data API directly, since public routes send <code>Access-Control-Allow-Origin: *</code>:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js</span></div>
+<pre>const API = "https://wren.aemwip.com/api/v1/orgs/oak-spur-spur";
+const { items } = await (await fetch(`${API}/results?limit=100`)).json();</pre></div>
+        <p>Or with <code>wren.js</code>: <code>&lt;script src="https://wren.aemwip.com/wren.js" data-base="https://wren.aemwip.com/api/v1/orgs/oak-spur-spur"&gt;&lt;/script&gt;</code>. If you'd rather keep everything on your domain, add a second route in the Worker (e.g. <code>/data/*</code> → <code>/api/v1/orgs/{slug}/*</code>). Public data still needs no key.</p>
+      </section>
+
+      <section class="guide-section" id="caching">
+        <h2>Caching</h2>
+        <ul>
+          <li>WREN sends <code>Cache-Control: public, max-age=60, stale-while-revalidate=86400</code> on successful public reads, and <code>no-store</code> on errors, so a 404 from before a deploy isn't kept.</li>
+          <li>Cloudflare's own settings can override that. If files stay stale after a promote, check the zone's Browser Cache TTL and Cache Rules, or add <code>?v=&lt;hash&gt;</code> to asset URLs in your HTML.</li>
+          <li>WREN negotiates content on the <code>Accept</code> header (file bytes vs JSON node) and sends <code>Vary: Accept</code>. Pass <code>Accept</code> through, as the Worker above does.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="dont">
+        <h2>Don't</h2>
+        <ul>
+          <li><strong>Don't proxy private data through the Worker with an API key</strong> unless you add your own access control. Anyone who can reach the route can read what the key can read. If the data is meant for everyone, give it a public read rule instead.</li>
+          <li><strong>Don't put an API key in page code.</strong> Keys are long-lived and can write.</li>
+          <li><strong>Don't change the org slug</strong> without updating <code>UPSTREAM</code>.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer"><div class="container">
+    <div class="footer__inner">
+      <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+      <ul class="footer__links"><li><a href="/concepts">Concepts</a></li><li><a href="/guides">Guides</a></li><li><a href="/docs">API Docs</a></li><li><a href="https://github.com/usewren">GitHub (usewren)</a></li></ul>
+    </div>
+    <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+  </div></footer>
+</body>
+</html>
