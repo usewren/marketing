@@ -27,7 +27,8 @@
       <p class="guide-sidebar__title">On this page</p>
       <ul class="guide-sidebar__list">
         <li><a href="#how">How it works</a></li>
-        <li><a href="#connect">Connect a client</a></li>
+        <li><a href="#signin">Sign in with WREN</a></li>
+        <li><a href="#connect">Connect with an API key</a></li>
         <li><a href="#tools">Tools</a></li>
         <li><a href="#workflow">The safe workflow</a></li>
         <li><a href="#several-orgs">Several orgs</a></li>
@@ -72,8 +73,21 @@
         </ul>
       </section>
 
+      <section class="guide-section" id="signin">
+        <h2>Sign in with WREN (no key needed)</h2>
+        <p>Point your client at <code>https://&lt;host&gt;/mcp/login</code>. On first use it opens a browser: you sign in to WREN, see which app is asking, <strong>choose the org</strong> it may work in, and click Allow. The app then acts as <em>you</em> in that org, with your groups' access, and renews its sign-in automatically.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · Claude Code</span></div>
+<pre>claude mcp add --transport http wren https://wren.aemwip.com/mcp/login</pre></div>
+        <ul>
+          <li><strong>Several orgs:</strong> add the server once per org under different names (e.g. <code>wren-tournaments</code>, <code>wren-club</code>) and pick the matching org on each consent page.</li>
+          <li>WREN always shows the consent page, even if you're already signed in, so no app can get access without you seeing it.</li>
+          <li>The sign-in token only works for MCP, not for the REST API.</li>
+          <li>Use an API key instead (below) for unattended agents and CI, or when your client can't open a browser.</li>
+        </ul>
+      </section>
+
       <section class="guide-section" id="connect">
-        <h2>Connect a client</h2>
+        <h2>Connect with an API key</h2>
         <p>Create an API key first (Admin UI → API Keys, or <code>wren keys create</code>). Use a dedicated key per agent so you can revoke it on its own.</p>
 
         <h3>Claude Code</h3>
