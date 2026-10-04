@@ -63,7 +63,7 @@
         <p>Everything in WREN is a <strong>document</strong>: a JSON object or a binary file (HTML, CSS, an image) with a stable id. Each write adds a <strong>version</strong>. <strong>Labels</strong> such as <code>published</code> or <code>preview</code> point at one version of a document. A <strong>tree</strong> gives documents URL paths like <code>/index.html</code>.</p>
 
         <figure class="guide-figure">
-          <svg viewBox="0 0 760 270" role="img" aria-labelledby="fig1-title fig1-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+          <svg viewBox="0 0 760 270" role="img" aria-labeledby="fig1-title fig1-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
             <title id="fig1-title">One document, four versions, three pointers</title>
             <desc id="fig1-desc">Versions v1 to v4 of index.html sit in a row. The published label points at v2, the preview label points at v4, and current_version also points at v4.</desc>
             <defs>
@@ -138,7 +138,7 @@
         <h2>How a URL resolves to a version</h2>
 
         <figure class="guide-figure">
-          <svg viewBox="0 0 760 330" role="img" aria-labelledby="fig2-title fig2-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+          <svg viewBox="0 0 760 330" role="img" aria-labeledby="fig2-title fig2-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
             <title id="fig2-title">Resolving a tree URL</title>
             <desc id="fig2-desc">A request for a tree path finds the path's document. The version served is: on public URLs, the version named by the public rule's labelFilter, or the current version if the rule has none; on private URLs, the ?label= version if given, otherwise the current version. If the chosen label does not exist on the document, the response is 404.</desc>
             <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
@@ -158,7 +158,7 @@
               <text x="48" y="148" font-weight="700" fill="#312e81">Public URL  /orgs/{slug}/tree/…</text>
               <text x="48" y="172" fill="#374151">No auth. Needs a principal "*" read rule.</text>
               <text x="48" y="202" fill="#111827">Rule has labelFilter "published"?</text>
-              <text x="62" y="224" fill="#374151">yes → the version labelled published</text>
+              <text x="62" y="224" fill="#374151">yes → the version labeled published</text>
               <text x="62" y="244" fill="#374151">          (none yet → 404, never a draft)</text>
               <text x="62" y="266" fill="#374151">no  → current_version (latest write)</text>
               <text x="48" y="294" fill="#4338ca" font-weight="700">?label= in the URL is ignored</text>
@@ -169,7 +169,7 @@
               <text x="418" y="202" fill="#111827">Your own rule has a labelFilter?</text>
               <text x="432" y="224" fill="#374151">yes → that label, always</text>
               <text x="418" y="250" fill="#111827">Otherwise ?label=preview given?</text>
-              <text x="432" y="272" fill="#374151">yes → the version labelled preview</text>
+              <text x="432" y="272" fill="#374151">yes → the version labeled preview</text>
               <text x="432" y="294" fill="#374151">no  → current_version</text>
             </g>
           </svg>
@@ -209,9 +209,9 @@
         <p>Put the pieces together and you get a release workflow without a staging server. Files and JSON data go through it the same way.</p>
 
         <figure class="guide-figure">
-          <svg viewBox="0 0 760 300" role="img" aria-labelledby="fig3-title fig3-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+          <svg viewBox="0 0 760 300" role="img" aria-labeledby="fig3-title fig3-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
             <title id="fig3-title">Deploy, preview and promote over time</title>
-            <desc id="fig3-desc">Three stages for two documents, index.html and data.json. Before: both at v1, published on v1. After deploy with label preview: both have v2 labelled preview, published still on v1, so visitors see v1. After promote from preview: published moves to v2 on both documents in one transaction.</desc>
+            <desc id="fig3-desc">Three stages for two documents, index.html and data.json. Before: both at v1, published on v1. After deploy with label preview: both have v2 labeled preview, published still on v1, so visitors see v1. After promote from preview: published moves to v2 on both documents in one transaction.</desc>
             <g font-size="12" font-family="Inter, system-ui, sans-serif">
               <text x="20"  y="30" font-size="14" font-weight="700" fill="#111827">1 · Live</text>
               <text x="270" y="30" font-size="14" font-weight="700" fill="#111827">2 · wren deploy --label preview</text>
@@ -289,6 +289,19 @@ wren promote mysite --label published --from v41            # roll back: point p
           <li>Structured data: a JSON collection with a schema and natural key, read by your pages through the public data URL or with <code>wren.js</code>.</li>
           <li>Both together: put a few JSON documents in the site's tree too (e.g. <code>/data/standings.json</code>), and one promote releases pages and data at the same moment.</li>
         </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="people-and-agents">
+        <h2>People, groups and agents</h2>
+        <p>Inside an org, access comes from <strong>groups</strong>. Every org starts with <em>Editors</em> (write everything) and <em>Viewers</em> (read everything); you invite people by email straight into a group, and the invite only works for that address. Rules can also name a single member or key, and the most specific rule wins.</p>
+        <p>Agents use the same rules. The built-in MCP server has three doors:</p>
+        <ul>
+          <li><code>/mcp</code> without a key: read-only access to everyone's <em>public</em> data, the same versions the public URLs serve. Open to every agent.</li>
+          <li><code>/mcp/login</code>: &ldquo;Sign in with WREN&rdquo;. You choose the org on WREN's consent page and the agent acts as you there. Revoke it under <em>Connected apps</em>.</li>
+          <li><code>/mcp</code> with an API key: the key acts as the member who created it, unless you give the key narrower rules of its own.</li>
+        </ul>
+        <p>Agent writes are ordinary versions, labeled <code>preview</code> by default, so everything above applies: diff them, promote them, or roll them back. Private to yours, and never permanent. Setup: <a href="/guides/mcp">MCP guide</a>.</p>
       </section>
 
       <!-- ─────────────────────────────────────────────────────────── -->

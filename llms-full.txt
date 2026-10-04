@@ -8,7 +8,7 @@ This document is the complete reference for LLMs and AI agents working with the 
 
 ## Overview
 
-Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. Versions can be listed, diffed pairwise, labelled, or rolled back. Each organization gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
+Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. Versions can be listed, diffed pairwise, labeled, or rolled back. Each organization gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
 
 Base URL: configured at deploy time (e.g. `https://wren.example.com`). All paths below are relative to the base URL and are shown in full — including the `/api/v1` prefix.
 
@@ -132,7 +132,7 @@ Content-Type: application/json
 Response 201: <DocumentResponse>
 ```
 
-### Get a document (current or labelled version)
+### Get a document (current or labeled version)
 ```
 GET /api/v1/{collection}/{id}
 GET /api/v1/{collection}/{id}?label=published   ← returns the version pinned to that label
@@ -291,7 +291,7 @@ Response 200: { "id": "uuid", "label": "published", "version": 3 }
 ```
 
 Common label names: `published`, `draft`, `staging`, `featured`, `archived`.
-Fetch a labelled version: `GET /api/v1/{collection}/{id}?label=published`
+Fetch a labeled version: `GET /api/v1/{collection}/{id}?label=published`
 
 ---
 
@@ -558,7 +558,7 @@ The org slug is required in the URL since there is no session to identify the te
 
 Note the URL-shape split: **public (no-auth) reads** use the org-scoped prefix `/api/v1/orgs/{slug}/...` (or its GET-only alias `/orgs/{slug}/...`). **Authenticated endpoints** use `/api/v1/...` with the tenant inferred from credentials — no slug. Both families are versioned under `/api/v1`; see the URL map at the top.
 
-If the rule has a `labelFilter`, the raw route serves the labelled version and ignores `?version=`.
+If the rule has a `labelFilter`, the raw route serves the labeled version and ignores `?version=`.
 
 ```
 GET /api/v1/orgs/{slug}/{collection}/{id}/raw
@@ -1180,6 +1180,29 @@ Response 200: { "replayed": 42, "batchKey": "orgId:replay:1716123456789" }
 Re-delivers all events since the given timestamp. Events are retained for 7 days.
 
 ---
+
+## Self-hosting configuration
+
+Environment variables read by the server (Docker image `reusr1/wren`):
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `DATABASE_URL` | (required) | Postgres connection string. Migrations run on start. |
+| `BETTER_AUTH_SECRET` | (required) | Secret for signing sessions; keep it stable across restarts. |
+| `BETTER_AUTH_URL` | none | Public `https://` address of the server; used in email links and OAuth metadata. |
+| `WREN_URL` | request host | Public base for generated links (sitemap, `/api/v1/projects`, llms.txt). |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | none | Extra comma-separated origins allowed to use cookie auth. |
+| `MAIL_TRANSPORT` | `log` (`smtp` if `SMTP_URL` is set) | `log` writes each email and its link to the server log instead of sending. |
+| `SMTP_URL` | none | e.g. `smtps://user:pass@smtp.example.com:465`. |
+| `MAIL_FROM` | none | Sender, e.g. `WREN <no-reply@example.com>`. |
+| `REQUIRE_EMAIL_VERIFICATION` | `false` | `true` blocks sign-in until the address is confirmed. By default confirmation is sent, not required. Enable only once mail is delivered. |
+| `GITHUB_CLIENT_ID` / `_SECRET`, `GOOGLE_...`, `APPLE_...` | none | Optional social sign-in providers. |
+| `CACHE_PURGE_BACKEND` | `noop` | `console` logs CDN purge events. |
+| `WEBHOOK_BATCH_WINDOW_MS` | `5000` | Webhook batching window. |
+| `WREN_LOG_DIR` | `/data` | Where the access log is written. |
+| `PORT` | `4000` | Listen port. |
+
+Step-by-step production checklist: [/guides/go-live](/guides/go-live).
 
 ## System endpoints
 

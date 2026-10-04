@@ -500,6 +500,89 @@ section {
 }
 
 /* ============================================================
+   Agents — open to every agent, private to yours
+   ============================================================ */
+
+.agents {
+  background: var(--color-white);
+}
+
+.agents__intro {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.agents__intro .section-sub {
+  margin: 0 auto;
+  max-width: 680px;
+}
+
+.agents__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+  margin-bottom: 36px;
+}
+
+.agents__col {
+  border-top: 3px solid var(--color-primary-light);
+  padding-top: 18px;
+}
+
+.agents__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.agents__desc {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.agents__desc code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--color-primary);
+}
+
+.agents__code {
+  background: var(--color-code-bg);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+  box-shadow: var(--shadow-glow);
+}
+
+.agents__code pre {
+  margin: 0;
+  padding: 22px 26px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.8;
+  color: #e0e7ff;
+}
+
+.agents__more {
+  text-align: center;
+  margin-top: 24px;
+  font-weight: 600;
+}
+
+.agents__more a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+@media (max-width: 860px) {
+  .agents__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+
+/* ============================================================
    How it works — with curved connector
    ============================================================ */
 
