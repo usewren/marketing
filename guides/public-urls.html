@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Find your org slug and build public URLs</title>
+  <meta name="description" content="How-to: find your usewren (WREN) org slug and turn private API paths into public URLs for sites, files and data. Covers 401, 403 and 404 troubleshooting." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+  <nav class="nav"><div class="nav__inner">
+    <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+    <ul class="nav__links">
+      <li><a href="/concepts">Concepts</a></li>
+      <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+      <li><a href="/tutorial/deploy">Tutorial</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/projects">Projects</a></li>
+    </ul>
+  </div></nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#slug">Find your slug</a></li>
+        <li><a href="#translate">Private → public</a></li>
+        <li><a href="#which">Which form to share</a></li>
+        <li><a href="#troubleshoot">401, 403, 404, 405</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/concepts#public">Public vs private</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">How-to</p>
+        <h1>Find your org slug and build public URLs</h1>
+        <p class="guide-lede">Private API paths never contain your org; public paths always do. You need the slug to go from one to the other.</p>
+      </header>
+
+      <section class="guide-section" id="slug">
+        <h2>Find your slug</h2>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>curl -s -H "Authorization: Bearer $WREN_API_KEY" https://wren.aemwip.com/api/v1/me
+# → { "org": { "id": "…", "name": "…", "slug": "oak-spur-spur" }, "role": "owner", … }
+
+wren me          # same, from the CLI</pre></div>
+        <p>Slugs are generated words. The org owner can set a nicer one, as long as no other org has it:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>PUT /api/v1/org/slug
+{"slug": "tkd-tracker"}</pre></div>
+        <div class="callout callout--warn"><p>Changing the slug changes every public URL. Links already shared, and custom domains proxying to the old slug, stop working.</p></div>
+      </section>
+
+      <section class="guide-section" id="translate">
+        <h2>Translate a private path into a public URL</h2>
+        <p>Insert <code>/orgs/{slug}</code>, then drop the auth header. The URL only works if a <code>principal: "*"</code> read rule covers the tree or collection.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>You have (private, with key)</th><th>Public URL (no auth)</th></tr></thead>
+            <tbody>
+              <tr><td><code>/api/v1/tree/mysite/index.html</code></td><td><code>/orgs/{slug}/tree/mysite/index.html</code></td></tr>
+              <tr><td><code>/api/v1/events</code></td><td><code>/api/v1/orgs/{slug}/events</code></td></tr>
+              <tr><td><code>/api/v1/events/{id}</code></td><td><code>/api/v1/orgs/{slug}/events/{id}</code></td></tr>
+              <tr><td><code>/api/v1/images/{id}/raw</code></td><td><code>/api/v1/orgs/{slug}/images/{id}/raw/photo.jpg</code> (a trailing filename helps browsers)</td></tr>
+              <tr><td><code>POST /api/v1/events/_query</code></td><td><code>POST /api/v1/orgs/{slug}/events/_query</code></td></tr>
+              <tr><td><code>/api/v1/events/_materialized/overview</code></td><td><code>/api/v1/orgs/{slug}/events/_materialized/overview</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>To check what an org exposes, use <code>GET /orgs/{slug}/llms.txt</code> (collections, trees, samples and the URL map) or <code>GET /api/v1/projects</code> (every org with public content, including site entry URLs).</p>
+      </section>
+
+      <section class="guide-section" id="which">
+        <h2>Which form to share</h2>
+        <ul>
+          <li><strong>For people:</strong> <code>https://&lt;host&gt;/orgs/{slug}/tree/{tree}/index.html</code>, or your own domain (see <a href="/guides/custom-domain">Serve a site on your own domain</a>).</li>
+          <li><strong>For code:</strong> <code>https://&lt;host&gt;/api/v1/orgs/{slug}/…</code>. <code>/orgs/{slug}/…</code> is a GET-only alias, so <code>POST _query</code> needs the <code>/api/v1</code> form. If your page works out its API base from its own URL, accept both prefixes.</li>
+          <li>Always use <code>https://</code>. Plain <code>http://</code> redirects, and some clients don't follow redirects.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="troubleshoot">
+        <h2>Troubleshooting</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Status</th><th>Usually means</th><th>Fix</th></tr></thead>
+            <tbody>
+              <tr><td>404 on <code>/api/me</code>, <code>/collections</code>, <code>/tree/…</code></td><td>Missing <code>/api/v1</code> prefix</td><td>Every authenticated route starts with <code>/api/v1/</code></td></tr>
+              <tr><td>401 on <code>/api/v1/…</code></td><td>A private URL with no key</td><td>Send <code>Authorization: Bearer wren_…</code>, or use the public <code>/orgs/{slug}</code> form</td></tr>
+              <tr><td>403 on <code>/orgs/{slug}/…</code></td><td>No <code>*</code> read rule for that tree or collection</td><td><code>POST /api/v1/permissions {"principal":"*", "resource":"tree:mysite", "access":"read"}</code></td></tr>
+              <tr><td>404 on a public tree file that exists</td><td>The rule has <code>labelFilter: "published"</code> and the file isn't promoted yet</td><td><code>wren promote mysite</code></td></tr>
+              <tr><td>405 on <code>/orgs/{slug}/…</code></td><td>A write sent to a public URL</td><td>Public URLs are read-only; write to <code>/api/v1/{collection}</code> with a key</td></tr>
+              <tr><td>403 with <code>error code: 1010</code></td><td>Cloudflare rejected the client's User-Agent</td><td>See <a href="/guides/python">Use WREN from Python</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer"><div class="container">
+    <div class="footer__inner">
+      <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+      <ul class="footer__links"><li><a href="/concepts">Concepts</a></li><li><a href="/guides">Guides</a></li><li><a href="/docs">API Docs</a></li><li><a href="https://github.com/usewren">GitHub (usewren)</a></li></ul>
+    </div>
+    <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+  </div></footer>
+</body>
+</html>

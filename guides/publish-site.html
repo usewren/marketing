@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Publish a site and keep drafts private</title>
+  <meta name="description" content="How-to: make a usewren (WREN) site public while unreleased changes stay private. Public read rule with labelFilter, deploy as preview, promote atomically, roll back." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+  <nav class="nav"><div class="nav__inner">
+    <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+    <ul class="nav__links">
+      <li><a href="/concepts">Concepts</a></li>
+      <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+      <li><a href="/tutorial/deploy">Tutorial</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/projects">Projects</a></li>
+    </ul>
+  </div></nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#rule">1. Public rule</a></li>
+        <li><a href="#deploy">2. Deploy as preview</a></li>
+        <li><a href="#check">3. Check the preview</a></li>
+        <li><a href="#promote">4. Promote</a></li>
+        <li><a href="#rollback">Roll back</a></li>
+        <li><a href="#existing">Existing public site</a></li>
+        <li><a href="#pitfalls">Pitfalls</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/concepts#resolution">How a URL resolves</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">How-to</p>
+        <h1>Publish a site and keep drafts private</h1>
+        <p class="guide-lede">Visitors see only what you've released. You deploy as often as you like, check the result, and release everything at once.</p>
+      </header>
+
+      <section class="guide-section">
+        <div class="callout callout--key"><p><strong>The one rule that makes this work:</strong> a public read rule with <code>labelFilter: "published"</code>. Without the label filter, visitors always see the latest upload, and deploying <em>is</em> releasing.</p></div>
+      </section>
+
+      <section class="guide-section" id="rule">
+        <h2>1. Create the public rule (once)</h2>
+        <p>The first deploy can create it for you. Deploying with a label and <code>--public</code> creates a rule with <code>labelFilter: "published"</code>:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>export WREN_URL=https://wren.aemwip.com
+export WREN_API_KEY=wren_…                       # or: wren auth login
+wren deploy ./dist --tree mysite --label preview --public</pre></div>
+        <p>Or create it yourself through the API:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>POST /api/v1/permissions
+{"principal":"*", "resource":"tree:mysite", "access":"read", "labelFilter":"published"}</pre></div>
+      </section>
+
+      <section class="guide-section" id="deploy">
+        <h2>2. Deploy changes as a preview</h2>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren deploy ./dist --tree mysite --label preview</pre></div>
+        <p>Changed files (compared by SHA-256) are uploaded as new versions of the same documents and labelled <code>preview</code>. Visitors keep seeing the published versions. A file that has never been published returns 404 publicly; it never shows a draft.</p>
+      </section>
+
+      <section class="guide-section" id="check">
+        <h2>3. Check the preview</h2>
+        <p>The preview is visible only through the private API with your key. Adding <code>?label=preview</code> to a public URL has no effect: the public rule's label filter always wins.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>curl -H "Authorization: Bearer $WREN_API_KEY" \
+  "$WREN_URL/api/v1/tree/mysite/index.html?label=preview"</pre></div>
+        <p>To click through a preview in a browser, sign in to the Admin UI, or put a small proxy that adds your key in front of the private route (keep it off the public internet).</p>
+      </section>
+
+      <section class="guide-section" id="promote">
+        <h2>4. Promote</h2>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren promote mysite --from preview</pre></div>
+        <p>This moves <code>published</code> to the preview version of every document in the tree <strong>in one transaction</strong>, so visitors never see a mix of old and new files. Under the hood it's <code>POST /api/v1/tree/mysite/_promote {"from":"preview"}</code>. See <a href="/concepts#atomic">why promote is atomic</a>.</p>
+      </section>
+
+      <section class="guide-section" id="rollback">
+        <h2>Roll back a bad release</h2>
+        <p>Nothing is overwritten, so rolling back means pointing <code>published</code> at older versions again. The simplest way is to give every release a name when you promote it:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre># on every release, also tag the versions you're about to publish
+wren promote mysite --from preview --label release-2026-10-04
+wren promote mysite --from preview
+
+# later: roll back by promoting the older release label
+wren promote mysite --from release-2026-10-04</pre></div>
+        <p>Files that weren't part of that release keep their current <code>published</code> version. To roll back a single file instead, use <code>POST /api/v1/{collection}/{id}/labels {"label":"published","version":3}</code>.</p>
+      </section>
+
+      <section class="guide-section" id="existing">
+        <h2>Already public without a label filter?</h2>
+        <p>Label what's live first, then add the filter. Doing it the other way round takes the site offline until the next promote.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren promote mysite                                  # current versions → published
+wren permissions list                                # find the tree:mysite rule
+wren permissions update &lt;rule-id&gt; --label-filter published</pre></div>
+      </section>
+
+      <section class="guide-section" id="pitfalls">
+        <h2>Pitfalls</h2>
+        <ul>
+          <li><strong>Data your pages fetch needs the same treatment.</strong> If the site reads a JSON collection, give that collection's public rule a label filter too, or keep the JSON files in the tree so one promote releases both.</li>
+          <li><strong>Live data shouldn't wait for a promote.</strong> Scores or feeds that should appear immediately belong in a collection whose public rule has <em>no</em> label filter. See the <a href="/guides/tournament-tracker#ideal-public">tournament tracker</a>.</li>
+          <li><strong>CDN caching:</strong> successful public responses may be cached for up to a minute. Errors aren't cached.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer"><div class="container">
+    <div class="footer__inner">
+      <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+      <ul class="footer__links"><li><a href="/concepts">Concepts</a></li><li><a href="/guides">Guides</a></li><li><a href="/docs">API Docs</a></li><li><a href="https://github.com/usewren">GitHub (usewren)</a></li></ul>
+    </div>
+    <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+  </div></footer>
+</body>
+</html>
