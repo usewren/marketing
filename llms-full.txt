@@ -580,10 +580,11 @@ The filename-in-URL pattern is recommended for `<img>` tags, CDN configs, and CL
 Built-in Model Context Protocol endpoint, one per server: `POST /mcp`.
 - Transport: Streamable HTTP, stateless JSON responses (no SSE stream, no session id). GET/DELETE → 405.
 - Protocol versions: 2025-06-18, 2025-03-26, 2024-11-05.
-- Auth: `Authorization: Bearer wren_…` (or a session cookie). Missing/invalid → HTTP 401 with `WWW-Authenticate: Bearer`.
+- Auth: `Authorization: Bearer wren_…` (or a session cookie) for own-org tools. No credentials → public read-only mode (below). Invalid credentials → HTTP 401 with `WWW-Authenticate: Bearer`.
 - Org: from the key, like the REST API. Several orgs → configure the endpoint once per key.
 - Tools call the REST API in-process, so permissions, label filters and org isolation apply unchanged.
 - `/mcp?readonly=1` exposes only read tools.
+- `/mcp` without a key: public, read-only access to every org's public data — `list_public` (same content as /api/v1/projects) and `public_site_info`, `public_list_tree`, `public_read_file`, `public_query_documents`, `public_get_document` (each with an `org` slug argument). With a key, `/mcp` offers these `public_*` tools in addition to the own-org tools; they never send the caller's credentials. An invalid key → 401.
 - Org-bound endpoint `/orgs/{slug}/mcp` (what a custom domain's /mcp maps to):
   - without a key: public, read-only tools site_info, list_tree, read_file, query_documents, get_document over the public routes (only what principal '*' rules allow, at their label)
   - `?tree=<name>` scopes to one site (collection tools hidden unless `&collections=a,b`); site_info then describes only that scope
