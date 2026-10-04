@@ -26,7 +26,7 @@
 
     .workflow { padding: 5rem 0; }
     .workflow__steps { display: grid; gap: 2.5rem; margin-top: 2rem; }
-    .workflow__step { display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: start; }
+    .workflow__step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.5rem; align-items: start; }
     .workflow__step-num { width: 44px; height: 44px; border-radius: 12px; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.2rem; flex-shrink: 0; }
     .workflow__step-body h3 { margin: 0 0 .5rem; font-size: 1.15rem; }
     .workflow__step-body p { margin: 0; color: var(--color-muted); line-height: 1.6; }
@@ -43,6 +43,8 @@
     <div class="nav__inner">
       <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
       <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">Guides</a></li>
         <li><a href="/tutorial/deploy">Tutorial</a></li>
         <li><a href="/docs">Docs</a></li>
         <li><a href="#compare">Compare</a></li>
@@ -55,8 +57,9 @@
 
   <script>
     document.querySelector('.nav__logo').addEventListener('click', e => {
+      if (!e.shiftKey) return;
       e.preventDefault();
-      const variants = ['/', '/d', '/a', '/b'];
+      const variants = ['/a', '/b', '/c', '/d', '/e'];
       const current = location.pathname;
       const idx = variants.indexOf(current);
       location.href = variants[(idx + 1) % variants.length];
@@ -157,7 +160,7 @@
         <div class="feature-card">
           <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
           <h3 class="feature-card__title">Preview &rarr; Promote</h3>
-          <p class="feature-card__desc">Deploy with <code style="font-family:var(--font-mono);font-size:.85em">--label preview</code>. Test at <code style="font-family:var(--font-mono);font-size:.85em">?label=preview</code>. Promote to <code style="font-family:var(--font-mono);font-size:.85em">published</code> when ready. One label controls what&rsquo;s live.</p>
+          <p class="feature-card__desc">Deploy with <code style="font-family:var(--font-mono);font-size:.85em">--label preview</code>. Check it with your key on the private API &mdash; the public site doesn&rsquo;t change. Promote to <code style="font-family:var(--font-mono);font-size:.85em">published</code> when ready. One label controls what&rsquo;s live.</p>
         </div>
 
         <div class="feature-card">
@@ -198,7 +201,7 @@
           <div class="workflow__step-num">1</div>
           <div class="workflow__step-body">
             <h3>Deploy your build output</h3>
-            <p>Point <code>wren deploy</code> at your <code>dist/</code> folder. It scans every file, uploads only what changed (size-based diffing), assigns each to a tree path, and prints your live URL. First deploy auto-creates the binary collection and public permission.</p>
+            <p>Point <code>wren deploy</code> at your <code>dist/</code> folder. It scans every file, uploads only what changed (compared by content hash), assigns each to a tree path, and prints your live URL. First deploy auto-creates the binary collection and public permission.</p>
             <div class="workflow__code">
               <span class="cmd">wren deploy</span> ./dist <span class="flag">--tree</span> mysite <span class="flag">--public</span><br>
               <span class="cmt"># 47 files uploaded, live at /orgs/acme/tree/mysite/index.html</span>
@@ -210,7 +213,7 @@
           <div class="workflow__step-num">2</div>
           <div class="workflow__step-body">
             <h3>Preview before going live</h3>
-            <p>Deploy with <code>--label preview</code>. New versions are created but the public site is unchanged &mdash; visitors still see the published label. Add <code>?label=preview</code> to any URL to see the new version yourself.</p>
+            <p>Deploy with <code>--label preview</code>. New versions are created but the public site is unchanged &mdash; visitors still see the published label. You (and your agents) see the new version through the private API with your key; public URLs keep serving <code>published</code>.</p>
             <div class="workflow__code">
               <span class="cmd">wren deploy</span> ./dist <span class="flag">--tree</span> mysite <span class="flag">--label</span> preview<br>
               <span class="cmt"># 3 files changed. Public site unchanged.</span><br>
@@ -291,6 +294,41 @@
   </section>
 
   <!-- ============================================================
+       Agents
+       ============================================================ -->
+  <section class="agents" id="agents">
+    <div class="container">
+      <div class="agents__intro">
+        <p class="section-label">AI agents</p>
+        <h2 class="section-title">Open to every agent. Private to yours.</h2>
+        <p class="section-sub">One server, one MCP endpoint. What you publish, anyone&rsquo;s agent can find and use. What you keep private, only your agents reach &mdash; with your permissions, and nothing they do is permanent.</p>
+      </div>
+      <div class="agents__grid">
+        <div class="agents__col">
+          <h3 class="agents__title">Public data, no key</h3>
+          <p class="agents__desc">Any agent can connect to <code>/mcp</code> without signing up, see who publishes what, and read published sites and collections. Always the released version, never your drafts.</p>
+        </div>
+        <div class="agents__col">
+          <h3 class="agents__title">Private data, as you</h3>
+          <p class="agents__desc">&ldquo;Sign in with WREN&rdquo; from Claude, Cursor or VS Code, pick the org, and the agent works with your groups&rsquo; access. Or give it an API key. Revoke either at any time.</p>
+        </div>
+        <div class="agents__col">
+          <h3 class="agents__title">Safe to let it write</h3>
+          <p class="agents__desc">Agent writes land as new versions labeled <code>preview</code>. Review the diff, promote what&rsquo;s good, roll back what isn&rsquo;t. Nothing is overwritten.</p>
+        </div>
+      </div>
+      <div class="agents__code">
+        <pre><span class="tok-comment"># Read anyone&rsquo;s public data &mdash; no account needed</span>
+<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren-public <span class="tok-url">https://wren.aemwip.com/mcp</span>
+
+<span class="tok-comment"># Work in your own org &mdash; opens a browser to sign in and choose the org</span>
+<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren <span class="tok-url">https://wren.aemwip.com/mcp/login</span></pre>
+      </div>
+      <p class="agents__more"><a href="/guides/mcp">Set up Claude Code, Cursor or VS Code &rarr;</a></p>
+    </div>
+  </section>
+
+  <!-- ============================================================
        Pricing
        ============================================================ -->
   <section class="pricing" id="pricing">
@@ -366,6 +404,8 @@
           <li><a href="/admin">Admin UI</a></li>
           <li><a href="/docs">API Docs</a></li>
           <li><a href="/projects">Projects</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="https://github.com/usewren">GitHub</a></li>
         </ul>
       </div>
       <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>

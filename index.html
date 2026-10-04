@@ -18,7 +18,7 @@
        ============================================================ -->
   <nav class="nav">
     <div class="nav__inner">
-      <a href="/a" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
       <ul class="nav__links">
         <li><a href="/concepts">Concepts</a></li>
         <li><a href="/guides">Guides</a></li>
@@ -33,8 +33,9 @@
   </nav>
   <script>
     document.querySelector('.nav__logo').addEventListener('click', e => {
+      if (!e.shiftKey) return;
       e.preventDefault();
-      const variants = ['/', '/d', '/a', '/b'];
+      const variants = ['/a', '/b', '/c', '/d', '/e'];
       const current = location.pathname;
       const idx = variants.indexOf(current);
       location.href = variants[(idx + 1) % variants.length];
