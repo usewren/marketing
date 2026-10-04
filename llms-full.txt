@@ -1201,6 +1201,8 @@ Environment variables read by the server (Docker image `reusr1/wren`):
 | `WEBHOOK_BATCH_WINDOW_MS` | `5000` | Webhook batching window. |
 | `WREN_LOG_DIR` | `/data` | Where the access log is written. |
 | `PORT` | `4000` | Listen port. |
+| `WREN_LANDING_VARIANTS` | `a,b,c,d,e` | Landing-page experiment: `/` shows each new visitor one of these variants (cookie `wren_v`, variant letter only) and counts views, Admin UI opens and sign-ups per variant. One value (e.g. `c`) turns it off. |
+| `WREN_OPERATORS` | none | Comma-separated emails of server operators; they can see the experiment results at `/stats/landing`. |
 
 Step-by-step production checklist: [/guides/go-live](/guides/go-live).
 
