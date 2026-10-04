@@ -1126,6 +1126,45 @@ GET /api/v1/articles?depth=1           → works on list endpoints too
 
 ---
 
+## Live events (Server-Sent Events)
+
+Stream changes as they are committed, to refresh a page or an agent's view without polling. Events carry ids, versions and label names, never document data: re-read what changed through the normal API.
+
+```
+GET /api/v1/_events                              # your org: everything you can read (key or session)
+GET /api/v1/orgs/{slug}/_events                  # public: no auth, CORS *
+GET /orgs/{slug}/_events                         # same, clean URL
+    ?collections=a,b   only these collections
+    ?trees=site        only these trees (label events of documents mounted there)
+```
+
+Each message is a JSON `data:` line with an `id:` (use `EventSource`, or any SSE client):
+
+```
+id: m1x2k3-42
+data: {"type":"label.set","collection":"pages","id":"…","label":"published","version":3,"trees":[{"tree":"site","path":"/index.html"}],"at":"…"}
+```
+
+| type | fields |
+|------|--------|
+| `document.created` / `document.updated` | `collection`, `id`, `version`, `key` (natural key, if any) |
+| `document.deleted` | `collection`, `id`, `key` |
+| `label.set` / `label.removed` | `collection`, `id`, `label`, `version` (set only), `trees` (where the document is mounted) |
+| `tree.assigned` / `tree.removed` | `tree`, `path`, `id` (document) |
+| `schema.updated` | `collection`, `removed` (if the schema was deleted) |
+| `ready` | sent once the stream is live |
+| `reset` | the server can't replay what you missed (restart or gap): re-read your data |
+
+- **Public streams** follow the public rules: with `labelFilter: "published"` you only get moves of the `published` label (so drafts and previews stay invisible, and `tree.assigned` isn't announced); without a label filter you get every event. Collections whose rule has a data filter send nothing publicly.
+- **Resume:** browsers reconnect by themselves and send `Last-Event-ID`; the server replays up to the last 1,000 events per org, or sends `reset`. Pass `?lastEventId=` if your client can't set the header.
+- A comment line (`: ping`) every 25 s keeps proxies from closing the connection.
+- Limits: 200 open streams per org, 2,000 per server (`WREN_EVENTS_MAX_STREAMS_PER_ORG`, `WREN_EVENTS_MAX_STREAMS`); beyond that `503` with `Retry-After`.
+
+```js
+const es = new EventSource("https://wren.example.com/orgs/acme/_events?trees=site");
+es.onmessage = e => { const ev = JSON.parse(e.data); if (ev.type === "label.set" || ev.type === "reset") location.reload(); };
+```
+
 ## Webhooks
 
 Register HTTP endpoints that receive batched notifications when data changes. Events within a configurable time window (default 5 seconds) are grouped into one delivery — so `wren promote` labeling 50 documents produces one webhook call, not 50.
@@ -1139,15 +1178,17 @@ Response 201:
 { "id": "…", "url": "…", "events": [...], "secret": "hmac-signing-key-shown-once", "enabled": true }
 ```
 
-`events` filters which event types trigger this webhook. Empty array = all events. Available types: `document.created`, `document.updated`, `document.deleted`, `label.set`, `tree.assigned`, `tree.removed`, `schema.updated`.
+`events` filters which event types trigger this webhook. Empty array = all events. Available types: `document.created`, `document.updated`, `document.deleted`, `label.set`, `label.removed`, `tree.assigned`, `tree.removed`, `schema.updated`. The payloads are the same as the [live events](#live-events-server-sent-events) above (without `type` and `at`), from every write path: REST, by-key upserts, uploads, tree promote and MCP.
+
+The URL must be `http(s)` and resolve to a public address: private, loopback, link-local and metadata addresses are refused when you save the webhook and re-checked before each delivery; redirects aren't followed. Self-hosters with internal receivers can allow them by host name with `WREN_WEBHOOK_ALLOW_HOSTS`.
 
 ### Webhook payload
 ```json
 {
   "batchKey": "orgId:357304433",
   "events": [
-    { "type": "document.created", "payload": { "collection": "articles", "id": "uuid" } },
-    { "type": "document.updated", "payload": { "collection": "articles", "id": "uuid" } }
+    { "type": "document.created", "payload": { "collection": "articles", "id": "uuid", "version": 1 } },
+    { "type": "label.set", "payload": { "collection": "articles", "id": "uuid", "label": "published", "version": 1, "trees": [] } }
   ],
   "deliveredAt": "2026-05-19T12:00:00Z"
 }
@@ -1199,6 +1240,8 @@ Environment variables read by the server (Docker image `reusr1/wren`):
 | `GITHUB_CLIENT_ID` / `_SECRET`, `GOOGLE_...`, `APPLE_...` | none | Optional social sign-in providers. |
 | `CACHE_PURGE_BACKEND` | `noop` | `console` logs CDN purge events. |
 | `WEBHOOK_BATCH_WINDOW_MS` | `5000` | Webhook batching window. |
+| `WREN_WEBHOOK_ALLOW_HOSTS` | none | Comma-separated host names webhooks may reach even though they resolve to private addresses (internal receivers). |
+| `WREN_EVENTS_MAX_STREAMS` / `_PER_ORG` | `2000` / `200` | Open live-event streams per server / per org. |
 | `WREN_LOG_DIR` | `/data` | Where the access log is written. |
 | `PORT` | `4000` | Listen port. |
 | `WREN_LANDING_VARIANTS` | `a,b,c,d,e` | Landing-page experiment: `/` shows each new visitor one of these variants (cookie `wren_v`, variant letter only) and counts views, Admin UI opens and sign-ups per variant. One value (e.g. `c`) turns it off. |
