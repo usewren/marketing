@@ -69,8 +69,8 @@
             <button class="hero__tab" onclick="heroTab(this,'rest')">REST</button>
           </div>
         </div>
-        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @wren/client</span>
-<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @usewren/client</span>
+<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@usewren/client"</span>;
 
 <span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl: <span class="tok-str">"https://…"</span>, apiKey: <span class="tok-str">"wren_…"</span> });
 
@@ -84,7 +84,7 @@
 <span class="tok-comment">// 3. Trees — attach to any path, fetch the whole branch in one call</span>
 <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">set</span>(<span class="tok-str">"site"</span>, <span class="tok-str">"/2026/masters"</span>, doc.id);
 <span class="tok-keyword">const</span> bundle = <span class="tok-keyword">await</span> wren.trees.<span class="tok-method">getFull</span>(<span class="tok-str">"site"</span>, { label: <span class="tok-str">"published"</span> });</pre>
-        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install wren-client</span>
+        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install usewren-client</span>
 <span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>
 
 <span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(<span class="tok-str">"https://…"</span>, api_key=<span class="tok-str">"wren_…"</span>) <span class="tok-keyword">as</span> wren:
@@ -159,7 +159,7 @@
         <div class="feature-card">
           <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M3 10h10v4H3z"/><path d="M3 17h14v4H3z"/><path d="M13 7v3"/><path d="M13 14v3"/></svg></div>
           <h3 class="feature-card__title">Trees bundle hierarchy</h3>
-          <p class="feature-card__desc">Organise documents into named paths. Fetch whole subtrees with <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?full=true</code>. Public read URLs with zero config.</p>
+          <p class="feature-card__desc">Organize documents into named paths. Fetch whole subtrees with <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?full=true</code>. Public read URLs with zero config.</p>
         </div>
 
         <div class="feature-card">
@@ -210,7 +210,7 @@
           <div class="how__step-num">3</div>
           <div class="how__step-body">
             <h3 class="how__step-title">Trees give you structure</h3>
-            <p class="how__step-desc">Organise documents into a named hierarchy. Fetch a single path, bundle a subtree, or expose the whole thing as public URLs.</p>
+            <p class="how__step-desc">Organize documents into a named hierarchy. Fetch a single path, bundle a subtree, or expose the whole thing as public URLs.</p>
           </div>
         </div>
 
@@ -269,9 +269,9 @@
         <div class="client-card">
           <div class="client-card__header">
             <span class="client-card__lang">TypeScript &amp; JavaScript</span>
-            <code class="client-card__install">npm install @wren/client</code>
+            <code class="client-card__install">npm install @usewren/client</code>
           </div>
-          <pre><span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+          <pre><span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@usewren/client"</span>;
 
 <span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl, apiKey });
 
@@ -296,7 +296,7 @@
         <div class="client-card">
           <div class="client-card__header">
             <span class="client-card__lang">Python</span>
-            <code class="client-card__install">pip install wren-client</code>
+            <code class="client-card__install">pip install usewren-client</code>
           </div>
           <pre><span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>, <span class="tok-path">AsyncWrenClient</span>
 
@@ -340,7 +340,7 @@
             <p class="pricing-card__tagline">For personal projects and experiments.</p>
           </div>
           <ul class="pricing-card__features">
-            <li>1 organisation</li>
+            <li>1 organization</li>
             <li>3 collections</li>
             <li>1 000 documents</li>
             <li>100 MB storage</li>
@@ -358,7 +358,7 @@
             <p class="pricing-card__tagline">For side projects and small teams.</p>
           </div>
           <ul class="pricing-card__features">
-            <li>3 organisations</li>
+            <li>3 organizations</li>
             <li>Unlimited collections</li>
             <li>50 000 documents</li>
             <li>5 GB storage</li>
@@ -377,7 +377,7 @@
             <p class="pricing-card__tagline">For production workloads and compliance.</p>
           </div>
           <ul class="pricing-card__features">
-            <li>Unlimited organisations</li>
+            <li>Unlimited organizations</li>
             <li>Unlimited collections</li>
             <li>Unlimited documents</li>
             <li>Unlimited storage</li>

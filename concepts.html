@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Concepts: documents, versions, labels, trees</title>
+  <meta name="description" content="How usewren (WREN) works: immutable versions, labels as movable pointers, trees that map URLs to documents, public read rules, and atomic promote." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts" style="color:var(--color-primary);font-weight:600">Concepts</a></li>
+        <li><a href="/guides">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#model">The model</a></li>
+        <li><a href="#versions">Documents &amp; versions</a></li>
+        <li><a href="#labels">Labels</a></li>
+        <li><a href="#trees">Trees</a></li>
+        <li><a href="#resolution">How a URL resolves</a></li>
+        <li><a href="#public">Public vs private</a></li>
+        <li><a href="#promote">Deploy, preview, promote</a></li>
+        <li><a href="#atomic">Why promote is atomic</a></li>
+        <li><a href="#collections-vs-trees">Collections vs trees</a></li>
+        <li><a href="#next">Next steps</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides">Guides &amp; case studies</a></li>
+        <li><a href="/tutorial/deploy">Deploy tutorial</a></li>
+        <li><a href="/llms.txt">llms.txt</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Concepts</p>
+        <h1>Documents, versions, labels and trees</h1>
+        <p class="guide-lede">WREN (usewren) is a versioned JSON store that can also serve static sites. Four ideas make that work: nothing is overwritten, labels are pointers you move, trees map URLs to documents, and the version a visitor sees is decided when they read, not when you write.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="model">
+        <h2>The model</h2>
+        <p>Everything in WREN is a <strong>document</strong>: a JSON object or a binary file (HTML, CSS, an image) with a stable id. Each write adds a <strong>version</strong>. <strong>Labels</strong> such as <code>published</code> or <code>preview</code> point at one version of a document. A <strong>tree</strong> gives documents URL paths like <code>/index.html</code>.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 270" role="img" aria-labelledby="fig1-title fig1-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="fig1-title">One document, four versions, three pointers</title>
+            <desc id="fig1-desc">Versions v1 to v4 of index.html sit in a row. The published label points at v2, the preview label points at v4, and current_version also points at v4.</desc>
+            <defs>
+              <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4338ca"/></marker>
+              <marker id="a1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
+            </defs>
+            <text x="30" y="34" font-size="15" font-weight="700" fill="#111827">Document <tspan font-family="monospace" font-weight="400">index.html</tspan> (id 7f3a…)</text>
+            <text x="30" y="54" font-size="12" fill="#6b7280">Every write appends a version. Old versions are never changed or removed.</text>
+            <line x1="30" y1="140" x2="730" y2="140" stroke="#e5e7eb" stroke-width="2"/>
+            <g font-size="13" text-anchor="middle">
+              <rect x="40"  y="112" width="140" height="56" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="110" y="136" font-weight="700" fill="#111827">v1</text><text x="110" y="155" fill="#6b7280" font-family="monospace" font-size="11">Hello</text>
+              <rect x="215" y="112" width="140" height="56" rx="8" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/>
+              <text x="285" y="136" font-weight="700" fill="#111827">v2</text><text x="285" y="155" fill="#6b7280" font-family="monospace" font-size="11">Hello, world</text>
+              <rect x="390" y="112" width="140" height="56" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="460" y="136" font-weight="700" fill="#111827">v3</text><text x="460" y="155" fill="#6b7280" font-family="monospace" font-size="11">Hello, wrld</text>
+              <rect x="565" y="112" width="140" height="56" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+              <text x="635" y="136" font-weight="700" fill="#111827">v4</text><text x="635" y="155" fill="#6b7280" font-family="monospace" font-size="11">Hello, world!</text>
+            </g>
+            <g font-size="13" font-weight="700">
+              <rect x="235" y="68" width="100" height="26" rx="13" fill="#4338ca"/><text x="285" y="86" text-anchor="middle" fill="#fff">published</text>
+              <line x1="285" y1="94" x2="285" y2="110" stroke="#4338ca" stroke-width="2" marker-end="url(#a1)"/>
+              <rect x="590" y="68" width="90" height="26" rx="13" fill="#d97706"/><text x="635" y="86" text-anchor="middle" fill="#fff">preview</text>
+              <line x1="635" y1="94" x2="635" y2="110" stroke="#d97706" stroke-width="2" marker-end="url(#a1)"/>
+              <rect x="570" y="206" width="130" height="26" rx="13" fill="#fff" stroke="#6b7280"/><text x="635" y="224" text-anchor="middle" fill="#374151" font-family="monospace" font-weight="400">current_version</text>
+              <line x1="635" y1="206" x2="635" y2="171" stroke="#6b7280" stroke-width="2" marker-end="url(#a1g)"/>
+            </g>
+            <text x="30" y="258" font-size="12" fill="#6b7280">A label is one row: (document, label) → version. Moving it never copies data.</text>
+          </svg>
+          <figcaption>Figure 1. Labels and <code>current_version</code> are pointers into an append-only history. Here visitors with a <code>published</code> filter see v2, while the latest write is v4.</figcaption>
+        </figure>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="versions">
+        <h2>Documents and versions</h2>
+        <ul>
+          <li><strong>Every write creates a version.</strong> <code>POST /api/v1/{collection}</code> creates a document at version 1. <code>PUT /api/v1/{collection}/{id}</code> (JSON, or multipart for files) adds version n+1 to the <em>same</em> document. Use <code>PUT</code> to update; a second <code>POST</code> creates a separate document.</li>
+          <li><strong>Versions are immutable.</strong> List them with <code>GET …/{id}/versions</code>, read one with <code>…/versions/{n}</code>, compare two with <code>…/diff?v1=&amp;v2=</code>.</li>
+          <li><strong>Rollback moves forward.</strong> <code>POST …/{id}/rollback/{n}</code> writes a <em>new</em> version with the content of version n, so the history stays intact.</li>
+          <li><strong><code>current_version</code></strong> is the newest version. Reads without a label return it.</li>
+          <li><strong>Writes are transactional.</strong> A version, its label change or its tree assignment either commits fully or not at all.</li>
+        </ul>
+        <div class="callout callout--key"><p><strong>Natural keys.</strong> If your data has its own identifier (a tournament id, a URL slug), declare it as the collection's <code>naturalKey</code> and write with <code>PUT /api/v1/{collection}/by-key/{value}</code>. That call creates the document the first time and adds a version afterwards, so re-running an import never creates duplicates.</p></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="labels">
+        <h2>Labels</h2>
+        <p>A label is a named pointer from one document to one of its versions. Each document has at most one version per label name, and you can invent any names you like: <code>published</code>, <code>preview</code>, <code>staging</code>, <code>v1</code>.</p>
+        <ul>
+          <li><strong>Set or move a label</strong> with <code>POST /api/v1/{collection}/{id}/labels {"label":"published","version":2}</code>. Leave out <code>version</code> to point at the current version.</li>
+          <li><strong>Read through a label</strong> with <code>?label=published</code>. A document without that label is treated as not there (404), so readers never fall back to a draft.</li>
+          <li><strong>Labels are per document, not global.</strong> "The site's published version" means "every document in the tree, read through its <code>published</code> label". <a href="#promote">Promote</a> moves that label for a whole tree at once.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="trees">
+        <h2>Trees</h2>
+        <p>A tree is a named set of paths, each pointing at a document: <code>PUT /api/v1/tree/mysite/index.html {"documentId":"7f3a…"}</code>. This is how a collection of files becomes a website, and how JSON documents get readable URLs.</p>
+        <ul>
+          <li>A path points at a <strong>document, not a version</strong>. The version is picked when someone reads it (next section). That is why a deploy can upload new versions without changing what visitors see.</li>
+          <li>One document can appear at several paths and in several trees.</li>
+          <li>Removing a path (<code>DELETE /api/v1/tree/…</code>) leaves the document and its history alone.</li>
+          <li>Reading a path returns the file's bytes. With <code>Accept: application/json</code> you get the node instead: document id, collection and children.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="resolution">
+        <h2>How a URL resolves to a version</h2>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 330" role="img" aria-labelledby="fig2-title fig2-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="fig2-title">Resolving a tree URL</title>
+            <desc id="fig2-desc">A request for a tree path finds the path's document. The version served is: on public URLs, the version named by the public rule's labelFilter, or the current version if the rule has none; on private URLs, the ?label= version if given, otherwise the current version. If the chosen label does not exist on the document, the response is 404.</desc>
+            <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="13">
+              <rect x="20" y="20" width="230" height="52" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="135" y="42" text-anchor="middle" font-weight="700" fill="#111827">GET …/tree/mysite/index.html</text>
+              <text x="135" y="61" text-anchor="middle" fill="#6b7280" font-size="12">path → document 7f3a…</text>
+              <line x1="250" y1="46" x2="300" y2="46" stroke="#6b7280" stroke-width="2" marker-end="url(#a2)"/>
+              <rect x="305" y="20" width="200" height="52" rx="8" fill="#fff" stroke="#6b7280"/>
+              <text x="405" y="42" text-anchor="middle" font-weight="700" fill="#111827">Which version?</text>
+              <text x="405" y="61" text-anchor="middle" fill="#6b7280" font-size="12">depends on the URL family</text>
+
+              <line x1="370" y1="72" x2="200" y2="118" stroke="#6b7280" stroke-width="2" marker-end="url(#a2)"/>
+              <line x1="440" y1="72" x2="560" y2="118" stroke="#6b7280" stroke-width="2" marker-end="url(#a2)"/>
+
+              <rect x="30" y="122" width="330" height="190" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="48" y="148" font-weight="700" fill="#312e81">Public URL  /orgs/{slug}/tree/…</text>
+              <text x="48" y="172" fill="#374151">No auth. Needs a principal "*" read rule.</text>
+              <text x="48" y="202" fill="#111827">Rule has labelFilter "published"?</text>
+              <text x="62" y="224" fill="#374151">yes → the version labelled published</text>
+              <text x="62" y="244" fill="#374151">          (none yet → 404, never a draft)</text>
+              <text x="62" y="266" fill="#374151">no  → current_version (latest write)</text>
+              <text x="48" y="294" fill="#4338ca" font-weight="700">?label= in the URL is ignored</text>
+
+              <rect x="400" y="122" width="330" height="190" rx="10" fill="#fff7ed" stroke="#d97706"/>
+              <text x="418" y="148" font-weight="700" fill="#7c2d12">Private URL  /api/v1/tree/…</text>
+              <text x="418" y="172" fill="#374151">Bearer key or session cookie.</text>
+              <text x="418" y="202" fill="#111827">Your own rule has a labelFilter?</text>
+              <text x="432" y="224" fill="#374151">yes → that label, always</text>
+              <text x="418" y="250" fill="#111827">Otherwise ?label=preview given?</text>
+              <text x="432" y="272" fill="#374151">yes → the version labelled preview</text>
+              <text x="432" y="294" fill="#374151">no  → current_version</text>
+            </g>
+          </svg>
+          <figcaption>Figure 2. The same path can serve different versions to different readers. Visitors get what the public rule allows; you preview other labels through the private API.</figcaption>
+        </figure>
+
+        <p>The same rules apply to collection reads (<code>GET …/{collection}</code>, <code>…/{id}</code>, <code>…/raw</code>, <code>_query</code>). On public URLs the rule's label filter always wins, so adding <code>?label=draft</code> to a public link can't reveal unpublished work.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="public">
+        <h2>Public vs private</h2>
+        <p>Nothing is public until you say so. Making something public means adding a permission rule for the principal <code>*</code> (anyone) on a tree or collection:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>POST /api/v1/permissions
+{"principal":"*", "resource":"tree:mysite", "access":"read", "labelFilter":"published"}</pre></div>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>URL family</th><th>Shape</th><th>Auth</th><th>Org comes from</th></tr></thead>
+            <tbody>
+              <tr><td>Private API (read + write)</td><td><code>/api/v1/{collection}…</code>, <code>/api/v1/tree/…</code></td><td>Bearer key or cookie</td><td>the key / session</td></tr>
+              <tr><td>Public data (read-only)</td><td><code>/api/v1/orgs/{slug}/{collection}…</code></td><td>none</td><td><code>{slug}</code> in the URL</td></tr>
+              <tr><td>Public site (read-only)</td><td><code>/orgs/{slug}/tree/{tree}/{path}</code></td><td>none</td><td><code>{slug}</code> in the URL</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul>
+          <li>Public URLs are read-only and ignore any auth header. Write through the private API.</li>
+          <li>Access is granted per whole tree or collection. To keep a page private, put it in a different tree.</li>
+          <li>Find your slug with <code>GET /api/v1/me</code>. Everything public is listed at <code>/api/v1/projects</code> and <code>/orgs/{slug}/llms.txt</code>.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="promote">
+        <h2>Deploy, preview, promote</h2>
+        <p>Put the pieces together and you get a release workflow without a staging server. Files and JSON data go through it the same way.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 300" role="img" aria-labelledby="fig3-title fig3-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="fig3-title">Deploy, preview and promote over time</title>
+            <desc id="fig3-desc">Three stages for two documents, index.html and data.json. Before: both at v1, published on v1. After deploy with label preview: both have v2 labelled preview, published still on v1, so visitors see v1. After promote from preview: published moves to v2 on both documents in one transaction.</desc>
+            <g font-size="12" font-family="Inter, system-ui, sans-serif">
+              <text x="20"  y="30" font-size="14" font-weight="700" fill="#111827">1 · Live</text>
+              <text x="270" y="30" font-size="14" font-weight="700" fill="#111827">2 · wren deploy --label preview</text>
+              <text x="520" y="30" font-size="14" font-weight="700" fill="#111827">3 · wren promote --from preview</text>
+
+              <!-- stage 1 -->
+              <text x="20" y="66" fill="#374151" font-family="monospace">index.html</text>
+              <rect x="20" y="74" width="60" height="32" rx="6" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/><text x="50" y="95" text-anchor="middle" font-weight="700">v1</text>
+              <text x="20" y="140" fill="#374151" font-family="monospace">data.json</text>
+              <rect x="20" y="148" width="60" height="32" rx="6" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/><text x="50" y="169" text-anchor="middle" font-weight="700">v1</text>
+              <text x="90" y="95" fill="#4338ca" font-weight="700">◀ published</text>
+              <text x="90" y="169" fill="#4338ca" font-weight="700">◀ published</text>
+
+              <!-- stage 2 -->
+              <text x="270" y="66" fill="#374151" font-family="monospace">index.html</text>
+              <rect x="270" y="74" width="60" height="32" rx="6" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/><text x="300" y="95" text-anchor="middle" font-weight="700">v1</text>
+              <rect x="338" y="74" width="60" height="32" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="368" y="95" text-anchor="middle" font-weight="700">v2</text>
+              <text x="270" y="140" fill="#374151" font-family="monospace">data.json</text>
+              <rect x="270" y="148" width="60" height="32" rx="6" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/><text x="300" y="169" text-anchor="middle" font-weight="700">v1</text>
+              <rect x="338" y="148" width="60" height="32" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="368" y="169" text-anchor="middle" font-weight="700">v2</text>
+              <text x="270" y="122" fill="#4338ca">▲ published</text><text x="340" y="122" fill="#d97706">▲ preview</text>
+              <text x="270" y="196" fill="#4338ca">▲ published</text><text x="340" y="196" fill="#d97706">▲ preview</text>
+
+              <!-- stage 3 -->
+              <text x="520" y="66" fill="#374151" font-family="monospace">index.html</text>
+              <rect x="520" y="74" width="60" height="32" rx="6" fill="#f9fafb" stroke="#d1d5db"/><text x="550" y="95" text-anchor="middle" font-weight="700" fill="#6b7280">v1</text>
+              <rect x="588" y="74" width="60" height="32" rx="6" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/><text x="618" y="95" text-anchor="middle" font-weight="700">v2</text>
+              <text x="520" y="140" fill="#374151" font-family="monospace">data.json</text>
+              <rect x="520" y="148" width="60" height="32" rx="6" fill="#f9fafb" stroke="#d1d5db"/><text x="550" y="169" text-anchor="middle" font-weight="700" fill="#6b7280">v1</text>
+              <rect x="588" y="148" width="60" height="32" rx="6" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/><text x="618" y="169" text-anchor="middle" font-weight="700">v2</text>
+              <text x="588" y="122" fill="#4338ca" font-weight="700">▲ published, preview</text>
+              <text x="588" y="196" fill="#4338ca" font-weight="700">▲ published, preview</text>
+
+              <line x1="20" y1="222" x2="740" y2="222" stroke="#e5e7eb"/>
+              <text x="20"  y="248" fill="#374151">Visitors see v1</text>
+              <text x="270" y="248" fill="#374151">Visitors still see v1.</text>
+              <text x="270" y="266" fill="#374151">You check v2 via the private API.</text>
+              <text x="520" y="248" fill="#374151">Visitors see v2, on every file</text>
+              <text x="520" y="266" fill="#374151">at the same moment.</text>
+            </g>
+          </svg>
+          <figcaption>Figure 3. Deploying adds versions and moves <code>preview</code>. Promoting moves <code>published</code>. The public rule's <code>labelFilter: "published"</code> is what makes visitors wait for step 3.</figcaption>
+        </figure>
+
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren deploy ./dist --tree mysite --label preview --public   # first time: creates the public rule with labelFilter "published"
+# check the preview with your key:
+curl -H "Authorization: Bearer $WREN_API_KEY" https://&lt;host&gt;/api/v1/tree/mysite/index.html?label=preview
+wren promote mysite --from preview                          # go live
+wren promote mysite --label published --from v41            # roll back: point published at an older release label</pre></div>
+
+        <div class="callout callout--warn"><p><strong>No <code>labelFilter</code>, no preview.</strong> If the public rule has no label filter, visitors always get <code>current_version</code>, so every deploy is live immediately and labels don't change what they see.</p></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="atomic">
+        <h2>Why promote is atomic</h2>
+        <p><code>wren promote</code> calls <code>POST /api/v1/tree/{name}/_promote {"label":"published","from":"preview"}</code>. The server finds every document in the tree, picks the version that carries <code>from</code> (or the current version), and moves the label on all of them <strong>inside one database transaction</strong>:</p>
+        <ul>
+          <li><strong>No half-promoted site.</strong> A reader sees either the old set of labels or the new one, never <code>index.html</code> from the new release with <code>app.js</code> from the old one.</li>
+          <li><strong>All or nothing.</strong> If any document can't be promoted (for example, you lack write access to one of the collections), nothing changes.</li>
+          <li><strong>Cheap.</strong> Only label rows change. No bytes are copied, so promoting a large site takes about as long as promoting a small one.</li>
+          <li><strong>Reversible.</strong> Old versions are still there. Rolling back is another promote that points <code>published</code> at earlier versions.</li>
+        </ul>
+        <p>Because a label is per document, you can promote a single document too (<code>POST …/{id}/labels</code>). Tree promote is the "release everything together" button.</p>
+        <div class="callout callout--info"><p><strong>CDN caches.</strong> Public responses can be cached for up to 60 seconds before they're revalidated. WREN purges affected URLs on promote when a purge backend is configured. Otherwise, allow a minute, or add <code>?v=&lt;hash&gt;</code> to asset URLs.</p></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="collections-vs-trees">
+        <h2>Collections vs trees</h2>
+        <p>A <strong>collection</strong> is where documents live and how you query them: list, filter with <code>where</code>, project with <code>select</code>, aggregate with <code>_query</code>, or precompute with materialized queries. A <strong>tree</strong> is how you address documents by path. The same document can be queried in its collection and served at a tree path.</p>
+        <ul>
+          <li>Site files: a binary collection (<code>mysite-assets</code>) plus a tree (<code>mysite</code>). <code>wren deploy</code> sets up both.</li>
+          <li>Structured data: a JSON collection with a schema and natural key, read by your pages through the public data URL or with <code>wren.js</code>.</li>
+          <li>Both together: put a few JSON documents in the site's tree too (e.g. <code>/data/standings.json</code>), and one promote releases pages and data at the same moment.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="next">
+        <h2>Next steps</h2>
+        <ul>
+          <li><a href="/guides/tournament-tracker">Case study: a public tournament tracker</a>: how these ideas hold up in a real project, as built and as we'd build it today</li>
+          <li><a href="/tutorial/deploy">Deploy tutorial</a>: deploy, preview and promote a site in ten minutes</li>
+          <li><a href="/docs">API reference</a> and <a href="/llms.txt">llms.txt</a>: every endpoint, in a form both people and agents can use</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

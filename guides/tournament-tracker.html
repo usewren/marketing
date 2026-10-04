@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Case study: a live tournament tracker</title>
+  <meta name="description" content="How a live taekwondo results site runs on usewren (WREN): the architecture as built, with its real workarounds, and the same tracker rebuilt on natural keys, label filters, atomic promote, materialized queries and wren.js." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#overview">The project</a></li>
+        <li><a href="#as-built">Part A · As built</a></li>
+        <li><a href="#writes">Writing data</a></li>
+        <li><a href="#site">Deploying the site</a></li>
+        <li><a href="#reads">Reading data</a></li>
+        <li><a href="#worked">What worked well</a></li>
+        <li><a href="#warts">Warts &amp; workarounds</a></li>
+        <li><a href="#ideal">Part B · Idealized</a></li>
+        <li><a href="#ideal-model">Data model</a></li>
+        <li><a href="#ideal-writes">Writes: upsert by key</a></li>
+        <li><a href="#ideal-aggregates">Aggregates</a></li>
+        <li><a href="#ideal-public">Public, without a proxy</a></li>
+        <li><a href="#ideal-release">Releasing pages</a></li>
+        <li><a href="#side-by-side">Side by side</a></li>
+        <li><a href="#gaps">Still open</a></li>
+        <li><a href="#lessons">Lessons</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Case study</p>
+        <h1>A live tournament tracker on WREN</h1>
+        <p class="guide-lede">TournamentDay publishes live brackets and results for taekwondo tournaments, on tournament day, from a handful of Python scripts and a static site. This is how it's built on WREN today, what we had to work around, and how we'd build it now.</p>
+        <p class="guide-meta">Written October 2026 from the project's code, deploy scripts and history. Numbers are from the public <code>/api/v1/projects</code> and <code>/orgs/{slug}/llms.txt</code> on 2026-10-04.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="overview">
+        <h2>The project</h2>
+        <p><a href="https://tournaments.tkd-scores.com">tournaments.tkd-scores.com</a> shows, for each tournament day, the brackets, who fights when and where, results and scores as they come in, and links to match video. It also offers filtered views per country and per club. A companion site, <a href="https://data.tkd-scores.com">data.tkd-scores.com</a>, lists the entries for World Taekwondo events and keeps a history of how registrations grew.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>At a glance</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Writers</td><td>Python parsers and live pollers for several draw and scoring systems, run during tournament days; a manual correction script; deploy scripts for the static site</td></tr>
+              <tr><td>WREN data</td><td>private JSON collections <code>draws</code>, <code>results</code>, <code>standings</code>, <code>streams</code>, <code>days</code>; a binary collection for site files</td></tr>
+              <tr><td>Site</td><td>tree <code>tkd-scores</code> with 126 paths: 28 event folders and 45 day pages; 1,852 public documents in the org</td></tr>
+              <tr><td>Front door</td><td>a Cloudflare Worker on the custom domain, in front of the public tree and a small private API</td></tr>
+              <tr><td>Companion data site</td><td>public <code>events</code> collection (94 documents; the events index is at version 131) and a <code>media</code> collection (937 documents)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="as-built">
+        <p class="guide-eyebrow">Part A</p>
+        <h2>As built</h2>
+        <p>The tracker grew over the summer of 2026, one tournament at a time. Each design choice below solved a real problem on a real tournament day.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 330" role="img" aria-labelledby="ab-title ab-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ab-title">Architecture as built</title>
+            <desc id="ab-desc">Python pollers write to private JSON collections with an API key. Deploy scripts upload site files to a binary collection and assign tree paths. A Cloudflare Worker on the custom domain serves pages from the public tree, and answers /api routes by querying the private collections with a secret key. The browser loads a bootstrap data.js and overlays live results from the Worker's /api/day.</desc>
+            <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="30" width="170" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="56" text-anchor="middle" font-weight="700" fill="#111827">Python pollers</text>
+              <text x="105" y="74" text-anchor="middle" fill="#6b7280">parse draws, poll scores</text>
+              <text x="105" y="90" text-anchor="middle" fill="#6b7280">Bearer key, browser UA</text>
+
+              <rect x="20" y="200" width="170" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="226" text-anchor="middle" font-weight="700" fill="#111827">Deploy scripts</text>
+              <text x="105" y="244" text-anchor="middle" fill="#6b7280">md5 manifest, ?v= stamps</text>
+              <text x="105" y="260" text-anchor="middle" fill="#6b7280">multipart PUT + tree PUT</text>
+
+              <rect x="265" y="20" width="220" height="110" rx="10" fill="#fff7ed" stroke="#d97706"/>
+              <text x="375" y="44" text-anchor="middle" font-weight="700" fill="#7c2d12">WREN · private collections</text>
+              <text x="375" y="66" text-anchor="middle" fill="#374151" font-family="monospace">draws  results  standings</text>
+              <text x="375" y="84" text-anchor="middle" fill="#374151" font-family="monospace">streams  days</text>
+              <text x="375" y="106" text-anchor="middle" fill="#6b7280">"days" composes the rest via $ref</text>
+
+              <rect x="265" y="190" width="220" height="90" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="375" y="214" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public tree</text>
+              <text x="375" y="236" text-anchor="middle" fill="#374151" font-family="monospace">tkd-scores (126 paths)</text>
+              <text x="375" y="256" text-anchor="middle" fill="#6b7280">HTML, JS, data.js as binary</text>
+
+              <rect x="555" y="105" width="185" height="100" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="647" y="130" text-anchor="middle" font-weight="700" fill="#111827">Cloudflare Worker</text>
+              <text x="647" y="150" text-anchor="middle" fill="#374151">custom domain</text>
+              <text x="647" y="168" text-anchor="middle" fill="#374151">/api/* with secret key</text>
+              <text x="647" y="186" text-anchor="middle" fill="#374151">cache-key + max-age fixes</text>
+
+              <rect x="590" y="260" width="115" height="44" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="647" y="287" text-anchor="middle" font-weight="700" fill="#111827">Browser</text>
+
+              <line x1="190" y1="65" x2="262" y2="65" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="235" x2="262" y2="235" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="552" y1="140" x2="488" y2="90" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="552" y1="175" x2="488" y2="225" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="647" y1="257" x2="647" y2="208" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 1. As built: all live data stays private, and the Worker is the only way the browser reaches it.</figcaption>
+        </figure>
+
+        <h3 id="writes">Writing data</h3>
+        <p>Each poller writes one document per thing it knows about: a day's draw, a ring's results, a category's standings. Every record carries its own key, joined with <code>__</code>: <code>slug__day</code>, <code>slug__day__box</code>, <code>slug__day__cat__name</code>. The client's comment explains the separator: keys containing <code>/</code> broke the by-key URL route.</p>
+        <p>WREN can upsert by natural key in one call, but the collection must first declare which field is the key, and that's an admin operation. The deploy key wasn't an admin key, so the client emulates upsert with two calls:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">python · simplified</span></div>
+<pre># find the document by its key, then update it or create it
+hits = post(f"/api/v1/{col}/_query", {"where": f"key = '{key}'", "limit": 1})["items"]
+if hits:
+    put(f"/api/v1/{col}/{hits[0]['id']}", doc)      # new version, same document
+else:
+    post(f"/api/v1/{col}", doc)                      # first time: new document</pre></div>
+        <p>The <code>days</code> document ties a tournament day together. Instead of copying data, it holds query references that WREN resolves on read with <code>?depth=2</code>:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">python</span></div>
+<pre>"draws":   {"$ref": "query:draws",   "$q": {"where": f"key = '{daykey}'"},    "$limit": 1},
+"streams": {"$ref": "query:streams", "$q": {"where": f"key = '{daykey}'"},    "$limit": 1},
+"results": {"$ref": "query:results", "$q": {"where": f"dayKey = '{daykey}'"}, "$limit": 2000},</pre></div>
+
+        <h3 id="site">Deploying the site</h3>
+        <ul>
+          <li><strong>From CLI to REST (August 2026).</strong> The first deploy script used <code>wren deploy</code>. The CLI only knew session cookies, and a cookie that expired mid-tournament stopped deploys, so a REST script with an API key replaced it.</li>
+          <li><strong>Change detection by md5.</strong> The CLI compared file sizes, and "size comparison misses same-length edits". The REST script keeps a local md5 manifest and uploads only what changed: a multipart <code>PUT</code> to the existing document, or <code>POST</code> plus a tree <code>PUT</code> for new files.</li>
+          <li><strong>Targeted deploys only (September 2026).</strong> Two machines published into the same live tree, so full-tree deploys were banned. A stale copy on one machine must never overwrite the other's work.</li>
+          <li><strong>Cache-busting stamps.</strong> <code>--stamp</code> rewrites <code>app.js?v=&lt;md5&gt;</code> into every day page, and <code>--verify</code> polls the live site until the new version shows up.</li>
+        </ul>
+
+        <h3 id="reads">Reading data</h3>
+        <p>Pages are static. Each day page loads a bootstrap <code>data.js</code> with the draw, then overlays live results from <code>/api/day</code> without a reload. The custom domain is a Cloudflare Worker that:</p>
+        <ul>
+          <li>serves pages from the public tree, mapping country and club prefixes and directory URLs to <code>index.html</code>;</li>
+          <li>answers <code>/api/day</code>, <code>/api/results</code> and <code>/api/placements</code> by querying the private collections with a key stored as a Worker secret;</li>
+          <li>proxies the public <code>events</code> feed, because the public API sent no CORS headers;</li>
+          <li>adjusts caching: a build id in the cache key and a short <code>max-age</code> on JS and JSON, because the edge had been keeping files for hours.</li>
+        </ul>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · Worker, /api/day</span></div>
+<pre>const found = await q("days", { where: `key = ${esc(key)}`, limit: 1 });
+// query results carry no id in .data, so look the id up, then read with $refs resolved
+const idr = await fetch(`${API}/days/_query`, { method: "POST", headers: H,
+  body: JSON.stringify({ where: `key = ${esc(key)}`, select: ["key"], limit: 1 }) });
+const id = (await idr.json()).items?.[0]?.id;
+const r  = await fetch(`${API}/days/${id}?depth=2`, { headers: H });</pre></div>
+
+        <h3 id="worked">What worked well</h3>
+        <ul>
+          <li><strong>Versions as a free history.</strong> The data site rebuilds registration-over-time charts from the <code>/versions</code> of each event document. The events index has been rewritten 131 times, and every snapshot is still there. Nobody designed a history table.</li>
+          <li><strong>One document, two paths.</strong> "Today's" <code>/data.js</code> and <code>/portugal-open-2026/day1/data.js</code> point at the same document, so switching the active day is a tree assignment, not a copy.</li>
+          <li><strong><code>$ref</code> composition.</strong> One read returns a whole tournament day assembled from four collections.</li>
+          <li><strong>Hosting and data in one place.</strong> Static files, JSON and binaries share one API, one key and one permission model, behind an ordinary custom domain.</li>
+          <li><strong>Live data without deploys.</strong> Results reach visitors seconds after a poller writes them. Pages only change when the site itself changes.</li>
+        </ul>
+
+        <h3 id="warts">Warts and workarounds</h3>
+        <p>An honest list. The status column refers to the WREN release that publishes this page.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Agents and scripts guessed routes like <code>/api/me</code> and got 404s</td><td>Probing, reading <code>/openapi.json</code></td><td><code>llms.txt</code> documented unversioned routes; everything authenticated is under <code>/api/v1</code></td><td>Fixed: docs rewritten around a URL map</td></tr>
+              <tr><td>Upsert took two calls (query, then PUT or POST)</td><td>Emulated in the Python client</td><td>Declaring a natural key is admin-only; the writer's key wasn't admin</td><td>By design: an admin declares it once (Part B)</td></tr>
+              <tr><td>Keys with <code>/</code> broke by-key URLs</td><td><code>__</code> separators</td><td>Unencoded slashes split the path</td><td>Encode the key, or avoid <code>/</code></td></tr>
+              <tr><td>A 404 stayed cached at the edge for hours after a file was deployed (September 2026)</td><td><code>?v=</code> stamps, build id in the cache key</td><td>Error responses were cacheable</td><td>Fixed: errors are <code>no-store</code></td></tr>
+              <tr><td>Same-length edits weren't deployed</td><td>md5 manifest in a REST script</td><td>CLI compared sizes</td><td>Fixed: SHA-256 stored on upload, compared by the CLI</td></tr>
+              <tr><td>Deploys stopped when the CLI's cookie expired</td><td>REST deploy script with an API key</td><td>CLI supports cookies only</td><td>Open (see <a href="#gaps">Still open</a>)</td></tr>
+              <tr><td>The browser couldn't call the public API from the custom domain</td><td>Worker proxy for <code>/api/events</code></td><td>No CORS on public routes</td><td>Fixed: public routes send <code>Access-Control-Allow-Origin: *</code></td></tr>
+              <tr><td>Python's default client got <code>403 error code: 1010</code></td><td>Browser User-Agent on every script and Worker request</td><td>Cloudflare browser-integrity check in front of the server</td><td>Infrastructure setting, not WREN (documented)</td></tr>
+              <tr><td>Live data needed a secret-holding Worker</td><td><code>/api/*</code> routes with a key</td><td>Everything stored privately, including data meant to be public</td><td>Design choice, see Part B</td></tr>
+              <tr><td>Big days were cut off at 1,000 rows</td><td>Requesting 2,000 (silently capped)</td><td><code>_query</code> caps a page at 1,000</td><td>Paginate with <code>cursor</code>, or use a materialized query</td></tr>
+              <tr><td>Date filters didn't work</td><td>Filtering in the browser</td><td>Dates stored as <code>MM/DD/YYYY</code> strings</td><td>Data modelling: store ISO dates</td></tr>
+              <tr><td>Windows line endings broke ids in shell glue (<code>slug\r</code>), and two scheduled runs failed silently</td><td>Stripping <code>\r</code></td><td>Shell pipelines between scripts</td><td>Gone once writes are single upserts</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="ideal">
+        <p class="guide-eyebrow">Part B</p>
+        <h2>Idealized: the same tracker, built today</h2>
+        <p>Same pollers, same pages, same custom domain. What changes is that each problem above is handled by a WREN feature instead of code around it. A sibling project, a video archive of fights, already uses most of these patterns in production, and the snippets follow its code.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 300" role="img" aria-labelledby="ib-title ib-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ib-title">Architecture, idealized</title>
+            <desc id="ib-desc">Pollers upsert by natural key into collections. Public collections and a materialized medal table are readable directly by the browser via wren.js; only genuinely private data stays behind the API. The site is deployed with a preview label and promoted atomically. The Worker only maps the custom domain.</desc>
+            <defs><marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="30" width="170" height="64" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="56" text-anchor="middle" font-weight="700" fill="#111827">Python pollers</text>
+              <text x="105" y="76" text-anchor="middle" fill="#6b7280">PUT …/by-key/{key}</text>
+
+              <rect x="20" y="196" width="170" height="64" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="222" text-anchor="middle" font-weight="700" fill="#111827">wren deploy / promote</text>
+              <text x="105" y="242" text-anchor="middle" fill="#6b7280">--label preview, atomic</text>
+
+              <rect x="265" y="16" width="230" height="140" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="380" y="40" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public, read-only</text>
+              <text x="380" y="62" text-anchor="middle" fill="#374151" font-family="monospace">results  standings  draws</text>
+              <text x="380" y="82" text-anchor="middle" fill="#374151">schema + naturalKey: "key"</text>
+              <text x="380" y="104" text-anchor="middle" fill="#374151" font-family="monospace">_materialized/medals</text>
+              <text x="380" y="124" text-anchor="middle" fill="#6b7280">live: no labelFilter, by design</text>
+              <text x="380" y="142" text-anchor="middle" fill="#6b7280">private notes stay private</text>
+
+              <rect x="265" y="190" width="230" height="80" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="380" y="214" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public tree</text>
+              <text x="380" y="236" text-anchor="middle" fill="#374151">rule: labelFilter "published"</text>
+              <text x="380" y="256" text-anchor="middle" fill="#6b7280">pages + bootstrap JSON</text>
+
+              <rect x="565" y="110" width="175" height="80" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="652" y="136" text-anchor="middle" font-weight="700" fill="#111827">Browser + wren.js</text>
+              <text x="652" y="156" text-anchor="middle" fill="#374151">reads public data directly</text>
+              <text x="652" y="174" text-anchor="middle" fill="#6b7280">(Worker: domain mapping only)</text>
+
+              <line x1="190" y1="62" x2="262" y2="62" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="190" y1="228" x2="262" y2="228" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="562" y1="140" x2="498" y2="100" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="562" y1="165" x2="498" y2="220" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 2. Idealized: data meant to be public is public, the browser reads it directly, and the site is released with preview and promote.</figcaption>
+        </figure>
+
+        <h3 id="ideal-model">1 · Data model: one admin step, once</h3>
+        <p>An admin declares each collection's schema and natural key once. After that, any key with write access can upsert. Use separators that are safe in a URL path, and ISO dates so <code>where</code> filters work.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once per collection</span></div>
+<pre>PUT /api/v1/results/_schema
+{
+  "naturalKey": "key",
+  "displayName": "{event} · day {day} · ring {ring}",
+  "schema": {
+    "type": "object",
+    "required": ["key", "event", "day", "ring", "date"],
+    "properties": {
+      "key":  { "type": "string", "pattern": "^[a-z0-9-]+:[0-9]+:[0-9]+$" },
+      "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+    }
+  }
+}</pre></div>
+
+        <h3 id="ideal-writes">2 · Writes: one idempotent call</h3>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">python</span></div>
+<pre>import os, requests
+from urllib.parse import quote
+
+S = requests.Session()   # requests sends its own User-Agent, so no 1010 block
+S.headers["Authorization"] = f"Bearer {os.environ['WREN_API_KEY']}"
+BASE = "https://wren.aemwip.com"
+
+def upsert(collection: str, doc: dict) -> dict:
+    """Create on first call, new version afterwards. Safe to re-run."""
+    r = S.put(f"{BASE}/api/v1/{collection}/by-key/{quote(doc['key'], safe='')}", json=doc)
+    r.raise_for_status()
+    return r.json()
+
+upsert("results", {"key": "swiss-open-2026:1:3", "event": "swiss-open-2026",
+                   "day": 1, "ring": 3, "date": "2026-09-26", "bouts": bouts})</pre></div>
+        <p>This replaces the query-then-write client and the separator workarounds, and it makes the shell glue (and its line-ending bugs) unnecessary. With a natural key in place, <code>$ref</code>s can point at <code>{"$ref": "results", "$key": "…"}</code> directly, so the Worker's second lookup goes away too.</p>
+
+        <h3 id="ideal-aggregates">3 · Aggregates: let WREN keep them current</h3>
+        <p>Placements and medal tables were computed in Python. A materialized query recomputes after every write and is itself a versioned document:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once</span></div>
+<pre>PUT /api/v1/standings/_materialized/medals
+{
+  "query": { "aggregate": { "groupBy": ["event", "country", "place"],
+                            "metrics": { "athletes": { "count": "name" } } } },
+  "refreshOn": "write"
+}</pre></div>
+        <p>For long lists, page through <code>_query</code> with its <code>cursor</code> instead of asking for more than the 1,000-row page limit.</p>
+
+        <h3 id="ideal-public">4 · Public data without a secret-holding proxy</h3>
+        <p>Brackets, results and standings are published to anyone who opens the site anyway, so make those collections public and keep only the truly private ones (notes, contact data) behind the API. Live data should be visible the moment it's written, so these rules have <strong>no</strong> label filter:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>POST /api/v1/permissions  {"principal":"*", "resource":"collection:results",   "access":"read"}
+POST /api/v1/permissions  {"principal":"*", "resource":"collection:standings", "access":"read"}</pre></div>
+        <p>Public routes now send <code>Access-Control-Allow-Origin: *</code>, so pages on the custom domain can read them directly, with plain <code>fetch</code> or with <code>wren.js</code>:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">html</span></div>
+<pre>&lt;script src="https://wren.aemwip.com/wren.js"
+        data-base="https://wren.aemwip.com/api/v1/orgs/tkd-tracker"&gt;&lt;/script&gt;
+
+&lt;wren-materialized collection="standings" name="medals"&gt;
+  &lt;template&gt;&lt;tr&gt;&lt;td&gt;{{country}}&lt;/td&gt;&lt;td&gt;{{place}}&lt;/td&gt;&lt;td&gt;{{athletes}}&lt;/td&gt;&lt;/tr&gt;&lt;/template&gt;
+&lt;/wren-materialized&gt;</pre></div>
+        <p>The Worker shrinks to what only a Worker can do: map the custom domain and its country and club prefixes onto the tree.</p>
+        <div class="callout callout--warn"><p><strong>Public means public.</strong> Everything a <code>*</code> rule allows is listed at <code>/api/v1/projects</code> and in the org's <code>llms.txt</code>. Personal data such as birth dates belongs in a separate collection without a public rule. Mixing it into a public collection and hiding it in the page is not access control.</p></div>
+
+        <h3 id="ideal-release">5 · Releasing pages: preview, then promote</h3>
+        <p>Site changes are different from live data: you want to check them first. Give the tree a public rule with <code>labelFilter: "published"</code> and release with the CLI:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren auth login -e you@example.com -p …          # CLI auth is cookie-based today, see "Still open"
+wren deploy ./web --tree tkd-scores --label preview --public   # first time creates the published-only rule
+curl -H "Authorization: Bearer $WREN_API_KEY" \
+  https://wren.aemwip.com/api/v1/tree/tkd-scores/index.html?label=preview   # check it
+wren promote tkd-scores --from preview           # every page goes live in one transaction</pre></div>
+        <p>Deploy compares SHA-256 hashes, so same-length edits are uploaded, and two machines deploying different folders don't clobber each other's files. Promote is a single transaction, so visitors never get a new page with an old <code>app.js</code>. Error responses aren't cached anymore, so the <code>?v=</code> stamps become an optimization rather than a necessity.</p>
+        <p>To react to new data (rebuild a static summary, purge a cache, notify someone), subscribe a webhook to <code>document.updated</code> on <code>results</code> instead of polling.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="side-by-side">
+        <h2>Side by side</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Concern</th><th>As built</th><th>Idealized</th></tr></thead>
+            <tbody>
+              <tr><td>Upsert</td><td>query, then PUT or POST</td><td><code>PUT /by-key/{key}</code></td></tr>
+              <tr><td>Keys</td><td><code>slug__day__box</code></td><td><code>slug:day:box</code>, URL-encoded, validated by schema</td></tr>
+              <tr><td>Aggregates</td><td>computed in Python</td><td>materialized query, refreshed on write</td></tr>
+              <tr><td>Public live data</td><td>private, proxied by a Worker with a secret</td><td>public read rule, read directly</td></tr>
+              <tr><td>Front end</td><td>hand-written fetch overlay</td><td><code>wren.js</code> or plain fetch to public URLs</td></tr>
+              <tr><td>Site deploy</td><td>REST script, md5 manifest</td><td><code>wren deploy</code> (SHA-256 diff)</td></tr>
+              <tr><td>Release</td><td>live on upload</td><td>preview label, atomic promote</td></tr>
+              <tr><td>Caching</td><td>stamps, cache-key and max-age overrides</td><td>errors not cached; stamps optional</td></tr>
+              <tr><td>Change triggers</td><td>polling and manual verify</td><td>webhooks</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="gaps">
+        <h2>Still open</h2>
+        <p>Not everything above is possible yet. These are the gaps the project still hits:</p>
+        <ul>
+          <li><strong>CLI authentication.</strong> <code>wren</code> only stores a session cookie. API-key auth for the CLI is the next fix, so deploys can run unattended.</li>
+          <li><strong>By-key for files.</strong> Binary uploads can't be addressed by natural key; the tree path is the de-facto key for site files.</li>
+          <li><strong>Natural keys need an admin.</strong> That's intentional, since schemas are a contract, but it means a one-time admin step before writers can upsert.</li>
+          <li><strong>Edge settings.</strong> A Cloudflare browser-integrity check in front of a server blocks some HTTP clients (<code>403 error code: 1010</code>). That's a setting on the deployment, not in WREN.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="lessons">
+        <h2>Lessons</h2>
+        <ol>
+          <li><strong>Decide what is public on purpose.</strong> Most of the proxy code existed because public data was stored as private.</li>
+          <li><strong>Give every record a natural key from day one</strong>, and have an admin declare it before the first import.</li>
+          <li><strong>Treat live data and site releases differently.</strong> Data: public, no label filter. Pages: <code>labelFilter: "published"</code> and promote.</li>
+          <li><strong>Lean on versions.</strong> History, audit and charts over time come free. Don't build them yourself.</li>
+          <li><strong>When you write a workaround, write down why.</strong> Every "why" comment in this project's code turned into a fix or a line on this page.</li>
+        </ol>
+        <p>New to these ideas? Start with <a href="/concepts">Concepts</a>.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

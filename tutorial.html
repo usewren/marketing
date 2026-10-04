@@ -335,7 +335,7 @@
       <ul class="tutorial-toc__list">
         <li><a href="#getting-started">1. Getting started</a></li>
         <li class="tutorial-toc__sub"><a href="#login">Login &amp; account</a></li>
-        <li class="tutorial-toc__sub"><a href="#org">Organisations</a></li>
+        <li class="tutorial-toc__sub"><a href="#org">Organizations</a></li>
         <li><a href="#building-blocks">2. Three building blocks</a></li>
         <li class="tutorial-toc__sub"><a href="#bb-docs">Documents</a></li>
         <li class="tutorial-toc__sub"><a href="#bb-versions">Versions</a></li>
@@ -419,8 +419,8 @@ GET /api/auth/get-session</pre>
 
         <img src="/img/01-login.png" alt="WREN login screen" class="tutorial-screenshot">
 
-        <h3 id="org">Organisations</h3>
-        <p>When you sign up, WREN creates an organisation for you. Every collection, document, and tree belongs to an organisation — data is fully isolated between orgs. If you're a member of multiple orgs, a dropdown in the sidebar lets you switch the active one.</p>
+        <h3 id="org">Organizations</h3>
+        <p>When you sign up, WREN creates an organization for you. Every collection, document, and tree belongs to an organization — data is fully isolated between orgs. If you're a member of multiple orgs, a dropdown in the sidebar lets you switch the active one.</p>
 
         <div class="paired">
           <div class="code-block">
@@ -1160,7 +1160,7 @@ Authorization: Bearer wren_abc123…
       <section class="tutorial-section" id="collab">
         <h2><span class="step-badge">10</span> Collaborators &amp; orgs</h2>
 
-        <p>Invite other users to your organisation. They get their own login but share access to your collections, trees, and settings.</p>
+        <p>Invite other users to your organization. They get their own login but share access to your collections, trees, and settings.</p>
 
         <img src="/img/11-collaborators.png" alt="Collaborators page showing members and invite tabs" class="tutorial-screenshot">
 
@@ -1656,13 +1656,13 @@ wren permissions delete &lt;id&gt;</pre>
 
         <div class="code-block">
           <div class="code-block__header"><span class="code-block__lang">bash</span></div>
-          <pre>npm install @wren/client
-# or: bun add @wren/client</pre>
+          <pre>npm install @usewren/client
+# or: bun add @usewren/client</pre>
         </div>
 
         <div class="code-block">
           <div class="code-block__header"><span class="code-block__lang">typescript</span></div>
-          <pre>import { WrenClient } from "@wren/client";
+          <pre>import { WrenClient } from "@usewren/client";
 
 const wren = new WrenClient({
   baseUrl: "https://your-wren-instance.example.com",
@@ -1702,7 +1702,7 @@ await wren.versions.rollback("articles", doc.id, 1);</pre>
         </div>
 
         <div class="callout callout--tip">
-          <strong>Error handling</strong> — the client throws typed errors: <code>WrenNotFoundError</code> (404), <code>WrenUnauthorizedError</code> (401), <code>WrenValidationError</code> (422 with per-field details). Import them from <code>@wren/client</code> and use <code>instanceof</code> to handle specific cases.
+          <strong>Error handling</strong> — the client throws typed errors: <code>WrenNotFoundError</code> (404), <code>WrenUnauthorizedError</code> (401), <code>WrenValidationError</code> (422 with per-field details). Import them from <code>@usewren/client</code> and use <code>instanceof</code> to handle specific cases.
         </div>
 
         <!-- ── Python ── -->
@@ -1712,7 +1712,7 @@ await wren.versions.rollback("articles", doc.id, 1);</pre>
 
         <div class="code-block">
           <div class="code-block__header"><span class="code-block__lang">bash</span></div>
-          <pre>pip install wren-client</pre>
+          <pre>pip install usewren-client</pre>
         </div>
 
         <div class="code-block">

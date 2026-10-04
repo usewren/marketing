@@ -8,7 +8,7 @@ This document is the complete reference for LLMs and AI agents working with the 
 
 ## Overview
 
-Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. Versions can be listed, diffed pairwise, labelled, or rolled back. Each organisation gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
+Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. Versions can be listed, diffed pairwise, labelled, or rolled back. Each organization gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
 
 Base URL: configured at deploy time (e.g. `https://wren.example.com`). All paths below are relative to the base URL and are shown in full — including the `/api/v1` prefix.
 
@@ -43,7 +43,7 @@ Subsequent requests authenticate by including this cookie.
 
 ---
 
-## Operational behaviour
+## Operational behavior
 
 Guarantees and non-guarantees agents commonly need before they act:
 
@@ -501,6 +501,18 @@ PUT /api/v1/tree/{name}/{path}
 Response 200: { "path": "/blog/hello", "documentId": "uuid" }
 ```
 
+### Promote a tree (atomic)
+```
+POST /api/v1/tree/{name}/_promote
+{ "label": "published", "from": "preview" }      // both optional; label defaults to "published"
+
+Response 200: { "tree": "mysite", "label": "published", "from": "preview",
+                "promoted": [{ "path": "/index.html", "documentId": "…", "collection": "mysite-assets", "version": 4 }] }
+Response 404: no documents in the tree (or none carry `from`)
+Response 403: no write access to one of the collections — nothing is changed
+```
+Points `label` at, for every document in the tree, the version carrying `from` (documents without it are left alone) or else the current version — in a single transaction, so readers never see a half-promoted site. `wren promote` uses this endpoint.
+
 ### Remove a path assignment
 ```
 DELETE /api/v1/tree/{name}/{path}
@@ -663,7 +675,7 @@ Response 200:
 
 ---
 
-## Organisation
+## Organization
 
 ### Get current org context
 ```
@@ -813,11 +825,11 @@ Response 200: { "id": "…", "deleted": true }
 ## TypeScript / JavaScript client
 
 ```
-npm install @wren/client     # Node ≥18 or Bun
+npm install @usewren/client     # Node ≥18 or Bun
 ```
 
 ```typescript
-import { WrenClient, WrenNotFoundError, WrenValidationError } from "@wren/client";
+import { WrenClient, WrenNotFoundError, WrenValidationError } from "@usewren/client";
 
 const wren = new WrenClient({ baseUrl: "https://…", apiKey: "wren_…" });
 
@@ -875,7 +887,7 @@ Resources available on `WrenClient`: `documents`, `versions`, `labels`, `diff`, 
 ## Python client
 
 ```
-pip install wren-client
+pip install usewren-client
 ```
 
 ```python

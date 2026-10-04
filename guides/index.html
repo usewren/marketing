@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Guides and case studies</title>
+  <meta name="description" content="How-to guides and case studies for usewren (WREN): real projects, task-shaped recipes, and the concepts behind versions, labels and trees." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">Documentation</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">Guides</a></li>
+        <li><a href="/tutorial/deploy">Deploy tutorial</a></li>
+        <li><a href="/tutorial">Full tutorial</a></li>
+        <li><a href="/docs">API reference</a></li>
+        <li><a href="/llms.txt">llms.txt</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Guides</p>
+        <h1>Guides and case studies</h1>
+        <p class="guide-lede">Real projects and task-shaped recipes. Each one says what we did, why, and where WREN still falls short.</p>
+      </header>
+
+      <section class="guide-section">
+        <h2>Start here</h2>
+        <div class="guide-cards">
+          <a class="guide-card" href="/concepts">
+            <span class="guide-card__kind">Concepts</span>
+            <h3>Documents, versions, labels and trees</h3>
+            <p>The mental model: immutable versions, labels as pointers, how a URL picks a version, and why promote is atomic.</p>
+          </a>
+          <a class="guide-card" href="/tutorial/deploy">
+            <span class="guide-card__kind">Tutorial</span>
+            <h3>Deploy a site in ten minutes</h3>
+            <p>Deploy, preview with a label, promote to published.</p>
+          </a>
+        </div>
+      </section>
+
+      <section class="guide-section">
+        <h2>Case studies</h2>
+        <div class="guide-cards">
+          <a class="guide-card" href="/guides/tournament-tracker">
+            <span class="guide-card__kind">Case study</span>
+            <h3>A live tournament tracker</h3>
+            <p>Live taekwondo brackets and results from Python pollers and a static site, as built (warts included) and rebuilt on natural keys, materialized queries and atomic promote.</p>
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

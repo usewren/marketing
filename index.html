@@ -67,8 +67,8 @@
             <button class="hero__tab" onclick="heroTab(this,'rest')">REST</button>
           </div>
         </div>
-        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @wren/client</span>
-<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+        <pre id="hero-tab-ts"><span class="tok-comment">// npm install @usewren/client</span>
+<span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@usewren/client"</span>;
 
 <span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl: <span class="tok-str">"https://…"</span>, apiKey: <span class="tok-str">"wren_…"</span> });
 
@@ -81,7 +81,7 @@
 <span class="tok-comment">// Pin a label and read it back</span>
 <span class="tok-keyword">await</span> wren.labels.<span class="tok-method">set</span>(<span class="tok-str">"pages"</span>, doc.id, <span class="tok-str">"published"</span>);
 <span class="tok-keyword">const</span> live = <span class="tok-keyword">await</span> wren.documents.<span class="tok-method">get</span>(<span class="tok-str">"pages"</span>, doc.id, { label: <span class="tok-str">"published"</span> });</pre>
-        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install wren-client</span>
+        <pre id="hero-tab-py" style="display:none"><span class="tok-comment"># pip install usewren-client</span>
 <span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>
 
 <span class="tok-keyword">with</span> <span class="tok-path">WrenClient</span>(<span class="tok-str">"https://…"</span>, api_key=<span class="tok-str">"wren_…"</span>) <span class="tok-keyword">as</span> wren:
@@ -262,9 +262,9 @@
         <div class="client-card">
           <div class="client-card__header">
             <span class="client-card__lang">TypeScript &amp; JavaScript</span>
-            <code class="client-card__install">npm install @wren/client</code>
+            <code class="client-card__install">npm install @usewren/client</code>
           </div>
-          <pre><span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@wren/client"</span>;
+          <pre><span class="tok-keyword">import</span> { <span class="tok-path">WrenClient</span> } <span class="tok-keyword">from</span> <span class="tok-str">"@usewren/client"</span>;
 
 <span class="tok-keyword">const</span> wren = <span class="tok-keyword">new</span> <span class="tok-path">WrenClient</span>({ baseUrl, apiKey });
 
@@ -284,7 +284,7 @@
         <div class="client-card">
           <div class="client-card__header">
             <span class="client-card__lang">Python</span>
-            <code class="client-card__install">pip install wren-client</code>
+            <code class="client-card__install">pip install usewren-client</code>
           </div>
           <pre><span class="tok-keyword">from</span> wren <span class="tok-keyword">import</span> <span class="tok-path">WrenClient</span>, <span class="tok-path">AsyncWrenClient</span>
 
@@ -328,7 +328,7 @@
             <p class="pricing-card__tagline">For personal projects and experiments.</p>
           </div>
           <ul class="pricing-card__features">
-            <li>1 organisation</li>
+            <li>1 organization</li>
             <li>3 collections</li>
             <li>1 000 documents</li>
             <li>100 MB storage</li>
@@ -346,7 +346,7 @@
             <p class="pricing-card__tagline">For side projects and small teams.</p>
           </div>
           <ul class="pricing-card__features">
-            <li>3 organisations</li>
+            <li>3 organizations</li>
             <li>Unlimited collections</li>
             <li>50 000 documents</li>
             <li>5 GB storage</li>
@@ -365,7 +365,7 @@
             <p class="pricing-card__tagline">For production workloads and compliance.</p>
           </div>
           <ul class="pricing-card__features">
-            <li>Unlimited organisations</li>
+            <li>Unlimited organizations</li>
             <li>Unlimited collections</li>
             <li>Unlimited documents</li>
             <li>Unlimited storage</li>

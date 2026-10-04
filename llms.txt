@@ -4,7 +4,7 @@
 
 This file is the LLM-friendly index for Wren. It is intended for AI agents and tools that want a fast orientation; follow the links below for full detail.
 
-Wren is an open-source backend service that combines versioned JSON storage with static site deployment. Deploy a directory of HTML/CSS/JS files with `wren deploy`, version every change, preview via labels, and promote to published when ready. Collections store structured JSON data alongside your files — one system, one tree, one label controls what's live. Each organisation gets its own isolated Postgres schema.
+Wren is an open-source backend service that combines versioned JSON storage with static site deployment. Deploy a directory of HTML/CSS/JS files with `wren deploy`, version every change, preview via labels, and promote to published when ready. Collections store structured JSON data alongside your files — one system, one tree, one label controls what's live. Each organization gets its own isolated Postgres schema.
 
 ## URL map — read this first
 
@@ -51,7 +51,7 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 - **Versions** — immutable snapshots; list, diff, or roll back to any point in history
 - **Labels** — named pointers to a specific version (`published`, `draft`, `staging`, etc.)
 - **Trees** — hierarchical path assignment (`/site/about`, `/blog/2026/hello`) for CMS navigation and static site serving
-- **Deploy** — `wren deploy ./dist --tree mysite` uploads files, assigns tree paths, and serves the site. `wren promote` moves the published label atomically.
+- **Deploy** — `wren deploy ./dist --tree mysite` uploads files, assigns tree paths, and serves the site. `wren promote` moves the published label on every document in the tree in one transaction (`POST /api/v1/tree/{name}/_promote`).
 - **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata. To publish a new version of a file, `PUT` multipart to the existing document id; `POST` creates a new document.
 - **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
 - **$ref resolution** — documents can reference other documents, tree paths, or queries; add `?depth=N` to resolve server-side with loop detection
@@ -61,6 +61,8 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 
 ## Documentation
 
+- [Concepts](/concepts): Documents, versions, labels, trees — how a URL resolves to a version, and why promote is atomic
+- [Guides](/guides): How-to guides and case studies, e.g. [a live tournament tracker](/guides/tournament-tracker) as built and idealized
 - [Deploy tutorial](/tutorial/deploy): Deploy a static site, preview, promote — 10-minute walkthrough
 - [Full tutorial](/tutorial): Complete step-by-step walkthrough — Admin UI, CLI, TypeScript client, Python client
 - [API Reference](/docs): Interactive Scalar UI over the OpenAPI 3.1 spec; live request examples for every endpoint
@@ -71,8 +73,8 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 
 - **CLI**: `npm install -g @usewren/cli` — `wren deploy`, `wren promote`, document and tree commands
 - **wren.js** (browser): `<script src="/wren.js">` — zero-dependency web components for declarative data binding (`<wren-list>`, `<wren-query>`, `<wren-materialized>`, `<wren-doc>`, `<wren-tree>`). Auto-detects org from URL; works on custom domains via `data-base` attribute.
-- **TypeScript / JavaScript**: `npm install @wren/client` — Node ≥18, Bun, Browser; zero runtime dependencies; full types
-- **Python**: `pip install wren-client` — Python ≥3.9; sync (`WrenClient`) and async (`AsyncWrenClient`) via httpx; dataclasses
+- **TypeScript / JavaScript**: `npm install @usewren/client` — Node ≥18, Bun, Browser; zero runtime dependencies; full types
+- **Python**: `pip install usewren-client` — Python ≥3.9; sync (`WrenClient`) and async (`AsyncWrenClient`) via httpx; dataclasses
 
 ## Authentication
 
@@ -141,6 +143,7 @@ GET    /api/v1/tree/{name}?full=true                full tree snapshot
 GET    /api/v1/tree/{name}/{path}                   file bytes; with Accept: application/json → node {documentId, collection, children}
 PUT    /api/v1/tree/{name}/{path}                   {documentId} → assign
 DELETE /api/v1/tree/{name}/{path}                   unassign
+POST   /api/v1/tree/{name}/_promote                 {label?="published", from?} → move label on every doc in one transaction
 
 # Keys, members, invites, permissions, webhooks (act on the key's / session's org)
 GET    /api/v1/keys                                 list API keys
