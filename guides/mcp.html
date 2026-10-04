@@ -44,15 +44,24 @@
       <header>
         <p class="guide-eyebrow">How-to</p>
         <h1>Connect AI agents with MCP</h1>
-        <p class="guide-lede">Every WREN server has a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a> endpoint at <code>/mcp</code>. Agents can read and query your data, write content and files to a preview label, and, once you say so, release a whole site in one transaction.</p>
+        <p class="guide-lede">Every WREN server has a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a> endpoint at <code>/mcp</code>. Agents can read and query data, write content and files to a preview label, and, once you say so, release a whole site in one transaction.</p>
       </header>
+
+      <section class="guide-section">
+        <div class="callout callout--key"><p><strong>Open to every agent. Private to yours.</strong> What you publish, anyone's agent can find and use, with no key and always the published version. What you keep private, only agents with your key can touch. And whatever an agent writes waits as a preview until a person promotes it. Your agents can also build on other organizations' public data (schedules, results, datasets) next to your own private data: no exports, no scraping, no API deals.</p></div>
+      </section>
 
       <section class="guide-section" id="how">
         <h2>How it works</h2>
         <ul>
           <li><strong>Two endpoints.</strong>
             <ul>
-              <li><code>https://&lt;host&gt;/mcp</code> is for your own agents. The org comes from the API key, exactly like the REST API, so an agent sees and changes only what its key may.</li>
+              <li><code>https://&lt;host&gt;/mcp</code>
+                <ul>
+                  <li><strong>Without a key:</strong> public data of every org on the server, read-only. <code>list_public</code> shows who publishes what; the <code>public_*</code> tools read it.</li>
+                  <li><strong>With a key:</strong> the full tools for the key's org (the org comes from the key, exactly like the REST API), plus the same <code>public_*</code> tools for other orgs' public data. Those never send your key, so they see exactly what an anonymous visitor sees.</li>
+                </ul>
+              </li>
               <li><code>https://&lt;host&gt;/orgs/{slug}/mcp</code> is bound to one org; it's what a custom domain's <code>/mcp</code> maps to. Without a key it's public and read-only, and <code>?tree=mysite</code> scopes it to the one site that domain shows. With a key it gives the full tools, but only for keys of that org. See <a href="/guides/custom-domain#mcp">AI agents on your domain</a>.</li>
             </ul>
           </li>
@@ -127,6 +136,8 @@
               <tr><td><code>write_file</code></td><td>Write a file at a tree path as a new version; labels it <code>preview</code></td><td>no</td></tr>
               <tr><td><code>set_label</code></td><td>Point a label at a version of one document</td><td>no (destructive)</td></tr>
               <tr><td><code>promote_tree</code></td><td>Release a whole tree in one transaction</td><td>no (destructive)</td></tr>
+              <tr><td><code>list_public</code></td><td>Orgs that publish, with their public collections and sites</td><td>yes (no key needed)</td></tr>
+              <tr><td><code>public_site_info</code>, <code>public_list_tree</code>, <code>public_read_file</code>, <code>public_query_documents</code>, <code>public_get_document</code></td><td>Read any org's public data; pass <code>org</code> (its slug)</td><td>yes (no key needed)</td></tr>
             </tbody>
           </table>
         </div>
