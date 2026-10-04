@@ -25,6 +25,14 @@ Rules:
 - A tree URL returns the raw file (HTML, JSON, image bytes). Send `Accept: application/json` to get the tree node (documentId, collection, children) instead.
 - Use `https://`. Public responses are cached briefly at the CDN (`max-age=60`); add `?v=<hash>` to bust caches after a deploy.
 
+## AI agents (MCP)
+
+Every WREN server has a built-in MCP endpoint: `POST https://<host>/mcp` (Streamable HTTP, stateless JSON). One endpoint per server; the org comes from the API key (`Authorization: Bearer wren_…`), and every tool goes through the same permission checks as the REST API. Tools: whoami, list_collections, query_documents, get_document, list_versions, diff_versions, list_tree, read_file, write_document, write_file, set_label, promote_tree. Writes label new versions "preview" by default; promote_tree releases a tree in one transaction (destructive, confirm with the user). `/mcp?readonly=1` exposes only read tools. Setup for Claude Code, Cursor, VS Code: [/guides/mcp](/guides/mcp).
+
+```
+claude mcp add --transport http wren https://<host>/mcp --header "Authorization: Bearer $WREN_API_KEY"
+```
+
 ## Make something public (recipe)
 
 ```
@@ -67,6 +75,7 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
   - [Find your org slug and build public URLs](/guides/public-urls): private → public URL mapping; what 401/403/404/405 mean
   - [Update data and files without duplicates](/guides/update-without-duplicates): upsert by natural key, replace files in place, clean up orphans
   - [Use WREN from Python](/guides/python): requests/urllib, cursor pagination, Cloudflare 403 error 1010
+  - [Connect AI agents with MCP](/guides/mcp): built-in /mcp endpoint, client setup, preview-first agent workflow
   - [Serve a site on your own domain](/guides/custom-domain): Cloudflare Worker mapping a domain onto a public tree
 - [Deploy tutorial](/tutorial/deploy): Deploy a static site, preview, promote — 10-minute walkthrough
 - [Full tutorial](/tutorial): Complete step-by-step walkthrough — Admin UI, CLI, TypeScript client, Python client

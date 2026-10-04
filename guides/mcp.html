@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Connect AI agents with MCP</title>
+  <meta name="description" content="Connect Claude, Cursor, VS Code and other MCP clients to usewren (WREN). One endpoint per instance, org from your API key, preview-first writes, atomic promote, read-only mode." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+  <nav class="nav"><div class="nav__inner">
+    <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+    <ul class="nav__links">
+      <li><a href="/concepts">Concepts</a></li>
+      <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+      <li><a href="/tutorial/deploy">Tutorial</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/projects">Projects</a></li>
+    </ul>
+  </div></nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#connect">Connect a client</a></li>
+        <li><a href="#tools">Tools</a></li>
+        <li><a href="#workflow">The safe workflow</a></li>
+        <li><a href="#several-orgs">Several orgs</a></li>
+        <li><a href="#safety">Safety checklist</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/publish-site">Publish a site</a></li>
+        <li><a href="/concepts">Concepts</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">How-to</p>
+        <h1>Connect AI agents with MCP</h1>
+        <p class="guide-lede">Every WREN server has a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a> endpoint at <code>/mcp</code>. Agents can read and query your data, write content and files to a preview label, and, once you say so, release a whole site in one transaction.</p>
+      </header>
+
+      <section class="guide-section" id="how">
+        <h2>How it works</h2>
+        <ul>
+          <li><strong>One endpoint per server, not per org.</strong> <code>https://&lt;host&gt;/mcp</code>. The org comes from the API key, exactly like the REST API: an agent sees and changes only what its key may.</li>
+          <li><strong>Same rules as the API.</strong> Every tool calls the REST API internally, so permissions, label filters and org isolation are enforced by the same code.</li>
+          <li><strong>Preview first.</strong> Write tools label new versions <code>preview</code> by default. Going live is a separate tool (<code>promote_tree</code>), marked destructive so clients ask before running it.</li>
+          <li><strong>Read-only mode.</strong> <code>/mcp?readonly=1</code> exposes only the read tools.</li>
+          <li><strong>Transport:</strong> Streamable HTTP (stateless JSON responses), protocol versions 2025-06-18, 2025-03-26 and 2024-11-05.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section" id="connect">
+        <h2>Connect a client</h2>
+        <p>Create an API key first (Admin UI → API Keys, or <code>wren keys create</code>). Use a dedicated key per agent so you can revoke it on its own.</p>
+
+        <h3>Claude Code</h3>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>claude mcp add --transport http wren https://wren.aemwip.com/mcp \
+  --header "Authorization: Bearer $WREN_API_KEY"</pre></div>
+
+        <h3>Cursor (<code>.cursor/mcp.json</code>)</h3>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">json</span></div>
+<pre>{
+  "mcpServers": {
+    "wren": {
+      "url": "https://wren.aemwip.com/mcp",
+      "headers": { "Authorization": "Bearer ${env:WREN_API_KEY}" }
+    }
+  }
+}</pre></div>
+
+        <h3>VS Code (<code>.vscode/mcp.json</code>)</h3>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">json</span></div>
+<pre>{
+  "inputs": [{ "id": "wren-key", "type": "promptString", "description": "WREN API key", "password": true }],
+  "servers": {
+    "wren": {
+      "type": "http",
+      "url": "https://wren.aemwip.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:wren-key}" }
+    }
+  }
+}</pre></div>
+
+        <h3>Clients that only support local (stdio) servers</h3>
+        <p>Bridge with <code>mcp-remote</code>:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">json</span></div>
+<pre>{
+  "mcpServers": {
+    "wren": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://wren.aemwip.com/mcp", "--header", "Authorization:Bearer ${WREN_API_KEY}"],
+      "env": { "WREN_API_KEY": "wren_…" }
+    }
+  }
+}</pre></div>
+        <p>Client config formats change often. If a snippet doesn't work, check your client's MCP docs for "remote HTTP server with headers". The endpoint and header are the only WREN-specific parts.</p>
+      </section>
+
+      <section class="guide-section" id="tools">
+        <h2>Tools</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Tool</th><th>What it does</th><th>Read-only</th></tr></thead>
+            <tbody>
+              <tr><td><code>whoami</code></td><td>Org (id, name, slug), role, rules, public URL patterns</td><td>yes</td></tr>
+              <tr><td><code>list_collections</code></td><td>Collections in the org</td><td>yes</td></tr>
+              <tr><td><code>query_documents</code></td><td>Filter, project, aggregate, read at a label; cursor paging</td><td>yes</td></tr>
+              <tr><td><code>get_document</code></td><td>By id or natural key, at a label or version</td><td>yes</td></tr>
+              <tr><td><code>list_versions</code>, <code>diff_versions</code></td><td>History and what changed</td><td>yes</td></tr>
+              <tr><td><code>list_tree</code>, <code>read_file</code></td><td>Trees, paths, and file content at a label</td><td>yes</td></tr>
+              <tr><td><code>write_document</code></td><td>Upsert by key, update by id, or create; labels the version <code>preview</code></td><td>no</td></tr>
+              <tr><td><code>write_file</code></td><td>Write a file at a tree path as a new version; labels it <code>preview</code></td><td>no</td></tr>
+              <tr><td><code>set_label</code></td><td>Point a label at a version of one document</td><td>no (destructive)</td></tr>
+              <tr><td><code>promote_tree</code></td><td>Release a whole tree in one transaction</td><td>no (destructive)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="guide-section" id="workflow">
+        <h2>The safe workflow</h2>
+        <ol>
+          <li>Make the site's public rule filter on <code>published</code> (see <a href="/guides/publish-site">Publish a site</a>). This is what keeps agent edits private until release.</li>
+          <li>The agent writes with <code>write_file</code> and <code>write_document</code>. New versions are labelled <code>preview</code>, and visitors don't see them.</li>
+          <li>You (or the agent) check with <code>read_file</code> / <code>get_document</code> at label <code>preview</code>, or with <code>diff_versions</code>.</li>
+          <li>You approve, and the agent calls <code>promote_tree</code>. Every page goes live at the same moment, and rollback is another promote.</li>
+        </ol>
+        <div class="callout callout--key"><p><strong>Let agents write to a preview label; let humans promote.</strong> For data that should be live immediately (scores, feeds), use a collection whose public rule has no label filter. Agent writes there are public as soon as they're made.</p></div>
+      </section>
+
+      <section class="guide-section" id="several-orgs">
+        <h2>Several orgs</h2>
+        <p>A key belongs to one org. To work in two orgs, add the endpoint twice with different keys and names, for example <code>wren-tournaments</code> and <code>wren-clubhub</code>. The agent sees them as two separate servers.</p>
+      </section>
+
+      <section class="guide-section" id="safety">
+        <h2>Safety checklist</h2>
+        <ul>
+          <li>One key per agent; revoke it when you're done (<code>wren keys revoke</code>).</li>
+          <li>Use <code>/mcp?readonly=1</code> for agents that only need to answer questions.</li>
+          <li>To limit what a key can touch, give it <code>key:&lt;keyId&gt;</code> permission rules, for example write access to one collection only. The org owner's keys bypass all rules, so for a restricted agent use a key created by a member account.</li>
+          <li>Keep <code>promote_tree</code> behind a human confirmation; MCP clients show the destructive hint for it.</li>
+          <li>Everything an agent writes is versioned. Nothing is overwritten, and <code>diff_versions</code> shows exactly what it changed.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer"><div class="container">
+    <div class="footer__inner">
+      <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+      <ul class="footer__links"><li><a href="/concepts">Concepts</a></li><li><a href="/guides">Guides</a></li><li><a href="/docs">API Docs</a></li><li><a href="https://github.com/usewren">GitHub (usewren)</a></li></ul>
+    </div>
+    <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+  </div></footer>
+</body>
+</html>
