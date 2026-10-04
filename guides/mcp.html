@@ -162,7 +162,7 @@
         <h2>The safe workflow</h2>
         <ol>
           <li>Make the site's public rule filter on <code>published</code> (see <a href="/guides/publish-site">Publish a site</a>). This is what keeps agent edits private until release.</li>
-          <li>The agent writes with <code>write_file</code> and <code>write_document</code>. New versions are labelled <code>preview</code>, and visitors don't see them.</li>
+          <li>The agent writes with <code>write_file</code> and <code>write_document</code>. New versions are labeled <code>preview</code>, and visitors don't see them.</li>
           <li>You (or the agent) check with <code>read_file</code> / <code>get_document</code> at label <code>preview</code>, or with <code>diff_versions</code>.</li>
           <li>You approve, and the agent calls <code>promote_tree</code>. Every page goes live at the same moment, and rollback is another promote.</li>
         </ol>

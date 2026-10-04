@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WREN — Documents, Versions, and Trees</title>
-  <meta name="description" content="Versioned JSON documents, hierarchical trees, and multi-tenant isolation in one API. Three things you'll never have to build again." />
+  <meta name="description" content="Versioned JSON documents, hierarchical trees, and multi-tenant isolation in one API, with a built-in MCP server for AI agents. Open to every agent, private to yours." />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="alternate icon" href="/favicon.ico" />
@@ -20,6 +20,8 @@
     <div class="nav__inner">
       <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
       <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">Guides</a></li>
         <li><a href="/tutorial">Tutorial</a></li>
         <li><a href="/docs">Docs</a></li>
         <li><a href="#clients">Libraries</a></li>
@@ -50,7 +52,7 @@
       <h1 class="hero__title">Three things you&rsquo;ll never have to build again.</h1>
       <p class="hero__sub">
         Versioned documents. Hierarchical trees. Multi-tenant isolation. All in one API.
-        Cloud hosted or deploy to your own infrastructure.
+        Share it with your team and your AI agents &mdash; open to every agent, private to yours.
       </p>
       <div class="hero__ctas">
         <a href="/admin" class="btn btn--primary">Open Admin UI</a>
@@ -159,7 +161,7 @@
         <div class="feature-card">
           <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M3 10h10v4H3z"/><path d="M3 17h14v4H3z"/><path d="M13 7v3"/><path d="M13 14v3"/></svg></div>
           <h3 class="feature-card__title">Trees bundle hierarchy</h3>
-          <p class="feature-card__desc">Organize documents into named paths. Fetch whole subtrees with <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?full=true</code>. Public read URLs with zero config.</p>
+          <p class="feature-card__desc">Organize documents into named paths. Fetch whole subtrees with <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">?full=true</code>. Make a tree public with one rule &mdash; only its <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">published</code> versions.</p>
         </div>
 
         <div class="feature-card">
@@ -174,7 +176,60 @@
           <p class="feature-card__desc">Drop <code style="font-family:var(--font-mono);font-size:0.8em">&lt;script src="/wren.js"&gt;</code> into any HTML page. Web components like <code style="font-family:var(--font-mono);font-size:0.8em">&lt;wren-list&gt;</code> bind your data declaratively &mdash; no framework needed.</p>
         </div>
 
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg></div>
+          <h3 class="feature-card__title">Built for AI agents</h3>
+          <p class="feature-card__desc">A built-in MCP server and <code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">llms.txt</code>. Agents read your public data with no key and work in your private data as you &mdash; every write reversible. <a href="#agents" style="color:var(--color-primary)">How&nbsp;it&nbsp;works&nbsp;&rarr;</a></p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 8l3 3-3 3"/></svg></div>
+          <h3 class="feature-card__title">Deploy, preview, promote</h3>
+          <p class="feature-card__desc"><code style="font-family:var(--font-mono);font-size:0.8em;color:var(--color-primary)">wren deploy</code> to a preview, check it, then promote the whole site in one transaction. Roll back the same way.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <h3 class="feature-card__title">Work together</h3>
+          <p class="feature-card__desc">Invite people by email straight into groups like Editors or Viewers. Admins can view the org as a member to help &mdash; and every change made that way is recorded as such.</p>
+        </div>
+
       </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Agents
+       ============================================================ -->
+  <section class="agents" id="agents">
+    <div class="container">
+      <div class="agents__intro">
+        <p class="section-label">AI agents</p>
+        <h2 class="section-title">Open to every agent. Private to yours.</h2>
+        <p class="section-sub">One server, one MCP endpoint. What you publish, anyone&rsquo;s agent can find and use. What you keep private, only your agents reach &mdash; with your permissions, and nothing they do is permanent.</p>
+      </div>
+      <div class="agents__grid">
+        <div class="agents__col">
+          <h3 class="agents__title">Public data, no key</h3>
+          <p class="agents__desc">Any agent can connect to <code>/mcp</code> without signing up, see who publishes what, and read published sites and collections. Always the released version, never your drafts.</p>
+        </div>
+        <div class="agents__col">
+          <h3 class="agents__title">Private data, as you</h3>
+          <p class="agents__desc">&ldquo;Sign in with WREN&rdquo; from Claude, Cursor or VS Code, pick the org, and the agent works with your groups&rsquo; access. Or give it an API key. Revoke either at any time.</p>
+        </div>
+        <div class="agents__col">
+          <h3 class="agents__title">Safe to let it write</h3>
+          <p class="agents__desc">Agent writes land as new versions labeled <code>preview</code>. Review the diff, promote what&rsquo;s good, roll back what isn&rsquo;t. Nothing is overwritten.</p>
+        </div>
+      </div>
+      <div class="agents__code">
+        <pre><span class="tok-comment"># Read anyone&rsquo;s public data &mdash; no account needed</span>
+<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren-public <span class="tok-url">https://wren.aemwip.com/mcp</span>
+
+<span class="tok-comment"># Work in your own org &mdash; opens a browser to sign in and choose the org</span>
+<span class="tok-method">claude</span> mcp add <span class="tok-flag">--transport http</span> wren <span class="tok-url">https://wren.aemwip.com/mcp/login</span></pre>
+      </div>
+      <p class="agents__more"><a href="/guides/mcp">Set up Claude Code, Cursor or VS Code &rarr;</a></p>
     </div>
   </section>
 
@@ -404,7 +459,8 @@
         <ul class="footer__links">
           <li><a href="/admin">Admin UI</a></li>
           <li><a href="/docs">API Docs</a></li>
-          <li><a href="#">GitHub</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="https://github.com/usewren">GitHub</a></li>
         </ul>
       </div>
       <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>

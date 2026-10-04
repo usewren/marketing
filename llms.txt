@@ -199,7 +199,7 @@ POST   /api/v1/orgs/{slug}/{collection}/_query      query (same body as private 
 GET    /api/v1/orgs/{slug}/{collection}/_materialized[/{name}]
 ```
 
-If a rule has `labelFilter`, every public read above returns the labelled version; `?label=` and `?version=` cannot override it.
+If a rule has `labelFilter`, every public read above returns the labeled version; `?label=` and `?version=` cannot override it.
 
 ## Optional
 
