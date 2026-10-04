@@ -844,7 +844,8 @@ Field values:
 - `principal` is one of `"member:<userId>"`, `"key:<keyId>"`, or `"*"` (anonymous / public).
 - `resource` is one of `"collection:<name>"`, `"collection:*"`, `"tree:<name>"`, `"tree:*"`, or `"*"` (all resources).
 - `access` is one of `"none"`, `"read"`, `"write"`, or `"admin"`.
-- `labelFilter` (optional) restricts access to documents where this label is set — e.g. only `published` versions.
+- `labelFilter` (optional) restricts access to documents where this label is set — e.g. only `published` versions. Under such a rule, version history (`/versions`, `/versions/{n}`, `/diff`) returns 403: older versions and drafts stay hidden. Under a rule with a data filter, `/diff` returns 403.
+- `filterExpr` must compile in `filterLang` when the rule is saved (400 otherwise). An expression that fails at read time hides the document (`null`) instead of exposing it.
 - `filterLang` (optional) selects the data filter language: `"jq"`, `"jmespath"`, or `"jsonata"`.
 - `filterExpr` (optional) is the filter expression in the chosen language.
 - `auditReads` / `auditWrites` (boolean) turn on audit logging for matching requests.
@@ -1085,9 +1086,15 @@ Components: `wren-list`, `wren-query`, `wren-materialized`, `wren-doc`, `wren-tr
 - `data-base="https://wren.example.com/api/v1/orgs/tkd"` — explicit API base for custom domains
 - `data-origin="https://wren.example.com"` — explicit WREN origin for cross-origin setups
 
-**Template syntax:** `{{field}}` with dot paths (`{{report.name}}`). `{{{field}}}` for unescaped HTML.
+**Script placement:** the `<script>` can go anywhere: before the components (as above, plain or `defer`) or after them. Components wait for the page to be parsed before reading their `<template>` and slots.
 
-**Slots:** `<div slot="loading">`, `<div slot="empty">`, `<div slot="error">` for custom loading/empty/error states.
+**Template syntax:** `{{field}}` with dot paths (`{{report.name}}`). `{{{field}}}` for unescaped HTML. Without a `<template>`, each item's data is shown as formatted JSON in a `<pre>`.
+
+**Tables:** a component inside `<tbody>`/`<table>`/`<tr>` (created from script, since the HTML parser moves unknown elements out of tables) inserts its `<tr>` rows next to itself and hides itself.
+
+**`wren-query` with `q`:** the JSON may contain any text (UTF-8). A `label` attribute is added to the query as `"label"` (overriding one in `q`).
+
+**Slots:** `<div slot="loading">`, `<div slot="empty">`, `<div slot="error">` for custom loading/empty/error states. `{{error}}` in the error slot is replaced by the message. The default "Loading…" text is removed once the result (or empty/error state) is shown.
 
 **Events:** each component dispatches `wren-load` with `event.detail` containing the raw API response.
 
@@ -1123,6 +1130,8 @@ GET /api/v1/articles?depth=1           → works on list endpoints too
 - **Depth limit**: max 5, default 0 (no resolution, backwards compatible)
 - **Batch fetching**: all refs at one depth level resolved in one SQL query per collection
 - **Not-found refs**: get `{$notFound: true}` marker
+- **Access**: a ref resolves only if the reader may read its target (their own rules, or the public rules on public URLs), at that rule's label filter. Otherwise it becomes `{$ref, $forbidden: true}`. Targets whose rule has a data filter don't resolve.
+- **Loops**: only a ref to one of its own ancestors is `$circular`; the same document referenced twice resolves both times
 
 ---
 
