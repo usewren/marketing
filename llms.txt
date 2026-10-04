@@ -6,6 +6,44 @@ This file is the LLM-friendly index for Wren. It is intended for AI agents and t
 
 Wren is an open-source backend service that combines versioned JSON storage with static site deployment. Deploy a directory of HTML/CSS/JS files with `wren deploy`, version every change, preview via labels, and promote to published when ready. Collections store structured JSON data alongside your files — one system, one tree, one label controls what's live. Each organisation gets its own isolated Postgres schema.
 
+## URL map — read this first
+
+There are exactly three URL families. Do not mix them.
+
+| Family | URL shape | Auth | Org comes from |
+|---|---|---|---|
+| Private API (read + write) | `/api/v1/{collection}…`, `/api/v1/tree/{tree}/{path}`, `/api/v1/me`, `/api/v1/permissions`… | `Authorization: Bearer wren_…` or session cookie | the API key / session — never the URL |
+| Public data (read-only) | `/api/v1/orgs/{slug}/{collection}…`, `/api/v1/orgs/{slug}/tree/{tree}/{path}` | none | `{slug}` in the URL |
+| Public site (read-only) | `/orgs/{slug}/tree/{tree}/{path}` | none | `{slug}` in the URL |
+
+Rules:
+- **Every authenticated route starts with `/api/v1/`.** There are no unversioned routes: `/collections`, `/{collection}`, `/api/me`, `/api/keys`, `/api/permissions` all return 404.
+- **Public URLs only return what a `principal: "*"` read rule allows**, otherwise 403. Nothing is public by default. Sending an API key to a public URL does not unlock anything more.
+- **Public URLs are read-only.** Only GET (and `POST …/_query`) is accepted; writes return 405. Write through the private API.
+- `/orgs/{slug}/…` is a GET-only alias of `/api/v1/orgs/{slug}/…`. Give humans `/orgs/{slug}/tree/{tree}/index.html`; in code, use `/api/v1/orgs/{slug}/…` for data (needed for `POST _query`).
+- Find your org slug with `GET /api/v1/me` → `org.slug` (needs a key). Every public org also has `GET /orgs/{slug}/llms.txt` describing what it exposes.
+- A tree URL returns the raw file (HTML, JSON, image bytes). Send `Accept: application/json` to get the tree node (documentId, collection, children) instead.
+- Use `https://`. Public responses are cached briefly at the CDN (`max-age=60`); add `?v=<hash>` to bust caches after a deploy.
+
+## Make something public (recipe)
+
+```
+# 1. Who am I / what is my slug?
+GET  /api/v1/me                                    → { org: { slug: "oak-spur-spur", … } }
+
+# 2. Allow anonymous reads. Add labelFilter so visitors only see the published version.
+POST /api/v1/permissions  {"principal":"*","resource":"tree:mysite","access":"read","labelFilter":"published"}
+POST /api/v1/permissions  {"principal":"*","resource":"collection:mydata","access":"read","labelFilter":"published"}
+
+# 3. Public URLs
+https://<host>/orgs/oak-spur-spur/tree/mysite/index.html          (site, for people)
+https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for code)
+```
+
+- Without `labelFilter`, visitors see the latest version of every document, including unfinished work. With `labelFilter: "published"`, only versions you label `published` are visible, and `?label=` on the URL cannot override it.
+- Public access is granted per whole tree or collection. To keep something private, put it in a different tree/collection without a `*` rule.
+- `GET /api/v1/projects` (no auth) lists every org with public rules — anything you make public is discoverable there.
+
 ## Key concepts
 
 - **Collections** — named document namespaces; schema-free by default, optionally validated with JSON Schema
@@ -14,108 +52,135 @@ Wren is an open-source backend service that combines versioned JSON storage with
 - **Labels** — named pointers to a specific version (`published`, `draft`, `staging`, etc.)
 - **Trees** — hierarchical path assignment (`/site/about`, `/blog/2026/hello`) for CMS navigation and static site serving
 - **Deploy** — `wren deploy ./dist --tree mysite` uploads files, assigns tree paths, and serves the site. `wren promote` moves the published label atomically.
-- **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata
+- **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata. To publish a new version of a file, `PUT` multipart to the existing document id; `POST` creates a new document.
 - **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
 - **$ref resolution** — documents can reference other documents, tree paths, or queries; add `?depth=N` to resolve server-side with loop detection
 - **Webhooks** — batched HTTP notifications on data changes with HMAC signing, retry, and replay
-- **Permissions** — fine-grained rules per principal, with optional label/data filters and public aliases
-- **API keys** — long-lived Bearer tokens for programmatic access
+- **Permissions** — rules per principal (`*`, `member:<userId>`, `key:<keyId>`), with optional label/data filters and public aliases
+- **API keys** — long-lived Bearer tokens, scoped to the org they were created in
 
 ## Documentation
 
 - [Deploy tutorial](/tutorial/deploy): Deploy a static site, preview, promote — 10-minute walkthrough
 - [Full tutorial](/tutorial): Complete step-by-step walkthrough — Admin UI, CLI, TypeScript client, Python client
 - [API Reference](/docs): Interactive Scalar UI over the OpenAPI 3.1 spec; live request examples for every endpoint
-- [OpenAPI spec](/openapi.json): Machine-readable OpenAPI 3.1 specification
+- [OpenAPI spec](/openapi.json): Machine-readable OpenAPI 3.1 specification (authoritative for paths)
 - [Full LLM reference](/llms-full.txt): Complete API and client library reference in plain text
 
 ## Client libraries
 
+- **CLI**: `npm install -g @usewren/cli` — `wren deploy`, `wren promote`, document and tree commands
 - **wren.js** (browser): `<script src="/wren.js">` — zero-dependency web components for declarative data binding (`<wren-list>`, `<wren-query>`, `<wren-materialized>`, `<wren-doc>`, `<wren-tree>`). Auto-detects org from URL; works on custom domains via `data-base` attribute.
 - **TypeScript / JavaScript**: `npm install @wren/client` — Node ≥18, Bun, Browser; zero runtime dependencies; full types
 - **Python**: `pip install wren-client` — Python ≥3.9; sync (`WrenClient`) and async (`AsyncWrenClient`) via httpx; dataclasses
 
 ## Authentication
 
-Two methods:
-1. **Bearer token** (API key): `Authorization: Bearer wren_…` — create keys in Admin UI → API Keys
-2. **Session cookie**: `better-auth.session_token=…` — set after POST `/api/auth/sign-in/email`
+Two methods, both only on `/api/v1/…` private routes:
+1. **Bearer token** (API key): `Authorization: Bearer wren_…` — create keys in Admin UI → API Keys, or `POST /api/v1/keys`. A key always acts in the org it was created in.
+2. **Session cookie**: `better-auth.session_token=…` — set after `POST /api/auth/sign-in/email`. Switch org with `PUT /api/v1/org`.
 
-## Quick API reference
+Calling from a browser on another domain: public routes allow any origin; private routes accept a Bearer key from any origin (cookies only from the Wren site itself). Never ship an API key in public page code — proxy writes through your own backend.
+
+Calling from scripts: some deployments sit behind Cloudflare, which may reject Python's default `urllib` User-Agent with `403 error code: 1010`. Set a User-Agent (`requests`/`httpx` and curl are fine):
+
+```python
+import json, urllib.request
+req = urllib.request.Request("https://<host>/api/v1/orgs/<slug>/mydata",
+                             headers={"User-Agent": "my-app/1.0", "Accept": "application/json"})
+print(json.load(urllib.request.urlopen(req)))
+```
+
+## Private API reference (all need auth, all under /api/v1)
 
 ```
+# Identity & org
+GET    /api/v1/me                                   principal, org {id, name, slug}, role, applicable rules
+GET    /api/v1/org                                  current org + orgs you can switch to
+PUT    /api/v1/org                                  {orgId} → switch org (session only)
+PUT    /api/v1/org/slug                             {slug} → set public slug
+GET    /api/v1/org/usage                            storage / request stats
+
 # Documents
-GET    /collections                          list collections
-GET    /{collection}                         list documents (?label=, ?filter=, ?limit=, ?cursor=, ?facets=)
-POST   /{collection}                         create document → {id, version:1, data, …}
-GET    /{collection}/{id}                    get document (?label=)
-PUT    /{collection}/{id}                    update → new version
-DELETE /{collection}/{id}                    soft delete
-GET    /{collection}/by-key/{value}          get document by natural key (collection must declare naturalKey)
-PUT    /{collection}/by-key/{value}          idempotent upsert by natural key — create if absent, update if present
-DELETE /{collection}/by-key/{value}          soft delete by natural key
+GET    /api/v1/collections                          list collections
+GET    /api/v1/{collection}                         list (?label=, ?limit=, ?offset=, ?select=a,b, ?where=field:value)
+POST   /api/v1/{collection}                         JSON → new document {id, version:1, …}; multipart (file=) → new binary document
+GET    /api/v1/{collection}/{id}                    get document (?label=, ?depth=)
+GET    /api/v1/{collection}/{id}/raw                binary bytes (?version=, ?label=)
+PUT    /api/v1/{collection}/{id}                    JSON or multipart → new version of the same document
+DELETE /api/v1/{collection}/{id}                    soft delete
+GET    /api/v1/{collection}/by-key/{value}          get by natural key (collection must declare naturalKey)
+PUT    /api/v1/{collection}/by-key/{value}          idempotent upsert by natural key
+DELETE /api/v1/{collection}/by-key/{value}          soft delete by natural key
 
-# Versions
-GET    /{collection}/{id}/versions           list all versions
-GET    /{collection}/{id}/versions/{n}       get specific version
-POST   /{collection}/{id}/rollback/{n}       roll back (creates new version)
-GET    /{collection}/{id}/diff?v1=N&v2=N     diff two versions
-
-# Labels
-POST   /{collection}/{id}/labels             {label, version?} → pin label
+# Versions & labels
+GET    /api/v1/{collection}/{id}/versions           list versions
+GET    /api/v1/{collection}/{id}/versions/{n}       get version n
+POST   /api/v1/{collection}/{id}/rollback/{n}       roll back (creates new version)
+GET    /api/v1/{collection}/{id}/diff?v1=N&v2=N     diff two versions
+POST   /api/v1/{collection}/{id}/labels             {label, version?} → pin label
 
 # Schemas
-GET    /{collection}/_schema
-PUT    /{collection}/_schema                 {schema, displayName, collectionType, naturalKey?, indexes?}
-DELETE /{collection}/_schema
-POST   /{collection}/_schema/validate        dry-run: validate a schema against existing docs before writing
+GET    /api/v1/{collection}/_schema
+PUT    /api/v1/{collection}/_schema                 {schema, displayName, collectionType, naturalKey?, indexes?}
+DELETE /api/v1/{collection}/_schema
+POST   /api/v1/{collection}/_schema/validate        dry-run a schema against existing docs
 
 # Query
-POST   /{collection}/_query                  filter + projection + aggregation (JSON body)
-GET    /{collection}?select=a,b&where=x:y    field projection + SQL-level filtering on list
+POST   /api/v1/{collection}/_query                  filter + projection + aggregation (JSON body; paginate with cursor)
 
 # Materialized queries
-GET    /{collection}/_materialized            list materialized queries
-PUT    /{collection}/_materialized/{name}     create/update (auto-refreshes on write)
-GET    /{collection}/_materialized/{name}     read result
-DELETE /{collection}/_materialized/{name}     remove
+GET    /api/v1/{collection}/_materialized           list
+PUT    /api/v1/{collection}/_materialized/{name}    create/update (auto-refreshes on write)
+GET    /api/v1/{collection}/_materialized/{name}    read result
+DELETE /api/v1/{collection}/_materialized/{name}    remove
 
 # Trees
-GET    /tree                                 list trees
-GET    /tree/{name}?full=true               full tree snapshot
-GET    /tree/{name}/{path}                  node + children
-PUT    /tree/{name}/{path}                  {documentId} → assign
-DELETE /tree/{name}/{path}                  unassign
+GET    /api/v1/tree                                 list trees
+GET    /api/v1/tree/{name}?full=true                full tree snapshot
+GET    /api/v1/tree/{name}/{path}                   file bytes; with Accept: application/json → node {documentId, collection, children}
+PUT    /api/v1/tree/{name}/{path}                   {documentId} → assign
+DELETE /api/v1/tree/{name}/{path}                   unassign
 
-# Identity
-GET    /api/me                               principal, org, role, applicable permission rules (self-check)
-
-# Projects (public, no auth)
-GET    /api/v1/projects                      list all orgs with public permissions, collections, trees, entry URLs
-
-# Webhooks
-GET    /api/v1/webhooks                      list webhooks
-POST   /api/v1/webhooks                      create (returns signing secret once)
-PUT    /api/v1/webhooks/{id}                 update url/events/enabled
-DELETE /api/v1/webhooks/{id}                 delete
-GET    /api/v1/webhooks/{id}/deliveries      delivery log
-POST   /api/v1/webhooks/{id}/replay          re-deliver past events
-
-# Management
-GET    /api/keys                             list API keys
-POST   /api/keys                             {name} → create key (shown once)
-DELETE /api/keys/{id}                        revoke
-GET    /api/members                          list org members
-DELETE /api/members/{id}                     remove member
-GET    /api/invites                          list sent invites
-POST   /api/invites                          {email, role?} → invite
-DELETE /api/invites/{id}                     revoke invite
-POST   /api/invites/accept                   {token} → accept by token
-GET    /api/permissions                      list permission rules
-POST   /api/permissions                      create rule (supports optional alias for public URLs)
-PUT    /api/permissions/{id}                 update rule
-DELETE /api/permissions/{id}                 delete rule
+# Keys, members, invites, permissions, webhooks (act on the key's / session's org)
+GET    /api/v1/keys                                 list API keys
+POST   /api/v1/keys                                 {name} → create key (shown once)
+DELETE /api/v1/keys/{id}                            revoke
+GET    /api/v1/members                              list members
+DELETE /api/v1/members/{id}                         remove member
+GET    /api/v1/invites                              list sent invites
+POST   /api/v1/invites                              {email, role?} → invite
+DELETE /api/v1/invites/{id}                         revoke invite
+POST   /api/v1/invites/accept                       {token} → accept
+GET    /api/v1/permissions                          list rules
+POST   /api/v1/permissions                          {principal, resource, access, labelFilter?, filterLang?, filterExpr?, alias?}
+PUT    /api/v1/permissions/{id}                     update rule
+DELETE /api/v1/permissions/{id}                     delete rule
+GET    /api/v1/webhooks                             list webhooks
+POST   /api/v1/webhooks                             create (returns signing secret once)
+PUT    /api/v1/webhooks/{id}                        update url/events/enabled
+DELETE /api/v1/webhooks/{id}                        delete
+GET    /api/v1/webhooks/{id}/deliveries             delivery log
+POST   /api/v1/webhooks/{id}/replay                 re-deliver past events
 ```
+
+## Public API reference (no auth, read-only, gated by principal "*" rules)
+
+```
+GET    /api/v1/projects                             all orgs with public rules, their collections, trees and entry URLs
+GET    /orgs/{slug}/llms.txt                        what this org exposes publicly
+GET    /orgs/{slug}/tree/{tree}/{path}              site file (alias of /api/v1/orgs/{slug}/tree/…)
+GET    /api/v1/orgs/{slug}/tree/{tree}/{path}       file bytes; Accept: application/json → node
+GET    /api/v1/orgs/{slug}/tree/{tree}?full=true    full tree snapshot
+GET    /api/v1/orgs/{slug}/{collection}             list (?limit=, ?offset=, ?select=, ?where=)
+GET    /api/v1/orgs/{slug}/{collection}/{id}        get document
+GET    /api/v1/orgs/{slug}/{collection}/{id}/raw    binary bytes
+GET    /api/v1/orgs/{slug}/{collection}/by-key/{v}  get by natural key
+POST   /api/v1/orgs/{slug}/{collection}/_query      query (same body as private _query)
+GET    /api/v1/orgs/{slug}/{collection}/_materialized[/{name}]
+```
+
+If a rule has `labelFilter`, every public read above returns the labelled version; `?label=` and `?version=` cannot override it.
 
 ## Optional
 
