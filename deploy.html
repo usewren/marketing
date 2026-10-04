@@ -99,15 +99,15 @@
 <span class="tok-arrow">Created public read permission for tree:mysite</span>
 
 <span class="tok-arrow">Deployed to tree "mysite":  47 uploaded, 0 unchanged, 47 new paths</span>
-<span class="tok-arrow">Preview:  https://wren.example.com/orgs/acme/tree/mysite/index.html</span></pre>
+<span class="tok-arrow">Public URL (needs a principal=* rule): https://wren.example.com/orgs/acme/tree/mysite/index.html</span></pre>
         <pre id="hero-tab-preview" style="display:none"><span class="tok-comment"># Make changes, deploy as preview (public sees old version)</span>
 <span class="tok-method">wren deploy</span> <span class="tok-path">./dist</span> <span class="tok-flag">--tree</span> <span class="tok-str">mysite</span> <span class="tok-flag">--label</span> <span class="tok-str">preview</span>
 
 <span class="tok-arrow">Deployed to tree "mysite":  3 uploaded, 44 unchanged</span>
 <span class="tok-arrow">Label: preview</span>
 
-<span class="tok-comment"># Check it yourself — public site is unchanged</span>
-<span class="tok-method">open</span> <span class="tok-url">https://wren.example.com/orgs/acme/tree/mysite/index.html?label=preview</span></pre>
+<span class="tok-comment"># Check it yourself with your key — the public site is unchanged</span>
+<span class="tok-method">curl</span> <span class="tok-flag">-H</span> <span class="tok-str">"Authorization: Bearer $WREN_API_KEY"</span> <span class="tok-url">https://wren.example.com/api/v1/tree/mysite/index.html?label=preview</span></pre>
         <pre id="hero-tab-promote" style="display:none"><span class="tok-comment"># Happy with the preview? Make it live.</span>
 <span class="tok-method">wren promote</span> <span class="tok-str">mysite</span> <span class="tok-flag">--from</span> <span class="tok-str">preview</span>
 

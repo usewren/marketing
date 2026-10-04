@@ -10,7 +10,21 @@ This document is the complete reference for LLMs and AI agents working with the 
 
 Wren stores JSON documents in named collections. Every mutation creates a new version — the old data is never overwritten. Versions can be listed, diffed pairwise, labelled, or rolled back. Each organisation gets an isolated Postgres schema. The REST API is the primary interface; official clients exist for TypeScript and Python.
 
-Base URL: configured at deploy time (e.g. `https://wren.example.com`). All paths below are relative to the base URL.
+Base URL: configured at deploy time (e.g. `https://wren.example.com`). All paths below are relative to the base URL and are shown in full — including the `/api/v1` prefix.
+
+### URL map — the three URL families
+
+| Family | URL shape | Auth | Org comes from |
+|---|---|---|---|
+| Private API (read + write) | `/api/v1/{collection}…`, `/api/v1/tree/{tree}/{path}`, `/api/v1/me`, `/api/v1/keys`, `/api/v1/permissions`… | `Authorization: Bearer wren_…` or session cookie | the API key / session — never the URL |
+| Public data (read-only) | `/api/v1/orgs/{slug}/{collection}…`, `/api/v1/orgs/{slug}/tree/{tree}/{path}` | none | `{slug}` in the URL |
+| Public site (read-only) | `/orgs/{slug}/tree/{tree}/{path}` (GET-only alias of the line above) | none | `{slug}` in the URL |
+
+- Every authenticated route starts with `/api/v1/`. Unversioned paths (`/collections`, `/{collection}`, `/api/me`, `/api/keys`, `/api/permissions`…) return **404**.
+- Public URLs return only what a `principal='*'` read rule allows (otherwise **403**), ignore any auth header, and are read-only: anything but GET (and `POST …/_query`) returns **405**.
+- Your org slug: `GET /api/v1/me` → `org.slug`. Each public org also serves `GET /orgs/{slug}/llms.txt`.
+- Give people `https://<host>/orgs/{slug}/tree/{tree}/index.html`; in code use `/api/v1/orgs/{slug}/…`.
+- See "Public access" below for the step-by-step recipe.
 
 ---
 
@@ -20,7 +34,7 @@ Base URL: configured at deploy time (e.g. `https://wren.example.com`). All paths
 ```
 Authorization: Bearer wren_<key>
 ```
-Create keys at: Admin UI → Settings → API Keys, or via `POST /api/keys`.
+Create keys at: Admin UI → Settings → API Keys, or via `POST /api/v1/keys`.
 Keys are shown once at creation. Prefix format: `wren_` followed by random hex.
 
 ### Session cookie — used by browser / CLI
@@ -34,9 +48,9 @@ Subsequent requests authenticate by including this cookie.
 Guarantees and non-guarantees agents commonly need before they act:
 
 - **Rate limits.** No rate limits are enforced by default. No `X-RateLimit-*` or `Retry-After` headers are sent. Deployments may put a reverse proxy in front with its own limits; that is out of band.
-- **Idempotency.** `POST /{collection}` is **not** idempotent — each call creates a new document. There is no `Idempotency-Key` header. If deduplication matters, declare a `naturalKey` on the collection schema and use `PUT /{collection}/by-key/{value}` (which is idempotent). For raw uploads, check for an existing document by natural key or label before creating.
-- **Dry-run.** There is no `?dry_run=true` flag on destructive operations. To preview: `GET` the document before `DELETE`, or `GET /{collection}/_schema` and run `POST /{collection}/_schema/validate` before `PUT`ting a new schema.
-- **Retries on 5xx.** `GET`, `PUT /{id}`, `DELETE /{id}`, and `PUT /by-key/{value}` are safe to retry — each is idempotent at the resource level (PUT overwrites, DELETE converges to deleted). `POST /{collection}` is not — retrying after a 5xx may produce duplicate documents.
+- **Idempotency.** `POST /api/v1/{collection}` is **not** idempotent — each call creates a new document. There is no `Idempotency-Key` header. If deduplication matters, declare a `naturalKey` on the collection schema and use `PUT /api/v1/{collection}/by-key/{value}` (which is idempotent). For raw uploads, check for an existing document by natural key or label before creating.
+- **Dry-run.** There is no `?dry_run=true` flag on destructive operations. To preview: `GET` the document before `DELETE`, or `GET /api/v1/{collection}/_schema` and run `POST /api/v1/{collection}/_schema/validate` before `PUT`ting a new schema.
+- **Retries on 5xx.** `GET`, `PUT /{id}`, `DELETE /{id}`, and `PUT /by-key/{value}` are safe to retry — each is idempotent at the resource level (PUT overwrites, DELETE converges to deleted). `POST /api/v1/{collection}` is not — retrying after a 5xx may produce duplicate documents.
 - **Writes are transactional.** Each mutation (create, update, delete, rollback, label change) commits atomically with its version row. Partial writes are not observable.
 - **Soft delete.** `DELETE` creates a tombstone and makes the document 404 on subsequent reads. Nothing is physically removed. The UUID is not reused.
 
@@ -70,7 +84,7 @@ Validation errors (422) also include:
 
 ### List collections
 ```
-GET /collections
+GET /api/v1/collections
 Authorization: Bearer wren_…
 
 Response 200:
@@ -89,27 +103,29 @@ An empty org returns 200 with `{"collections": []}`, not 404. Any authenticated 
 
 ### List documents in a collection
 ```
-GET /{collection}
+GET /api/v1/{collection}
 Query params:
-  label    — return only docs where this label is set (e.g. label=published)
-  filter   — dot-path filter, e.g. filter=category:golf
-  limit    — max results, default 20, max 200
-  cursor   — pagination cursor from previous response
-  facets   — comma-separated fields to aggregate, e.g. facets=category,author
+  label    — return only docs where this label is set (e.g. label=published);
+             a permission rule's labelFilter takes precedence over this
+  where    — filter on data fields: path op value, joined with AND / OR
+             ops: : = != > >= < <= ~* !~* @>   e.g. where=category:golf AND year>=2024
+  select   — comma-separated fields to return, e.g. select=title,author.name
+  limit    — max results, default 50, max 200
+  offset   — skip N results (pagination)
 
 Response 200:
 {
   "collection": "articles",
   "total": 42,
-  "cursor": "next-page-token or null",
-  "facets": { "category": [{ "value": "golf", "count": 5 }] },
   "items": [ <DocumentResponse>, … ]
 }
+
+For cursor pagination and aggregation use POST /api/v1/{collection}/_query.
 ```
 
 ### Create a document
 ```
-POST /{collection}
+POST /api/v1/{collection}
 Content-Type: application/json
 { "title": "Hello", "body": "World", "category": "news" }
 
@@ -118,8 +134,8 @@ Response 201: <DocumentResponse>
 
 ### Get a document (current or labelled version)
 ```
-GET /{collection}/{id}
-GET /{collection}/{id}?label=published   ← returns the version pinned to that label
+GET /api/v1/{collection}/{id}
+GET /api/v1/{collection}/{id}?label=published   ← returns the version pinned to that label
 
 Response 200: <DocumentResponse>
 Response 404: not found or deleted
@@ -127,7 +143,7 @@ Response 404: not found or deleted
 
 ### Update a document (creates a new version)
 ```
-PUT /{collection}/{id}
+PUT /api/v1/{collection}/{id}
 Content-Type: application/json
 { "title": "Updated title", "body": "Updated body" }
 
@@ -136,7 +152,7 @@ Response 200: <DocumentResponse>  ← version is incremented
 
 ### Delete a document (soft delete — creates tombstone)
 ```
-DELETE /{collection}/{id}
+DELETE /api/v1/{collection}/{id}
 
 Response 200: { "id": "uuid", "deleted": true }
 ```
@@ -146,13 +162,13 @@ A collection can declare one document field as its natural key (commonly `slug`)
 
 Declare a natural key on the collection schema:
 ```
-PUT /{collection}/_schema
+PUT /api/v1/{collection}/_schema
 { "schema": { … }, "naturalKey": "slug" }
 ```
 
 Upsert (create-or-update) by key:
 ```
-PUT /{collection}/by-key/{value}
+PUT /api/v1/{collection}/by-key/{value}
 Content-Type: application/json
 { "slug": "hello", "title": "Hello" }   ← data[naturalKey] must match {value} in the URL
 
@@ -164,8 +180,8 @@ Response 409: another document already owns this key (rename collision)
 
 Get by key:
 ```
-GET /{collection}/by-key/{value}
-GET /{collection}/by-key/{value}?label=published
+GET /api/v1/{collection}/by-key/{value}
+GET /api/v1/{collection}/by-key/{value}?label=published
 
 Response 200: <DocumentResponse>
 Response 404: no document with that key
@@ -173,14 +189,14 @@ Response 404: no document with that key
 
 Soft delete by key:
 ```
-DELETE /{collection}/by-key/{value}
+DELETE /api/v1/{collection}/by-key/{value}
 
 Response 200: { "id": "uuid", "deleted": true }
 ```
 
 ### Get tree paths for a document
 ```
-GET /{collection}/{id}/paths
+GET /api/v1/{collection}/{id}/paths
 
 Response 200:
 {
@@ -211,7 +227,7 @@ Response 200:
 
 ### List version history
 ```
-GET /{collection}/{id}/versions
+GET /api/v1/{collection}/{id}/versions
 
 Response 200:
 {
@@ -227,7 +243,7 @@ Response 200:
 
 ### Get a specific version
 ```
-GET /{collection}/{id}/versions/{n}
+GET /api/v1/{collection}/{id}/versions/{n}
 
 Response 200: <DocumentResponse>   ← data is the state at version n
 ```
@@ -235,14 +251,14 @@ Response 200: <DocumentResponse>   ← data is the state at version n
 ### Rollback to a previous version
 Creates a new version whose data matches the target version. Does not delete history.
 ```
-POST /{collection}/{id}/rollback/{n}
+POST /api/v1/{collection}/{id}/rollback/{n}
 
 Response 200: { "id": "uuid", "version": 4, "rolledBackTo": 1 }
 ```
 
 ### Diff two versions
 ```
-GET /{collection}/{id}/diff?v1=1&v2=3
+GET /api/v1/{collection}/{id}/diff?v1=1&v2=3
 
 Response 200:
 {
@@ -267,7 +283,7 @@ Labels are named pointers to a specific version. Setting a label again moves the
 
 ### Set a label
 ```
-POST /{collection}/{id}/labels
+POST /api/v1/{collection}/{id}/labels
 { "label": "published" }            ← pins to current version
 { "label": "published", "version": 2 }  ← pins to specific version
 
@@ -275,7 +291,7 @@ Response 200: { "id": "uuid", "label": "published", "version": 3 }
 ```
 
 Common label names: `published`, `draft`, `staging`, `featured`, `archived`.
-Fetch a labelled version: `GET /{collection}/{id}?label=published`
+Fetch a labelled version: `GET /api/v1/{collection}/{id}?label=published`
 
 ---
 
@@ -285,7 +301,7 @@ The list endpoint and a dedicated `_query` endpoint support SQL-level filtering,
 
 ### Projection and filtering on the list endpoint
 ```
-GET /{collection}?select=title,category&where=category:news&limit=10
+GET /api/v1/{collection}?select=title,category&where=category:news&limit=10
 
 Response 200:
 {
@@ -299,7 +315,7 @@ Response 200:
 
 ### Query endpoint (projection + aggregation)
 ```
-POST /{collection}/_query
+POST /api/v1/{collection}/_query
 {
   "select": ["title", "category"],
   "where": "category:news",
@@ -334,14 +350,14 @@ Metric ops (v1): `count`, `countDistinct`, `sum`, `min`, `max`, `avg`. `groupBy`
 Named, persisted query results that auto-refresh on every write to the source collection. The result is stored as a versioned document, so it participates in labels and the promote workflow.
 
 ```
-PUT /{collection}/_materialized/{name}
+PUT /api/v1/{collection}/_materialized/{name}
 { "query": { "select": ["title", "category"] }, "refreshOn": "write" }
 
 Response 200: { "collection": "articles", "name": "slim-list", "refreshOn": "write", "resultDocId": "…" }
 ```
 
 ```
-GET /{collection}/_materialized/{name}
+GET /api/v1/{collection}/_materialized/{name}
 
 Response 200:
 {
@@ -361,7 +377,7 @@ Schemas are optional. When set, every create/update is validated before writing.
 
 ### Get schema
 ```
-GET /{collection}/_schema
+GET /api/v1/{collection}/_schema
 
 Response 200:
 {
@@ -376,7 +392,7 @@ Response 404: no schema set
 
 ### Set schema
 ```
-PUT /{collection}/_schema
+PUT /api/v1/{collection}/_schema
 {
   "schema": {
     "type": "object",
@@ -398,15 +414,15 @@ Response 422: invalid JSON Schema
 
 ### Delete schema
 ```
-DELETE /{collection}/_schema
+DELETE /api/v1/{collection}/_schema
 Response 200: { "collection": "articles", "deleted": true }
 ```
 
 ### Dry-run: validate a schema against existing documents
 Read-only. Runs the current schema (or a proposed one in the request body) against every existing document in the collection and reports which ones would fail — without touching anything. Useful before changing a schema on a collection with live data.
 ```
-GET  /{collection}/_schema/validate                    ← validates current stored schema
-POST /{collection}/_schema/validate                    ← validates a proposed schema
+GET  /api/v1/{collection}/_schema/validate                    ← validates current stored schema
+POST /api/v1/{collection}/_schema/validate                    ← validates a proposed schema
 Content-Type: application/json
 { "schema": { "type": "object", "required": ["title"], … } }
   or just the bare JSON Schema as the whole body
@@ -438,13 +454,13 @@ Trees provide hierarchical path-based navigation. Useful for CMS site maps, navi
 
 ### List trees
 ```
-GET /tree
+GET /api/v1/tree
 Response 200: { "trees": [{ "name": "main", "count": 12 }] }
 ```
 
 ### Get full tree snapshot
 ```
-GET /tree/{name}?full=true
+GET /api/v1/tree/{name}?full=true
 Response 200:
 {
   "tree": "main",
@@ -457,9 +473,9 @@ Response 200:
 
 ### Get a node and its children
 ```
-GET /tree/{name}/{path}
-GET /tree/{name}/{path}?label=published   ← document at the labeled version
-e.g. GET /tree/main/blog/hello
+GET /api/v1/tree/{name}/{path}
+GET /api/v1/tree/{name}/{path}?label=published   ← document at the labeled version
+e.g. GET /api/v1/tree/main/blog/hello
 
 Response 200:
 {
@@ -473,11 +489,13 @@ Response 200:
 Response 404: path not found
 ```
 
-The `?label=` parameter resolves the document at a specific labeled version instead of `current_version`. Permission rules with a `labelFilter` apply this automatically for public reads — so a `principal='*'` rule with `labelFilter: "published"` means anonymous visitors always see the published version, while authenticated users can pass `?label=preview` to see unpublished changes. This enables a deploy → preview → promote workflow for static sites.
+The `?label=` parameter resolves the document at a specific labeled version instead of `current_version`. Permission rules with a `labelFilter` apply this automatically for public reads — so a `principal='*'` rule with `labelFilter: "published"` means anonymous visitors always see the published version (on public URLs the rule's `labelFilter` always wins; `?label=` cannot override it). Authenticated users preview unpublished changes on the private route, e.g. `GET /api/v1/tree/{name}/{path}?label=preview` with a Bearer key. This enables a deploy → preview → promote workflow for static sites.
+
+Without a `labelFilter` on the public rule, visitors see `current_version` — the latest deploy — and labels have no effect on what is public.
 
 ### Assign a document to a path
 ```
-PUT /tree/{name}/{path}
+PUT /api/v1/tree/{name}/{path}
 { "documentId": "uuid" }
 
 Response 200: { "path": "/blog/hello", "documentId": "uuid" }
@@ -485,7 +503,7 @@ Response 200: { "path": "/blog/hello", "documentId": "uuid" }
 
 ### Remove a path assignment
 ```
-DELETE /tree/{name}/{path}
+DELETE /api/v1/tree/{name}/{path}
 Response 200: { "path": "/blog/hello", "removed": true }
 ```
 
@@ -497,7 +515,7 @@ Set `collectionType: "binary"` in the schema to store files.
 
 ### Upload a file
 ```
-POST /{collection}
+POST /api/v1/{collection}
 Content-Type: multipart/form-data
 file=<binary>  (form field named "file")
 
@@ -506,7 +524,7 @@ Response 201: <DocumentResponse>  ← data contains filename, contentType, size,
 
 ### Replace / update a file
 ```
-PUT /{collection}/{id}
+PUT /api/v1/{collection}/{id}
 Content-Type: multipart/form-data
 file=<binary>
 
@@ -526,7 +544,9 @@ Response 200: binary content with correct Content-Type and Content-Disposition: 
 Requires a `principal='*'` read permission on the collection.
 The org slug is required in the URL since there is no session to identify the tenant.
 
-Note the URL-shape split: **all public (no-auth) reads** — raw assets, collection GETs, tree GETs, and `llms.txt` — use the versioned, org-scoped prefix `/api/v1/orgs/{slug}/...`. **All authenticated endpoints** elsewhere in this document use the unversioned shape with the tenant inferred from credentials. Agents generalising URL shape from one set to the other will guess wrong.
+Note the URL-shape split: **public (no-auth) reads** use the org-scoped prefix `/api/v1/orgs/{slug}/...` (or its GET-only alias `/orgs/{slug}/...`). **Authenticated endpoints** use `/api/v1/...` with the tenant inferred from credentials — no slug. Both families are versioned under `/api/v1`; see the URL map at the top.
+
+If the rule has a `labelFilter`, the raw route serves the labelled version and ignores `?version=`.
 
 ```
 GET /api/v1/orgs/{slug}/{collection}/{id}/raw
@@ -543,17 +563,65 @@ The filename-in-URL pattern is recommended for `<img>` tags, CDN configs, and CL
 
 ---
 
+## Public access
+
+Nothing is public by default. A tree or collection becomes publicly readable only through a permission rule with `principal: "*"`.
+
+### Recipe
+```
+# 1. Find your slug
+GET  /api/v1/me                                  → { "org": { "slug": "oak-spur-spur", … } }
+
+# 2. Allow anonymous reads (labelFilter keeps drafts private)
+POST /api/v1/permissions  {"principal":"*","resource":"tree:mysite","access":"read","labelFilter":"published"}
+POST /api/v1/permissions  {"principal":"*","resource":"collection:mydata","access":"read","labelFilter":"published"}
+
+# 3. Label what should be visible
+POST /api/v1/{collection}/{id}/labels  {"label":"published"}      (wren promote does this for a deployed tree)
+
+# 4. Share the public URLs
+https://<host>/orgs/oak-spur-spur/tree/mysite/index.html           site, for people
+https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50           data, for code
+```
+
+### Public endpoints (no auth, read-only)
+```
+GET  /api/v1/projects                                all orgs with public rules (collections, trees, entry URLs)
+GET  /orgs/{slug}/llms.txt                           what this org exposes publicly
+GET  /orgs/{slug}/tree/{tree}/{path}                 site file (GET-only alias)
+GET  /api/v1/orgs/{slug}/tree/{tree}/{path}          file bytes; Accept: application/json → node metadata
+GET  /api/v1/orgs/{slug}/tree/{tree}?full=true       full tree snapshot
+GET  /api/v1/orgs/{slug}/{collection}                list (?limit, ?offset, ?select, ?where)
+GET  /api/v1/orgs/{slug}/{collection}/{id}           get
+GET  /api/v1/orgs/{slug}/{collection}/{id}/raw       binary bytes
+GET  /api/v1/orgs/{slug}/{collection}/by-key/{v}     get by natural key
+POST /api/v1/orgs/{slug}/{collection}/_query         query
+GET  /api/v1/orgs/{slug}/{collection}/_materialized[/{name}]
+```
+
+### Things that trip people up
+- **A tree rule is enough to serve a site.** `tree:mysite` makes every file under that tree readable; you only need a `collection:` rule if code also reads the collection directly.
+- **Granularity is the whole tree or collection.** To keep a page private, put it in another tree without a `*` rule — not in the public one.
+- **Everything public is discoverable** via `GET /api/v1/projects` and `/orgs/{slug}/llms.txt` (which lists tree paths and sample documents).
+- **Auth headers are ignored on public URLs.** To read private data, use the private `/api/v1/...` routes with a key.
+- **Writes on public URLs return 405.** Write via `/api/v1/{collection}` with a key.
+- **Browsers on other domains**: public routes allow any origin; private routes accept `Authorization: Bearer` from any origin but cookies only from the Wren site. Don't put API keys in public page code.
+- **CDN caching**: successful public responses are cacheable (`max-age=60, stale-while-revalidate`); errors are `no-store`. Add `?v=<hash>` to asset URLs after a deploy.
+- **Python `urllib`**: deployments behind Cloudflare may answer `403 error code: 1010` to the default `Python-urllib/3.x` User-Agent. Send your own `User-Agent` header (requests/httpx/curl are unaffected).
+
+---
+
 ## API Keys
 
 ### List keys
 ```
-GET /api/keys
+GET /api/v1/keys
 Response 200: { "keys": [{ "id": "…", "name": "CI deploy", "keyPrefix": "wren_a3f4e5", "createdAt": "…", "lastUsedAt": "…", "revokedAt": null }] }
 ```
 
 ### Create a key
 ```
-POST /api/keys
+POST /api/v1/keys
 { "name": "CI deploy" }
 
 Response 201: { …ApiKey fields…, "key": "wren_a3f4e5d2…" }   ← full key shown ONCE
@@ -561,7 +629,7 @@ Response 201: { …ApiKey fields…, "key": "wren_a3f4e5d2…" }   ← full key 
 
 ### Revoke a key
 ```
-DELETE /api/keys/{id}
+DELETE /api/v1/keys/{id}
 Response 200: { "id": "…", "revoked": true }
 ```
 
@@ -573,7 +641,7 @@ Response 200: { "id": "…", "revoked": true }
 A self-check endpoint designed for agents and clients holding an API key. Returns the caller's principal, the org this request is scoped to, the role held by the user, and the permission rules that apply. Intended to be called once on startup to confirm authentication and scope, avoiding 403-by-surprise on downstream requests. Works with both Bearer API keys and session cookies.
 
 ```
-GET /api/me
+GET /api/v1/me
 
 Response 200:
 {
@@ -599,7 +667,7 @@ Response 200:
 
 ### Get current org context
 ```
-GET /api/org
+GET /api/v1/org
 Response 200:
 {
   "current": { "id": "org-id", "name": "Acme", "email": "owner@example.com" },
@@ -612,7 +680,7 @@ Response 200:
 
 ### Switch org (session-based only)
 ```
-PUT /api/org
+PUT /api/v1/org
 { "orgId": "other-id" }
 Response 200: { "current": { "id": "other-id", … } }
 ```
@@ -623,13 +691,13 @@ Response 200: { "current": { "id": "other-id", … } }
 
 ### List members
 ```
-GET /api/members
+GET /api/v1/members
 Response 200: { "members": [{ "userId": "…", "name": "Jane", "email": "jane@…", "role": "editor", "joinedAt": "…" }] }
 ```
 
 ### Remove a member
 ```
-DELETE /api/members/{userId}
+DELETE /api/v1/members/{userId}
 Response 200: { "userId": "…", "removed": true }
 ```
 
@@ -639,13 +707,13 @@ Response 200: { "userId": "…", "removed": true }
 
 ### List sent invites
 ```
-GET /api/invites
+GET /api/v1/invites
 Response 200: { "invites": [{ "id": "…", "email": "jane@…", "role": "editor", "createdAt": "…", "expiresAt": "…", "acceptedAt": null, "revokedAt": null }] }
 ```
 
 ### Create an invite
 ```
-POST /api/invites
+POST /api/v1/invites
 { "email": "jane@example.com", "role": "editor" }
 
 Response 201: { …Invite fields…, "token": "raw-token" }  ← token shown ONCE
@@ -653,26 +721,26 @@ Response 201: { …Invite fields…, "token": "raw-token" }  ← token shown ONC
 
 ### Accept an invite (by token)
 ```
-POST /api/invites/accept
+POST /api/v1/invites/accept
 { "token": "raw-token" }
 Response 200: { "accepted": true, "orgId": "…" }
 ```
 
 ### Accept an invite (by ID — for logged-in users)
 ```
-POST /api/invites/{inviteId}/accept
+POST /api/v1/invites/{inviteId}/accept
 Response 200: { "accepted": true, "orgId": "…" }
 ```
 
 ### Revoke an invite
 ```
-DELETE /api/invites/{inviteId}
+DELETE /api/v1/invites/{inviteId}
 Response 200: { "id": "…", "revoked": true }
 ```
 
 ### List received invites
 ```
-GET /api/invites/received
+GET /api/v1/invites/received
 Response 200: { "invites": [{ "id": "…", "orgId": "…", "orgName": "Acme", "orgEmail": "…", "role": "editor", … }] }
 ```
 
@@ -711,13 +779,13 @@ Field values:
 
 ### List rules
 ```
-GET /api/permissions
+GET /api/v1/permissions
 Response 200: { "permissions": [ <Permission>, … ] }
 ```
 
 ### Create a rule
 ```
-POST /api/permissions
+POST /api/v1/permissions
 {
   "principal": "*",
   "resource":  "collection:articles",
@@ -729,14 +797,14 @@ Response 201: <Permission>
 
 ### Update a rule
 ```
-PUT /api/permissions/{id}
+PUT /api/v1/permissions/{id}
 { "access": "write", "labelFilter": null }
 Response 200: <Permission>
 ```
 
 ### Delete a rule
 ```
-DELETE /api/permissions/{id}
+DELETE /api/v1/permissions/{id}
 Response 200: { "id": "…", "deleted": true }
 ```
 
@@ -969,10 +1037,10 @@ Documents can reference other documents, tree paths, or query results. Add `?dep
 
 ### Resolution
 ```
-GET /articles/abc              → $ref objects returned as-is
-GET /articles/abc?depth=1      → one level resolved
-GET /articles/abc?depth=2      → two levels deep (nested refs resolved)
-GET /articles?depth=1           → works on list endpoints too
+GET /api/v1/articles/abc              → $ref objects returned as-is
+GET /api/v1/articles/abc?depth=1      → one level resolved
+GET /api/v1/articles/abc?depth=2      → two levels deep (nested refs resolved)
+GET /api/v1/articles?depth=1           → works on list endpoints too
 ```
 
 - **Document refs** resolve to the referenced document's `data`

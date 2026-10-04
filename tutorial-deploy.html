@@ -266,7 +266,19 @@ Deployed to tree "my-site":  1 uploaded, 2 unchanged, 0 new paths</pre>
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="tutorial-section" id="deploy-preview">
         <h2><span class="step-badge">5</span> Deploy as preview</h2>
-        <p>What if you want to test changes before the public sees them? Deploy with a label:</p>
+        <p>What if you want to test changes before the public sees them? So far the public rule from step 3 has no label filter, which means visitors always see the <em>latest</em> deploy. First mark what is live now as <code>published</code> and restrict the public rule to that label:</p>
+
+        <div class="code-block">
+          <div class="code-block__header"><span class="code-block__lang">bash</span></div>
+          <pre># Label the current deploy as published
+wren promote my-site
+
+# Find the public rule for tree:my-site and restrict it to the published label
+wren permissions list
+wren permissions update &lt;rule-id&gt; --label-filter published</pre>
+        </div>
+
+        <p>Now deploy a change under a different label:</p>
 
         <div class="code-block">
           <div class="code-block__header"><span class="code-block__lang">bash</span></div>
@@ -277,19 +289,20 @@ sed -i '' 's/Updated/v3 Preview/' index.html
 wren deploy . --tree my-site --label preview</pre>
         </div>
 
-        <p>The public site is unchanged &mdash; visitors still see the current version. You can see the preview by adding <code>?label=preview</code> to any URL:</p>
+        <p>The public site is unchanged &mdash; visitors still see the published version, and adding <code>?label=</code> to a public URL cannot change that. You see the preview through the authenticated API (or the Admin UI):</p>
 
         <div class="code-block">
           <div class="code-block__header"><span class="code-block__lang">bash</span></div>
           <pre># Public site (unchanged):
 open https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html
 
-# Your preview (new version):
-open https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html?label=preview</pre>
+# Your preview (new version) — private route, needs your API key:
+curl -H "Authorization: Bearer $WREN_API_KEY" \
+  "https://wren.aemwip.com/api/v1/tree/my-site/index.html?label=preview"</pre>
         </div>
 
         <div class="callout callout--info">
-          <strong>How labels control visibility:</strong> If you created a permission with <code>labelFilter: "published"</code>, anonymous visitors would <em>only</em> see the published label. The <code>--public</code> flag on the first deploy didn&rsquo;t set a labelFilter, so visitors currently see the latest version. To enable preview &rarr; publish flow, set a labelFilter on the permission rule via the Admin UI or the API.
+          <strong>How labels control visibility:</strong> a public rule (<code>principal: "*"</code>) with <code>labelFilter: "published"</code> makes anonymous visitors see <em>only</em> published versions. Without a labelFilter, visitors see the latest version of every file and labels make no difference to what is public. For new sites you can do this in one go: <code>wren deploy . --tree my-site --label preview --public</code> creates the public rule with <code>labelFilter: "published"</code>.
         </div>
       </section>
 
@@ -310,7 +323,7 @@ open https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html?label=previe
           <pre>Promoting 3 documents in tree "my-site" → label "published" (from "preview")...
 Done: 3 documents labeled "published".
 
-Public: https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html?label=published</pre>
+Public: https://wren.aemwip.com/orgs/your-slug/tree/my-site/index.html</pre>
         </div>
 
         <p>The <code>published</code> label now points to the same versions as <code>preview</code>. If your permission has <code>labelFilter: "published"</code>, the public site is updated.</p>
