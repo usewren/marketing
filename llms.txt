@@ -63,7 +63,8 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 - **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata. To publish a new version of a file, `PUT` multipart to the existing document id; `POST` creates a new document.
 - **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
 - **$ref resolution** — documents can reference other documents, tree paths, or queries; add `?depth=N` to resolve server-side with loop detection
-- **Webhooks** — batched HTTP notifications on data changes with HMAC signing, retry, and replay
+- **Live events** — Server-Sent Events of every change: `GET /api/v1/_events` (what you can read) and `GET /api/v1/orgs/{slug}/_events` (public: only published label moves). Ids and versions, no data; resume with `Last-Event-ID`
+- **Webhooks** — batched HTTP notifications on data changes with HMAC signing, retry, and replay; same events as the streams; public receiver addresses only
 - **Permissions** — rules per principal (`*`, `member:<userId>`, `group:<groupId>`, `key:<keyId>`), with optional label/data filters and public aliases
 - **Groups** — people get data access through groups (every org starts with Editors = write `*`, Viewers = read `*`); invites choose role (member|admin, what they may manage) and groups (what data). API keys act as their creator; `key:` rules narrow a key. Org admins can impersonate ("view as") a member within the org; changes are recorded with `impersonatedBy`.
 - **API keys** — long-lived Bearer tokens, scoped to the org they were created in
@@ -175,6 +176,7 @@ GET    /api/v1/permissions                          list rules
 POST   /api/v1/permissions                          {principal, resource, access, labelFilter?, filterLang?, filterExpr?, alias?}
 PUT    /api/v1/permissions/{id}                     update rule
 DELETE /api/v1/permissions/{id}                     delete rule
+GET    /api/v1/_events?collections=a,b&trees=t     live changes (Server-Sent Events)
 GET    /api/v1/webhooks                             list webhooks
 POST   /api/v1/webhooks                             create (returns signing secret once)
 PUT    /api/v1/webhooks/{id}                        update url/events/enabled
