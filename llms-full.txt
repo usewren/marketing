@@ -160,6 +160,15 @@ DELETE /api/v1/{collection}/{id}
 Response 200: { "id": "uuid", "deleted": true }
 ```
 
+### Conditional writes (avoid lost updates)
+```
+GET /api/v1/stock/abc                     → 200, ETag: "7", { "version": 7, … }
+PUT /api/v1/stock/abc   If-Match: "7"     { …new data… }   → 200 version 8
+PUT /api/v1/stock/abc   If-Match: "7"     (someone else already wrote v8)
+→ 412 { "error": "Version mismatch", "currentVersion": 8 }
+```
+A read-then-write is safe when the write carries the version it read: `If-Match: "<version>"` (or `?ifVersion=<n>`) on `PUT` by id, `PUT …/by-key/{key}` (JSON or file), and `DELETE`. On `412`, read again and re-apply the change. `ifVersion=0` means "only if it doesn't exist yet" — a create-only upsert, so re-running an import can't overwrite live data — and `If-Match: *` means "only if it exists". Reads return the version as `ETag`; browsers on other origins may send `If-Match` and read `ETag`.
+
 ### Undelete a document
 ```
 POST /api/v1/{collection}/{id}/undelete
@@ -490,6 +499,12 @@ Max 5 materialized queries per collection. `refreshOn: "write"` triggers on ever
 
 Schemas are optional. When set, every create/update is validated before writing.
 
+### Change part of a schema
+```
+PATCH /api/v1/{collection}/_schema     { "naturalKey": "sku" }
+```
+Only the fields sent change (`schema`, `displayName`, `collectionType`, `listColumns`, `naturalKey`, `indexes`; `null` clears one). `PUT` replaces the whole definition — a script that PUTs its schema on every run would drop a `naturalKey` or index added since; use `PATCH` in scripts.
+
 ### Get schema
 ```
 GET /api/v1/{collection}/_schema
@@ -657,7 +672,7 @@ GET /api/v1/assets/by-key/logo.svg         → the file's metadata (id, version,
 GET /api/v1/assets/by-key/logo.svg/raw     → the bytes (?version= and ?label= work)
 DELETE /api/v1/assets/by-key/logo.svg
 ```
-A file collection keyed by filename is addressed by name: a sync script uploads by key and never creates duplicates. The stored file is named by its key and its type follows that name. A plain `POST` of a name that already exists is refused with `409`.
+A file collection keyed by filename is addressed by name (publicly too, when the collection is public: `GET /orgs/{slug}/{collection}/by-key/{name}/raw`): a sync script uploads by key and never creates duplicates. The stored file is named by its key and its type follows that name. A plain `POST` of a name that already exists is refused with `409`.
 
 ### Replace / update a file
 ```

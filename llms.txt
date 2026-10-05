@@ -141,6 +141,8 @@ GET    /api/v1/{collection}/{id}/diff?v1=N&v2=N     diff two versions
 POST   /api/v1/{collection}/{id}/labels             {label, version?} → pin label
 DELETE /api/v1/{collection}/{id}/labels/{label}     remove a label
 POST   /api/v1/{collection}/{id}/undelete           bring back a deleted document
+PATCH  /api/v1/{collection}/_schema                change only the fields sent
+       If-Match: "<version>" / ?ifVersion=<n> on PUT/DELETE → 412 if someone wrote in between (ifVersion=0: create-only)
 POST   /api/v1/{collection}/_restore                {label, deleteUnlabeled?} → whole collection to a label (one transaction)
 POST   /api/v1/tree/{name}/_restore                 {label} → every document in the tree to a label
 
