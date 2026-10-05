@@ -73,7 +73,7 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 ## Documentation
 
 - [Concepts](/concepts): Documents, versions, labels, trees — how a URL resolves to a version, and why promote is atomic
-- [Guides](/guides): How-to guides and case studies, e.g. [a live tournament tracker](/guides/tournament-tracker) as built and idealized
+- [Guides](/guides): How-to guides and case studies, each as built and idealized: [a live tournament tracker](/guides/tournament-tracker), [an open tournament data site](/guides/tkd-scores), [a webshop's warehouse stock tracker](/guides/mae-shop), [a task tracker AI agents write to](/guides/task-tracker), [websites maintained by AI agents](/guides/ai-maintained-sites), [repeatable test data with versions](/guides/testing-with-versions)
   - [Take an org live](/guides/go-live): end-to-end checklist — slug, keys, data model, public rules, first release, domain, MCP, edge settings, backups
   - [Publish a site and keep drafts private](/guides/publish-site): labelFilter rule, deploy as preview, atomic promote, rollback
   - [Find your org slug and build public URLs](/guides/public-urls): private → public URL mapping; what 401/403/404/405 mean

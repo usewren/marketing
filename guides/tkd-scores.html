@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Case study: an open tournament data site</title>
+  <meta name="description" content="How data.tkd-scores.com publishes taekwondo entry lists, world-ranking seeds and results as open JSON from WREN: the architecture as built, its real workarounds, and the same site rebuilt on WREN 0.9 with natural keys, unchanged writes, ISO date filters, label filters, atomic promote, org-bound MCP, live events, webhooks and retention policies." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#overview">The site</a></li>
+        <li><a href="#users">Who uses it</a></li>
+        <li><a href="#as-built">Part A · As built</a></li>
+        <li><a href="#model">Data model</a></li>
+        <li><a href="#writes">Getting data in</a></li>
+        <li><a href="#serving">Serving it</a></li>
+        <li><a href="#llms">For AI assistants</a></li>
+        <li><a href="#scale">Timeline and scale</a></li>
+        <li><a href="#worked">What worked well</a></li>
+        <li><a href="#warts">Warts &amp; workarounds</a></li>
+        <li><a href="#ideal">Part B · Built today</a></li>
+        <li><a href="#ideal-keys">Keys and upserts</a></li>
+        <li><a href="#ideal-public">Public rules</a></li>
+        <li><a href="#ideal-release">Releasing pages</a></li>
+        <li><a href="#ideal-index">The index as a query</a></li>
+        <li><a href="#ideal-domain">The domain and agents</a></li>
+        <li><a href="#ideal-events">Reacting to changes</a></li>
+        <li><a href="#ideal-retention">Keeping history in check</a></li>
+        <li><a href="#side-by-side">Side by side</a></li>
+        <li><a href="#gaps">Still open</a></li>
+        <li><a href="#lessons">Lessons</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/tournament-tracker">Case study: live tracker</a></li>
+        <li><a href="/guides/ai-maintained-sites">Case study: AI-maintained sites</a></li>
+        <li><a href="/guides/custom-domain">Custom domains</a></li>
+        <li><a href="/guides/publish-site">Publish a site</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Case study</p>
+        <h1>An open tournament data site on WREN</h1>
+        <p class="guide-lede">data.tkd-scores.com lists who is entered in upcoming World Taekwondo events, with each athlete's world-ranking seed, Olympic rankings and past results. It is a browsable site and an open JSON API at the same time. A scheduled pipeline writes the data, WREN stores and serves it, and a small Cloudflare Worker puts it on its own domain. This is how it's built, what we worked around, and how we'd build it with WREN 0.9.0.</p>
+        <p class="guide-meta">Written October 2026 from the project's code, scripts and git history, notes from earlier working sessions, a backup of its WREN data from 2026-10-05, and the public site on 2026-10-05.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="overview">
+        <h2>The site</h2>
+        <p><a href="https://data.tkd-scores.com">data.tkd-scores.com</a> covers World Taekwondo (WT) and WT Europe kyorugi and poomsae tournaments. For each event it shows the registered athletes per weight category with their current world-ranking rank and points, and for past events where each athlete finished and how many points they earned. A separate page shows the Olympic (LA 2028) rankings. The data is scraped from the registration platform the events use. Events that are still open for registration and start within a month refresh daily, the full set every three days.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>At a glance</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Content</td><td>88 events in the index (28 upcoming or running, 60 past), 36,237 entries in total; Olympic rankings for 8 weight classes and 1,488 athletes</td></tr>
+              <tr><td>Writer</td><td>one machine running a bash, Node and Python pipeline on a schedule: daily at 09:00 and a full run every three days</td></tr>
+              <tr><td>WREN data</td><td>its own org; public collection <code>events</code> with 94 documents and 4,096 versions; tree <code>events</code> with 92 paths (88 event slugs plus <code>index</code>, <code>olympic</code>, <code>results-map</code>, <code>olympic-declarations</code>)</td></tr>
+              <tr><td>Site</td><td>public tree <code>site</code> with 13 paths; the app is a single 84 KB HTML file served as <code>/index.html</code></td></tr>
+              <tr><td>Front door</td><td>a 56-line Cloudflare Worker on the custom domain</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="guide-section" id="users">
+        <h2>Who uses it</h2>
+        <ul>
+          <li><strong>Coaches, athletes and fans</strong>, in the words of the tkd-scores.com landing page. The site highlights Switzerland by default; any country, club or athlete can be highlighted or searched instead.</li>
+          <li><strong>AI assistants.</strong> The site publishes its own <code>llms.txt</code> and a help page with prompts people can paste into a chat assistant.</li>
+          <li><strong>Other projects.</strong> The live tracker at tournaments.tkd-scores.com (see the <a href="/guides/tournament-tracker">tracker case study</a>) reads the entry lists every day to build provisional brackets for events whose registration has closed, and to fill in athletes' clubs. An analysis project for team selection read the same entry lists and seeds.</li>
+        </ul>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="as-built">
+        <p class="guide-eyebrow">Part A</p>
+        <h2>As built</h2>
+        <p>The org was created on 2026-04-09, and the first version of the events index was written the same day. Everything since then was added in small steps, almost all of it by AI coding agents; how they release changes is described in <a href="/guides/ai-maintained-sites#data-site">websites maintained by AI agents</a>.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 350" role="img" aria-labelledby="ab-title ab-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ab-title">Architecture as built</title>
+            <desc id="ab-desc">A scheduled pipeline scrapes the registration platform, looks up rankings, rebuilds each event as a local JSON file, and replaces the WREN documents in the public events collection. Site files are uploaded by hand into the public site tree. A Cloudflare Worker on data.tkd-scores.com serves pages from the site tree and passes /api requests to WREN. Browsers and AI assistants use the domain; other projects read the public WREN API directly.</desc>
+            <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="20" width="170" height="44" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="47" text-anchor="middle" font-weight="700" fill="#111827">Registration platform</text>
+
+              <rect x="20" y="92" width="170" height="100" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="116" text-anchor="middle" font-weight="700" fill="#111827">Scheduled pipeline</text>
+              <text x="105" y="136" text-anchor="middle" fill="#6b7280">headless Chrome scrape</text>
+              <text x="105" y="153" text-anchor="middle" fill="#6b7280">ranking lookups</text>
+              <text x="105" y="170" text-anchor="middle" fill="#6b7280">local JSON per event</text>
+
+              <rect x="20" y="240" width="170" height="80" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="264" text-anchor="middle" font-weight="700" fill="#111827">Page uploads</text>
+              <text x="105" y="284" text-anchor="middle" fill="#6b7280">multipart PUT + tree PUT</text>
+              <text x="105" y="301" text-anchor="middle" fill="#6b7280">staged under /preview/</text>
+
+              <rect x="255" y="20" width="230" height="150" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="370" y="44" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public data</text>
+              <text x="370" y="66" text-anchor="middle" fill="#374151" font-family="monospace">collection events</text>
+              <text x="370" y="86" text-anchor="middle" fill="#374151" font-family="monospace">tree events: /{slug}</text>
+              <text x="370" y="106" text-anchor="middle" fill="#374151" font-family="monospace">/index  /olympic  …</text>
+              <text x="370" y="128" text-anchor="middle" fill="#6b7280">no schema, no natural key</text>
+              <text x="370" y="146" text-anchor="middle" fill="#6b7280">rule *: read, no label filter</text>
+
+              <rect x="255" y="215" width="230" height="105" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="370" y="239" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public tree site</text>
+              <text x="370" y="261" text-anchor="middle" fill="#374151">index.html (the app)</text>
+              <text x="370" y="279" text-anchor="middle" fill="#374151">olympic, guide, llms.txt</text>
+              <text x="370" y="301" text-anchor="middle" fill="#6b7280">rule *: read, no label filter</text>
+
+              <rect x="560" y="20" width="180" height="50" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="650" y="41" text-anchor="middle" font-weight="700" fill="#111827">Other projects</text>
+              <text x="650" y="58" text-anchor="middle" fill="#6b7280">read the API directly</text>
+
+              <rect x="560" y="110" width="180" height="110" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="650" y="134" text-anchor="middle" font-weight="700" fill="#111827">Cloudflare Worker</text>
+              <text x="650" y="153" text-anchor="middle" fill="#374151">data.tkd-scores.com</text>
+              <text x="650" y="172" text-anchor="middle" fill="#374151">/api/* → WREN API</text>
+              <text x="650" y="190" text-anchor="middle" fill="#374151">else → tree site</text>
+              <text x="650" y="208" text-anchor="middle" fill="#6b7280">BUILD id, 30 s edge TTL</text>
+
+              <rect x="560" y="270" width="180" height="50" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="650" y="291" text-anchor="middle" font-weight="700" fill="#111827">Browsers</text>
+              <text x="650" y="308" text-anchor="middle" fill="#6b7280">and AI assistants</text>
+
+              <line x1="105" y1="64" x2="105" y2="89" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="142" x2="252" y2="110" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="280" x2="252" y2="268" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="557" y1="45" x2="488" y2="45" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="557" y1="150" x2="488" y2="120" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="557" y1="195" x2="488" y2="250" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="650" y1="267" x2="650" y2="223" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 1. As built: everything the site shows is public in WREN, and the local JSON files on the pipeline machine are the source of truth.</figcaption>
+        </figure>
+
+        <h3 id="model">Data model</h3>
+        <p>Each event is one JSON document in the <code>events</code> collection: name, dates, city, country, registration deadline, venue, the event's documents, a registration history, and a <code>report</code> with every entry. A seeded entry looks like this:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">json · one event, shortened</span></div>
+<pre>{
+  "name": "…", "startDate": "09/19/2026", "endDate": "09/20/2026",
+  "city": "…", "country": "…", "regDeadline": "…", "venue": { … }, "documents": [ … ],
+  "history": [ …, { "date": "2026-09-16", "total": 929, "cadet": 233, "junior": 309,
+                    "senior": 387, "male": 499, "female": 430 } ],
+  "report": { "divisions": [ { "name": "SENIOR DIVISION", "categories": [
+    { "name": "F-57 kg", "total_athletes": 24,
+      "ranked":   [ { "rank": 11, "points": 32.48, "name": "…", "country": "…", "club": "…",
+                      "gmsId": "…", "result": { "place": …, "points": …, "gRank": … } }, … ],
+      "unranked": [ … ] } ] } ] }
+}</pre></div>
+        <p><code>result</code> is filled in for past events. In this category 13 athletes are seeded and 11 are unranked.</p>
+        <p>Some details matter for what follows:</p>
+        <ul>
+          <li><strong>The slug lives only in the URL.</strong> Documents have no <code>slug</code> field. An event is found by its path in the <code>events</code> tree, for example <code>/{event}-2026</code>.</li>
+          <li><strong>One collection for everything.</strong> The events index, the Olympic rankings, a 4.2 MB map of athlete results and the Olympic declarations are documents in the same collection, mounted at fixed paths.</li>
+          <li><strong>No schema.</strong> Dates are <code>MM/DD/YYYY</code> strings, so a <code>where</code> on dates doesn't work; both the pipeline and other projects parse dates in their own code.</li>
+          <li><strong>Sizes.</strong> The average event document is 161 KB of JSON; all current documents together are 15 MB.</li>
+        </ul>
+
+        <h3 id="writes">Getting data in</h3>
+        <p>The pipeline opens the registration platform in headless Chrome (the site is behind a Cloudflare challenge), reads the entry lists through its REST API, looks up each athlete's ranking, and writes one JSON file per event to a local folder. The local folder is the source of truth. The deploy step then pushes those files to WREN:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · simplified from the pipeline</span></div>
+<pre># 1. map slugs to document ids, from the public tree listing
+curl -s "$WREN_BASE/api/v1/orgs/{slug}/tree/events" &gt; tree.json      # children: [{path, documentId}]
+
+# 2. a new event: create the document, then mount it at /&lt;slug&gt;
+id=$(curl -s -X POST "$WREN_BASE/api/v1/events" -H "Authorization: Bearer $WREN_API_KEY" \
+       -H "Content-Type: application/json" --data-binary @"events/data/$slug.json" | jq -r .id)
+curl -s -X PUT "$WREN_BASE/api/v1/tree/events/$slug" -H "Authorization: Bearer $WREN_API_KEY" \
+     -H "Content-Type: application/json" -d "{\"documentId\":\"$id\"}"
+
+# 3. a known event: replace the whole document
+curl -s -X PUT "$WREN_BASE/api/v1/events/$uuid" -H "Authorization: Bearer $WREN_API_KEY" \
+     -H "Content-Type: application/json" --data-binary @"events/data/$slug.json"</pre></div>
+        <p>Around that core sit the safeguards the project needed over time:</p>
+        <ul>
+          <li><strong>A single-instance lock.</strong> A daily run and a full run share the local folder and the live documents, and two runs at once would corrupt each other.</li>
+          <li><strong>A recovery script.</strong> When the WREN server was unreachable mid-deploy, <code>finish-deploy.sh</code> polled the events index for up to six hours and then pushed everything again.</li>
+          <li><strong>A bootstrap step.</strong> When the project moved from a Mac to a Windows machine in September 2026, the local folder had to be filled from WREN before the first run. Otherwise a daily run would have pushed documents without athlete results over the good ones in WREN.</li>
+        </ul>
+        <p>Site pages are deployed separately: each file is uploaded with a multipart <code>PUT</code> to its document in the <code>media</code> collection, and new files are mounted in the <code>site</code> tree.</p>
+
+        <h3 id="serving">Serving it</h3>
+        <p>Both trees are public, so nothing needs a key to read. The Worker on data.tkd-scores.com forwards <code>/api/*</code> to WREN and serves everything else from the <code>site</code> tree:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · Worker, simplified</span></div>
+<pre>// wrangler.toml: UPSTREAM = "https://wren.aemwip.com/orgs/{slug}/tree/site", BUILD = "2026-08-08a"
+if (path.startsWith("/api/")) {                       // the app's data and _query calls
+  const r = await fetch(new Request(WREN + path + url.search,
+              { method: request.method, headers: clean(), body: request.body }));
+  const out = new Response(r.body, r);
+  out.headers.set("cache-control", "public, max-age=30, must-revalidate");
+  return out;
+}
+if (path.endsWith("/")) path += "index.html";          // directory → index.html
+const cb = (url.search ? "&amp;" : "?") + "cb=" + env.BUILD; // bump BUILD to flush the edge
+const mutable = /\.(html|js|json)$/i.test(path);
+return fetch(env.UPSTREAM + path + url.search + cb,
+             { cf: { cacheTtl: mutable ? 30 : 3600, cacheEverything: true } });</pre></div>
+        <p>The app is a single HTML file. It loads <code>/api/v1/orgs/{slug}/tree/events/index</code> for the overview and one tree path per event, and reads the payload from <code>.document.data</code>. Searching for an athlete across all events is a single public <code>_query</code>, with no search index:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · from the app</span></div>
+<pre>// which events list this athlete? array paths are unnested, $path is the event slug
+const res = await fetch("/api/v1/orgs/{slug}/events/_query", { method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    where: `report.divisions[].categories[].ranked[].gmsId ~* ^${id}$`,
+    aggregate: { groupBy: ["$path"],
+                 metrics: { n: { count: "report.divisions[].categories[].ranked[].gmsId" } } },
+    limit: 300 }) });
+// the app runs the same query for unranked[] and merges the slugs from rows[].key.$path</pre></div>
+        <p>A second Worker serves a one-page landing site on the tkd-scores.com apex and links to both tools.</p>
+
+        <h3 id="llms">For AI assistants</h3>
+        <p>The site has its own <code>/llms.txt</code> (3.6 KB). It describes the index, one event report, the Olympic rankings and the cross-event query, notes that tree responses wrap the payload as <code>{ "document": { "data": … } }</code>, and links WREN's generated org <code>llms.txt</code> as the "underlying store schema". A help page, <code>/llms.html</code>, gives people prompts to paste into a chat assistant. A hook in the project reminds whoever changes the app to check whether the help page, <code>llms.html</code> and <code>llms.txt</code> need an update too.</p>
+
+        <h3 id="scale">Timeline and scale</h3>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>When</th><th>What</th></tr></thead>
+            <tbody>
+              <tr><td>2026-04-09</td><td>Org created; first events index and first version of the app</td></tr>
+              <tr><td>August 2026</td><td>Olympic page (Aug 4), athlete results map (Aug 7), <code>llms.txt</code> and <code>llms.html</code> (Aug 27); the Worker's build id is 2026-08-08a</td></tr>
+              <tr><td>2026-09-16</td><td>Pipeline moved from a Mac to a Windows machine; daily run at 09:00, full run every three days</td></tr>
+              <tr><td>2026-09-17</td><td>Mobile-first redesign live (app version 43), after staging under <code>/preview/</code></td></tr>
+              <tr><td>2026-10-05</td><td>Events index at version 132; 4,096 event versions in total</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Writes grew month by month. Versions added to the <code>events</code> collection per month: April 294, May 254, June 248, July 583, August 902, September 1,673. All 4,096 versions hold 440 MB of JSON (175 MB as stored).</p>
+
+        <h3 id="worked">What worked well</h3>
+        <ul>
+          <li><strong>Open data with no backend code.</strong> The same public URLs feed the app, AI assistants and the tracker's daily jobs. No one wrote an API.</li>
+          <li><strong><code>_query</code> over nested arrays.</strong> Athlete search across every event and every category is one request against public data.</li>
+          <li><strong>Versions as a time series.</strong> The registration curves on the event cards were first rebuilt from each event's version history, one snapshot per day. The curve now lives in each document's <code>history</code>.</li>
+          <li><strong>Rollback without backups.</strong> The rollback plan for the redesign was simply "WREN version 41 of the app".</li>
+          <li><strong>A small front door.</strong> The custom domain is 56 lines of Worker code.</li>
+        </ul>
+
+        <h3 id="warts">Warts and workarounds</h3>
+        <p>An honest list. The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Every deploy first listed the tree to find document ids; a new event took a <code>POST</code> plus a tree <code>PUT</code></td><td>slug-to-id map built from <code>GET /tree/events</code></td><td>No natural key; the slug is only a tree path</td><td>Available: <code>naturalKey</code> and <code>PUT /by-key</code> (Part B)</td></tr>
+              <tr><td>2,078 of 4,002 event updates were identical to the version before (228 MB of JSON)</td><td>None</td><td>Every run replaces whole documents, changed or not, and a JSON write always made a version</td><td>Fixed in 0.9.0: a write equal to the current version returns <code>"unchanged": true</code> and creates no version; trim the old repeats with retention</td></tr>
+              <tr><td>Date filters failed</td><td>Parsing dates in Python and JavaScript</td><td><code>MM/DD/YYYY</code> strings</td><td>Data modeling: ISO dates and a schema; since 0.9.0 range filters compare ISO dates (Part B)</td></tr>
+              <tr><td>Files stayed stale at the edge</td><td>Build id in the cache key; 30-second edge TTL for HTML, JS and JSON</td><td>WREN used to send a long <code>max-age</code></td><td>Fixed: <code>max-age=60, stale-while-revalidate</code>; errors <code>no-store</code></td></tr>
+              <tr><td>A redesign needed a preview that worked on a phone</td><td>A copy under <code>/preview/</code> in the public tree; after go-live, 12 paths and 11 documents deleted by hand</td><td>No label filter on the site rule; no atomic promote at the time</td><td>Available: labels and atomic promote (Part B)</td></tr>
+              <tr><td>Listing the <code>media</code> collection stopped at 200 documents</td><td>None needed at the time</td><td>The list endpoint returns at most 200</td><td>Use <code>_query</code> with <code>cursor</code> (paging fixed in 0.7.0)</td></tr>
+              <tr><td>791 of 937 public <code>media</code> documents aren't part of any tree, but anyone can list them</td><td>None</td><td>A <code>collection:media</code> rule in addition to <code>tree:site</code></td><td>A tree rule alone serves a site (Part B)</td></tr>
+              <tr><td>A WREN outage interrupted a deploy</td><td>A script that waits up to six hours, then redeploys</td><td>Server unreachable</td><td>Operational; by-key writes make re-runs safe</td></tr>
+              <tr><td>The local folder had to be rebuilt from WREN on a new machine</td><td>A documented manual bootstrap</td><td>Local files are the source; writes replace whole documents</td><td>Design choice, see Part B</td></tr>
+              <tr><td>On Windows, <code>slug\r</code> broke ids, and CRLF in <code>.env</code> corrupted values</td><td>Stripping <code>\r</code>; pinning LF</td><td>Shell glue between bash and native Python</td><td>Fewer pipes once writes are single upserts</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="ideal">
+        <p class="guide-eyebrow">Part B</p>
+        <h2>The same site, built today</h2>
+        <p>Same scraper, same app, same domain, same public URLs. What changes is that the workarounds above become WREN features. Existing tree URLs stay, because other projects and the site's <code>llms.txt</code> link to them.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 350" role="img" aria-labelledby="ib-title ib-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ib-title">Architecture, built today</title>
+            <desc id="ib-desc">The pipeline upserts changed events by natural key into a public events collection with a schema, a materialized list and a retention policy. Pages are deployed with a preview label and promoted atomically into a site tree whose public rule only shows published versions. The Worker maps the domain and its /mcp route. Other projects get webhooks and live events instead of polling.</desc>
+            <defs><marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="40" width="170" height="80" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="64" text-anchor="middle" font-weight="700" fill="#111827">Scheduled pipeline</text>
+              <text x="105" y="84" text-anchor="middle" fill="#6b7280">PUT …/by-key/{slug}</text>
+              <text x="105" y="101" text-anchor="middle" fill="#6b7280">changed events only</text>
+
+              <rect x="20" y="240" width="170" height="80" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="264" text-anchor="middle" font-weight="700" fill="#111827">wren deploy</text>
+              <text x="105" y="284" text-anchor="middle" fill="#6b7280">--label preview</text>
+              <text x="105" y="301" text-anchor="middle" fill="#6b7280">wren promote site</text>
+
+              <rect x="255" y="20" width="230" height="160" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="370" y="44" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public data</text>
+              <text x="370" y="66" text-anchor="middle" fill="#374151">events: schema, naturalKey slug</text>
+              <text x="370" y="86" text-anchor="middle" fill="#374151" font-family="monospace">_materialized/upcoming</text>
+              <text x="370" y="106" text-anchor="middle" fill="#374151">ISO dates, where works</text>
+              <text x="370" y="128" text-anchor="middle" fill="#6b7280">rule *: read, no label filter</text>
+              <text x="370" y="146" text-anchor="middle" fill="#6b7280">retention on events</text>
+              <text x="370" y="164" text-anchor="middle" fill="#6b7280">no public media rule</text>
+
+              <rect x="255" y="225" width="230" height="95" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="370" y="249" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public tree site</text>
+              <text x="370" y="271" text-anchor="middle" fill="#374151">rule *: labelFilter published</text>
+              <text x="370" y="293" text-anchor="middle" fill="#6b7280">one transaction per release</text>
+
+              <rect x="560" y="20" width="180" height="60" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="650" y="44" text-anchor="middle" font-weight="700" fill="#111827">Other projects</text>
+              <text x="650" y="63" text-anchor="middle" fill="#6b7280">webhook or SSE</text>
+
+              <rect x="560" y="120" width="180" height="90" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="650" y="144" text-anchor="middle" font-weight="700" fill="#111827">Cloudflare Worker</text>
+              <text x="650" y="164" text-anchor="middle" fill="#374151">pages → /orgs/{slug}/tree/site</text>
+              <text x="650" y="182" text-anchor="middle" fill="#374151">/mcp → /orgs/{slug}/mcp</text>
+              <text x="650" y="200" text-anchor="middle" fill="#6b7280">public reads only</text>
+
+              <rect x="560" y="260" width="180" height="60" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="650" y="284" text-anchor="middle" font-weight="700" fill="#111827">Browsers, agents</text>
+              <text x="650" y="303" text-anchor="middle" fill="#6b7280">fetch, wren.js, MCP</text>
+
+              <line x1="190" y1="80" x2="252" y2="80" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="190" y1="280" x2="252" y2="275" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="488" y1="50" x2="557" y2="50" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="557" y1="150" x2="488" y2="120" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="557" y1="190" x2="488" y2="255" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="650" y1="257" x2="650" y2="213" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 2. Built today: WREN becomes the source of truth for events, pages are released with preview and promote, and changes are pushed to whoever needs them.</figcaption>
+        </figure>
+
+        <h3 id="ideal-keys">1 · Keys and upserts</h3>
+        <p>Put the slug into each document and let an admin declare it as the natural key, together with a schema that requires ISO dates. Run the proposed schema through <code>POST /api/v1/events/_schema/validate</code> first: it reports which existing documents would fail without changing anything. Then write each event once with a <code>slug</code> field. Since 0.9, setting the natural key registers the keys of the documents that already exist, so the first upsert by key finds the old event instead of creating a duplicate; if two live documents share a slug, the schema change is refused with <code>409</code> and lists them.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once</span></div>
+<pre>PUT /api/v1/events/_schema
+{
+  "naturalKey": "slug",
+  "displayName": "{name}",
+  "schema": {
+    "type": "object",
+    "required": ["slug", "name", "startDate", "endDate"],
+    "properties": {
+      "slug":      { "type": "string", "pattern": "^[a-z0-9-]+$" },
+      "startDate": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+      "endDate":   { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+    }
+  }
+}</pre></div>
+        <p>The index, Olympic rankings and results map move to their own keyed collection (for example <code>datasets</code>), so <code>events</code> holds only events. The deploy step becomes one idempotent call per event. The client no longer needs to know what changed: since 0.9, a write whose JSON equals the current version (compared by meaning, so key order and whitespace don't matter) returns <code>200</code> with <code>"unchanged": true</code> and creates no version.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>for f in events/data/*.json; do
+  slug=$(basename "$f" .json)
+  code=$(curl -s -o resp.json -w "%{http_code}" -X PUT \
+           "$WREN_URL/api/v1/events/by-key/$slug" \
+           -H "Authorization: Bearer $WREN_API_KEY" -H "Content-Type: application/json" \
+           --data-binary @"$f")
+  case $code in
+    200) jq -e .unchanged resp.json &gt;/dev/null &amp;&amp; echo "same $slug" || echo "updated $slug" ;;
+    201) mount_in_tree "$slug" ;;                                             # new event
+    *)   echo "PUT $slug failed: $code" &gt;&amp;2 ;;
+  esac
+done</pre></div>
+        <p>No tree listing, no id map, and a run that dies halfway can simply run again. A <code>201</code> means the event is new, which is the only time a tree <code>PUT</code> is still needed to keep the <code>/tree/events/{slug}</code> URLs working. New readers can use <code>GET /api/v1/orgs/{slug}/events/by-key/{slug}</code> instead.</p>
+        <p>With WREN as the source of truth, a new machine doesn't need a bootstrap step. The pipeline reads the current document by key, merges in what it scraped, and writes it back.</p>
+
+        <h3 id="ideal-public">2 · Public rules, on purpose</h3>
+        <p>Entry lists change every day and should be visible as soon as they're written, so the data rules keep <strong>no</strong> label filter. Pages are different: they should change only when released. The <code>media</code> rule goes, because a tree rule alone serves every file in the tree.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre># data: public and live, as today
+{"principal":"*", "resource":"collection:events", "access":"read"}
+{"principal":"*", "resource":"tree:events",       "access":"read"}
+# pages: only what was promoted
+{"principal":"*", "resource":"tree:site",         "access":"read", "labelFilter":"published"}
+# removed: {"principal":"*", "resource":"collection:media", "access":"read"}</pre></div>
+        <div class="callout callout--warn"><p><strong>Order matters.</strong> Label the live files first (<code>wren promote site</code>), then add the label filter. The other way round, the site is offline until the next promote. And before dropping the <code>media</code> rule, make sure nothing links to raw media URLs directly.</p></div>
+
+        <h3 id="ideal-release">3 · Releasing pages: preview, then promote</h3>
+        <p>The redesign was staged as a copy under <code>/preview/</code> and cleaned up by hand afterwards. With a label filter on the site tree, a release looks like this:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>export WREN_URL=https://wren.aemwip.com WREN_API_KEY=wren_…    # from the environment, never in a script
+wren deploy ./site --tree site --label preview                 # changed files only (SHA-256)
+curl -H "Authorization: Bearer $WREN_API_KEY" \
+  "$WREN_URL/api/v1/tree/site/index.html?label=preview"          # check it
+wren promote site --from preview --label release-2026-10-05    # name the release
+wren promote site --from preview                               # every page live in one transaction</pre></div>
+        <p>The app, the Olympic page, the help page, <code>llms.txt</code> and the screenshots change together, so visitors never get a new app with an old help page. Rolling back is <code>wren promote site --from release-2026-09-17</code> instead of a git tag and a version number on a sticky note. Unchanged files are stored once and create no new version.</p>
+
+        <h3 id="ideal-index">4 · The index as a query</h3>
+        <p>The events index is built by a script that reads every event file. Part of it is a plain projection, and a materialized query keeps that part current after every write:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once</span></div>
+<pre>PUT /api/v1/events/_materialized/upcoming
+{
+  "query": { "select": ["slug", "name", "startDate", "endDate", "city", "country", "regDeadline"] },
+  "refreshOn": "write"
+}</pre></div>
+        <p>The rest of the index is computed outside WREN: entry counts per country, registration trends, and bracket links found by probing the tracker site. Those fields stay in a document the script writes, and that document pulls the live list in with a <code>$ref</code>, so one read returns both:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">json · datasets/index</span></div>
+<pre>{
+  "slug": "index",
+  "brackets": { "example-open-2026": ["https://tournaments.tkd-scores.com/…"] },
+  "events": { "$ref": "query:events",
+              "$select": ["slug", "name", "startDate", "endDate", "city", "country"],
+              "$limit": 200 }
+}
+// GET /api/v1/orgs/{slug}/datasets/by-key/index?depth=1</pre></div>
+        <p>With ISO dates, "what's coming up" is also a plain filter: since 0.9, range operators compare anything that isn't a number as text, so <code>GET /api/v1/orgs/{slug}/events?where=endDate&gt;=2026-10-05&amp;select=slug,name,startDate</code> works on the public route. Before, every reader parsed <code>MM/DD/YYYY</code> in its own code.</p>
+        <p>References resolve under the reader's own rules, so a public reader only ever sees public data through them. A club website that just wants a list of upcoming events doesn't need the app at all:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">html</span></div>
+<pre>&lt;script src="https://wren.aemwip.com/wren.js"
+        data-base="https://wren.aemwip.com/api/v1/orgs/{slug}"&gt;&lt;/script&gt;
+&lt;ul&gt;
+  &lt;wren-materialized collection="events" name="upcoming"&gt;
+    &lt;template&gt;&lt;li&gt;{{name}}, {{city}} ({{startDate}})&lt;/li&gt;&lt;/template&gt;
+  &lt;/wren-materialized&gt;
+&lt;/ul&gt;</pre></div>
+
+        <h3 id="ideal-domain">5 · The domain and its agents</h3>
+        <p>The Worker keeps mapping the domain onto <code>/orgs/{slug}/tree/site</code>. Two things change. Its cache workarounds can go: WREN now sends <code>max-age=60, stale-while-revalidate</code> on public reads and <code>no-store</code> on errors, which the live site already shows. And <code>/api/*</code> should only reach public reads. Today it forwards any method with its headers, so the domain also works as an alias of the private API for anyone who sends a key.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · Worker additions</span></div>
+<pre>// public data only: GET, and POST for _query, under /api/v1/orgs/{slug}/
+const isPublic = path.startsWith("/api/v1/orgs/{slug}/") &amp;&amp;
+  (request.method === "GET" || (request.method === "POST" &amp;&amp; path.endsWith("/_query")));
+if (path.startsWith("/api/") &amp;&amp; !isPublic) return new Response("Not found", { status: 404 });
+
+// AI agents: this domain's own MCP endpoint
+if (path === "/mcp") return fetch(env.MCP, { method: request.method, headers: mcpHeaders(request),
+                                             body: request.method === "POST" ? request.body : undefined });
+// wrangler.toml
+// MCP = "https://wren.aemwip.com/orgs/{slug}/mcp?tree=events&amp;collections=events"</pre></div>
+        <p>Without a key, an agent connected to <code>https://data.tkd-scores.com/mcp</code> gets read-only tools over exactly what the domain publishes, and can run the same <code>_query</code> aggregations as the search box. That replaces "read llms.txt, then fetch JSON by hand" for clients that speak MCP; <code>llms.txt</code> stays for those that don't. With a key from the site's org, the owner's own agents get full tools; keys from other orgs are refused.</p>
+        <div class="callout callout--warn"><p><strong>Agents write to live data here.</strong> MCP writes label the new version <code>preview</code>, but the <code>events</code> rule has no label filter, so the new version is public at once. Give agents that only need to read a key narrowed to read access with <code>key:</code> rules.</p></div>
+
+        <h3 id="ideal-events">6 · Reacting to changes instead of polling</h3>
+        <p>The tracker's daily job looks for events whose registration has closed. A webhook on the <code>events</code> collection tells it when something changed; deliveries are batched over five seconds, signed with HMAC, retried, and can be replayed for seven days:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>POST /api/v1/webhooks
+{ "url": "https://hooks.example.com/tkd-events", "events": ["document.created", "document.updated"] }
+// payload events carry collection, id, version and key (the slug), never the data</pre></div>
+        <p>The receiver must be a public HTTPS address. The tracker's job runs on a desktop machine today, so it either keeps its daily check or gets a small public receiver. For a browser, live events need no setup at all: an open event page can listen to the public stream and reload its document when a run updates it. Because unchanged writes create no version, a run that finds nothing new sends no events at all.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js</span></div>
+<pre>const es = new EventSource("https://wren.aemwip.com/orgs/{slug}/_events?collections=events");
+es.onmessage = e =&gt; {
+  const ev = JSON.parse(e.data);
+  if (ev.type === "document.updated" &amp;&amp; ev.key === currentSlug) reloadEvent(currentSlug);
+  if (ev.type === "reset") reloadEvent(currentSlug);   // missed events: re-read
+};</pre></div>
+        <p>A receiver that wants to know <em>what</em> changed, say who entered since yesterday, can ask WREN instead of comparing files. With <code>deep=true</code> (0.9), the diff walks nested objects and arrays and reports each changed leaf:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>GET /api/v1/events/{id}/diff?v1=130&amp;v2=131&amp;deep=true
+→ { "op": "add",     "path": "/report/divisions/2/categories/4/unranked/7", … }
+  { "op": "replace", "path": "/history/41/total", "value": …, "oldValue": … }</pre></div>
+
+        <h3 id="ideal-retention">7 · Keeping history in check</h3>
+        <p>Each run rewrote every event it touched, changed or not, so history grew either way. Since 0.9, identical writes create no version, so new repeats stop without any client code. For the history that's already there, a retention policy on <code>events</code> trims old versions; the current version and every labeled version are always kept:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>POST /api/v1/retention/events/_preview   {"maxVersions": 30}     # what would go, changes nothing
+POST /api/v1/events/{id}/labels          {"label": "final"}      # keep a finished event's last entry list
+PUT  /api/v1/retention/events            {"maxVersions": 30}     # then hourly</pre></div>
+        <p>On the 2026-10-05 backup, <code>maxVersions: 30</code> would remove 1,754 of 4,096 event versions, 121 MB of the 440 MB of JSON.</p>
+        <div class="callout callout--warn"><p><strong>Versions were once the history.</strong> The registration curves were first rebuilt from version history, and the backfill script that did it replaces each event's <code>history</code> with what it finds in the versions. The curves now live in the documents, so trimming loses nothing the site shows, but retire that script before the first trim.</p></div>
+        <p>Files are stored once per content since 0.8.0. The site's own files gain little, since every version of them is different. The org as a whole does: its <code>media</code> collection has 1,047 file versions taking 118 MB, with only 338 distinct contents (about 14 MB).</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="side-by-side">
+        <h2>Side by side</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Concern</th><th>As built</th><th>Built today</th></tr></thead>
+            <tbody>
+              <tr><td>Finding a document</td><td>tree listing, slug-to-id map</td><td><code>by-key/{slug}</code></td></tr>
+              <tr><td>Writing an event</td><td><code>POST</code> + tree <code>PUT</code>, or <code>PUT</code> by id</td><td><code>PUT /by-key/{slug}</code>, changed files only</td></tr>
+              <tr><td>Source of truth</td><td>local JSON folder</td><td>WREN</td></tr>
+              <tr><td>Dates</td><td><code>MM/DD/YYYY</code>, parsed in code</td><td>ISO, enforced by schema</td></tr>
+              <tr><td>Index</td><td>built by a script</td><td>materialized query plus a <code>$ref</code></td></tr>
+              <tr><td>Page releases</td><td>live on upload; <code>/preview/</code> copy</td><td>preview label, atomic promote, named releases</td></tr>
+              <tr><td>Edge caching</td><td>build id in cache key, 30 s TTL</td><td>WREN's headers</td></tr>
+              <tr><td>Public surface</td><td>all of <code>media</code> listable</td><td>only the trees and <code>events</code></td></tr>
+              <tr><td>AI assistants</td><td><code>llms.txt</code>, fetch by hand</td><td><code>llms.txt</code> plus <code>/mcp</code> on the domain</td></tr>
+              <tr><td>Other projects</td><td>daily polling</td><td>webhooks or live events</td></tr>
+              <tr><td>History size</td><td>every run adds a version</td><td>unchanged writes add none; retention policy</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="gaps">
+        <h2>Still open</h2>
+        <ul>
+          <li><strong>Keys and paths are separate.</strong> An upsert by key doesn't mount a tree path. As long as the <code>/tree/events/{slug}</code> URLs are kept, a new event still needs one tree <code>PUT</code>.</li>
+          <li><strong>Previews on a phone.</strong> A labeled preview is only visible with a key. The redesign was staged on the public domain because a phone couldn't reach the development machine. Checking a preview on a phone needs a signed-in browser or a private proxy that adds the key.</li>
+          <li><strong>Natural keys need an admin.</strong> That's intentional, but it is a one-time step before the pipeline can upsert.</li>
+          <li><strong>Overlapping runs.</strong> With WREN as the source of truth, the pipeline reads an event, merges and writes it back. Two runs at once would still overwrite each other, because WREN has no conditional write yet (an <code>If-Match</code> header is planned for 0.10). Keep the single-instance lock.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="lessons">
+        <h2>Lessons</h2>
+        <ol>
+          <li><strong>Put the key in the data, not only in the URL.</strong> A slug that exists only as a tree path forced every deploy to rebuild a lookup table.</li>
+          <li><strong>Know what your writes cost.</strong> Half of this project's history is repeats. WREN now drops identical writes for you, but a pipeline that rewrites everything still pays for it in requests and time.</li>
+          <li><strong>Treat data and pages differently.</strong> Data: public, no label filter, live on write. Pages: <code>labelFilter: "published"</code>, preview and promote.</li>
+          <li><strong>Make only what you mean public.</strong> A tree rule serves a site. A collection rule on the file store also publishes everything else in it.</li>
+          <li><strong>Let WREN be the source of truth.</strong> Local files as the source made moving machines a risk to live data.</li>
+          <li><strong>Describe your data for machines.</strong> A hand-written <code>llms.txt</code> made the data usable by assistants and other projects with no further work; an MCP route on the domain is the next step.</li>
+        </ol>
+        <p>New to these ideas? Start with <a href="/concepts">Concepts</a>, or read the <a href="/guides/tournament-tracker">live tracker case study</a> for the sibling site and <a href="/guides/ai-maintained-sites">websites maintained by AI agents</a> for how this site's releases are made.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

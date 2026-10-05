@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Case study: a webshop and its warehouse stock tracker</title>
+  <meta name="description" content="How the MAE shop counts its stock with a barcode scanner on pages that store everything in private WREN collections, and copies the counts into the shop's own database: the system as built, with its real workarounds and bugs, and the same system rebuilt on WREN 0.9 with files by name, collection restore, unchanged writes, narrowed keys, webhooks, groups, live events and retention." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#overview">The project</a></li>
+        <li><a href="#as-built">Part A · As built</a></li>
+        <li><a href="#model">Data model</a></li>
+        <li><a href="#code">The code</a></li>
+        <li><a href="#counting">How counting works</a></li>
+        <li><a href="#history">One item's history</a></li>
+        <li><a href="#to-shop">From tracker to shop</a></li>
+        <li><a href="#timeline">Timeline</a></li>
+        <li><a href="#worked">What worked well</a></li>
+        <li><a href="#warts">Warts &amp; workarounds</a></li>
+        <li><a href="#ideal">Part B · Built today</a></li>
+        <li><a href="#ideal-sync">Stock to the shop</a></li>
+        <li><a href="#ideal-writes">Writes that survive retries</a></li>
+        <li><a href="#ideal-snapshot">Snapshots and undo</a></li>
+        <li><a href="#ideal-release">Publishing pages</a></li>
+        <li><a href="#ideal-people">People and agents</a></li>
+        <li><a href="#ideal-live">Live pages</a></li>
+        <li><a href="#ideal-retention">Retention</a></li>
+        <li><a href="#ideal-public">Public images</a></li>
+        <li><a href="#side-by-side">Side by side</a></li>
+        <li><a href="#gaps">Still open</a></li>
+        <li><a href="#lessons">Lessons</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/task-tracker">Case study: task tracker</a></li>
+        <li><a href="/guides/testing-with-versions">Case study: test data</a></li>
+        <li><a href="/guides/tournament-tracker">Case study: live tracker</a></li>
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Case study</p>
+        <h1>A webshop and its warehouse stock tracker</h1>
+        <p class="guide-lede">The MAE shop sells martial arts gear. Its stock is counted with a barcode scanner (or a phone camera) on a handful of web pages that keep everything in private WREN collections, and the counts are copied into the shop's own database by a script. This is how it was built, what we had to work around, and how we'd build it on WREN 0.9.</p>
+        <p class="guide-meta">Written October 2026 from the tracker's repository (the Python scripts that build and publish the pages, its seed and repair scripts, and its tests) and a code review of it, the shop's code and history, the tracker's data in the backup taken before the 0.8.0 upgrade on 2026-10-05, and the working sessions in which both were built. Business figures (units, products, orders) are rounded or left out, and supplier, event and customer names are left out on purpose.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="overview">
+        <h2>The project</h2>
+        <p>There are two systems, and only one of them runs on WREN.</p>
+        <ul>
+          <li><strong>The shop</strong> is a storefront in German, English and French, with club stores for B2B customers. Its code is a Cloudflare Worker with its own PostgreSQL database. Work on it started in March 2026. Its catalog has a few hundred products and over a thousand variants from two main suppliers. An older hosted store also still exists.</li>
+          <li><strong>The stock tracker</strong> is a set of plain HTML pages. A git repository holds the Python scripts that generate them, a script that publishes them into a private WREN tree, and the scripts that seed, ship and repair data. All data lives in private WREN collections. The tracker was started on 2026-09-08, when the first deliveries were counted, and was built and operated with an AI coding agent working in its own session.</li>
+        </ul>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>At a glance</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Pages</td><td>tree <code>mae</code>: <code>/stock</code>, <code>/order</code>, <code>/receive</code>, <code>/receipts</code>, <code>/events</code>, <code>/shipments</code>, the supplier's Excel order form, and since October a German phone app (<code>/lager</code>) with its service worker, manifest and icons; the files are documents in the binary collection <code>mae-pages</code></td></tr>
+              <tr><td>Code</td><td>a repository of <code>build_*_page.py</code> generators, <code>publish.py</code>, <code>push_to_wren.py</code> (seed), <code>ship.py</code>, <code>upload_invoice.py</code>, one-off repair scripts, and Node and Playwright tests against fake WREN servers</td></tr>
+              <tr><td>Stock</td><td><code>mae-stock</code>: a few hundred item codes, 960 versions (state on 2026-10-05)</td></tr>
+              <tr><td>Other data</td><td><code>mae-order</code>, <code>mae-receipts</code>, <code>mae-events</code>, <code>mae-shipments</code>, <code>mae-drafts</code>, <code>mae-invoices</code>; binary collections for the pages, invoice PDFs and 20 product illustrations</td></tr>
+              <tr><td>Access</td><td>nothing public; the pages use the owner's WREN browser session; the scripts share one API key, read from a git-ignored file</td></tr>
+              <tr><td>Link to the shop</td><td>a CSV snapshot and two Node scripts, <code>apply-stock.js</code> and <code>apply-eans.js</code>, run by hand</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="as-built">
+        <p class="guide-eyebrow">Part A</p>
+        <h2>As built</h2>
+        <p>The tracker grew in about three weeks of September 2026, one delivery and one tournament at a time. The shop already existed. The first counts reached it on 2026-09-17. The tracker's code went into git on 2026-10-05, together with camera scanning and the phone app.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 380" role="img" aria-labelledby="ab-title ab-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ab-title">Data flow as built</title>
+            <desc id="ab-desc">A barcode scanner or phone camera and a browser use the tracker pages, which are served from the private WREN tree mae and read and write the private collections with the owner's session. The agent's Python scripts build and publish the pages and seed and repair data with one script key; the agent also hands over a CSV snapshot by message. apply-stock.js and apply-eans.js load the snapshot into the shop's PostgreSQL through admin_update_stock, and the storefront reads from there.</desc>
+            <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="40" width="185" height="96" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="112" y="66" text-anchor="middle" font-weight="700" fill="#111827">Scanner / camera</text>
+              <text x="112" y="86" text-anchor="middle" fill="#6b7280">physical count, deliveries,</text>
+              <text x="112" y="102" text-anchor="middle" fill="#6b7280">events, shipments</text>
+              <text x="112" y="122" text-anchor="middle" fill="#6b7280">owner's WREN session</text>
+
+              <rect x="262" y="20" width="236" height="150" rx="10" fill="#fff7ed" stroke="#d97706"/>
+              <text x="380" y="44" text-anchor="middle" font-weight="700" fill="#7c2d12">WREN · all private</text>
+              <text x="380" y="66" text-anchor="middle" fill="#374151">tree mae: pages + order form</text>
+              <text x="380" y="88" text-anchor="middle" fill="#374151" font-family="monospace">mae-stock  mae-order</text>
+              <text x="380" y="106" text-anchor="middle" fill="#374151" font-family="monospace">mae-receipts  mae-events</text>
+              <text x="380" y="124" text-anchor="middle" fill="#374151" font-family="monospace">mae-shipments  mae-drafts</text>
+              <text x="380" y="148" text-anchor="middle" fill="#6b7280">upsert by natural key</text>
+
+              <rect x="555" y="40" width="185" height="96" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="647" y="66" text-anchor="middle" font-weight="700" fill="#111827">Agent + scripts</text>
+              <text x="647" y="86" text-anchor="middle" fill="#6b7280">build, publish, seed, ship,</text>
+              <text x="647" y="102" text-anchor="middle" fill="#6b7280">repair: one script key</text>
+              <text x="647" y="118" text-anchor="middle" fill="#6b7280">snapshot sent by message</text>
+
+              <rect x="590" y="250" width="150" height="90" rx="8" fill="#fff" stroke="#6b7280" stroke-dasharray="5 4"/>
+              <text x="665" y="276" text-anchor="middle" font-weight="700" fill="#111827">CSV snapshot</text>
+              <text x="665" y="296" text-anchor="middle" fill="#6b7280">item_code, on_shelf, …</text>
+              <text x="665" y="312" text-anchor="middle" fill="#6b7280">item_code, ean</text>
+              <text x="665" y="328" text-anchor="middle" fill="#6b7280">by hand, when asked</text>
+
+              <rect x="400" y="250" width="155" height="90" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="477" y="276" text-anchor="middle" font-weight="700" fill="#111827">apply-stock.js</text>
+              <text x="477" y="294" text-anchor="middle" font-weight="700" fill="#111827">apply-eans.js</text>
+              <text x="477" y="314" text-anchor="middle" fill="#6b7280">match codes to SKUs</text>
+              <text x="477" y="330" text-anchor="middle" fill="#6b7280">--dry-run first</text>
+
+              <rect x="205" y="250" width="160" height="90" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="285" y="276" text-anchor="middle" font-weight="700" fill="#312e81">Shop PostgreSQL</text>
+              <text x="285" y="296" text-anchor="middle" fill="#374151" font-family="monospace">admin_update_stock</text>
+              <text x="285" y="314" text-anchor="middle" fill="#6b7280">variant stock, aggregates,</text>
+              <text x="285" y="330" text-anchor="middle" fill="#6b7280">revision log</text>
+
+              <rect x="20" y="250" width="150" height="90" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="95" y="280" text-anchor="middle" font-weight="700" fill="#111827">Storefront</text>
+              <text x="95" y="300" text-anchor="middle" fill="#6b7280">Worker routes,</text>
+              <text x="95" y="316" text-anchor="middle" fill="#6b7280">stock status</text>
+
+              <line x1="205" y1="80" x2="259" y2="80" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="259" y1="104" x2="208" y2="104" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="552" y1="88" x2="501" y2="88" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="665" y1="136" x2="665" y2="247" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="590" y1="295" x2="558" y2="295" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="400" y1="295" x2="368" y2="295" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="205" y1="295" x2="173" y2="295" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <text x="680" y="200" fill="#b45309" font-weight="600">manual step</text>
+            </g>
+          </svg>
+          <figcaption>Figure 1. As built: counting happens in WREN; the shop only learns about it when someone exports a snapshot and runs the scripts.</figcaption>
+        </figure>
+
+        <h3 id="model">Data model</h3>
+        <p>Every JSON collection has a schema and a natural key from the first push, so all writes are upserts by key (<code>PUT …/by-key/{key}</code>). The stock document is deliberately small:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">json · mae-stock schema (abridged)</span></div>
+<pre>{
+  "naturalKey": "item_code",
+  "displayName": "{item_code} — {description}",
+  "schema": {
+    "required": ["item_code", "quantity", "count_date"],
+    "properties": {
+      "item_code":  { "type": "string" },
+      "quantity":   { "type": "integer", "minimum": 0 },
+      "count_date": { "type": "string" },
+      "counted_by": { "enum": ["scanned", "stand-in scan", "hand-written line", "size tally",
+                               "reported outside the count", "not counted, assumed zero",
+                               "received", "unknown"] },
+      "ean": {}, "supplier": {}, "category": {}, "count_sheet": {}, "last_received": {}
+    }
+  }
+}</pre></div>
+        <p><code>counted_by</code> records how a figure came about, not just what it is. On 2026-10-05 a little over half of the items had been scanned, about one in eight came from a size tally or a hand-written count sheet, about a fifth had only been received, and about one in ten were "not counted, assumed zero". A zero that nobody checked is not the same as a zero on the shelf, and the schema says so.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Collection</th><th>Natural key</th><th>Holds</th></tr></thead>
+            <tbody>
+              <tr><td><code>mae-stock</code></td><td><code>item_code</code></td><td>quantity on hand per item, with how and when it was counted</td></tr>
+              <tr><td><code>mae-order</code></td><td><code>line_key</code></td><td>supplier order lines: quantity, received so far, price</td></tr>
+              <tr><td><code>mae-receipts</code></td><td><code>receipt_key</code></td><td>what came out of the boxes, and what became of each line</td></tr>
+              <tr><td><code>mae-events</code></td><td><code>event_key</code></td><td>stock taken to a tournament booth, what came back, what sold</td></tr>
+              <tr><td><code>mae-shipments</code></td><td><code>shipment_key</code></td><td>customer orders packed and shipped from the shelf</td></tr>
+              <tr><td><code>mae-drafts</code></td><td><code>draft_key</code></td><td>the scanner's running tally, saved while you scan</td></tr>
+              <tr><td><code>mae-invoices</code></td><td><code>invoice_key</code></td><td>supplier invoices, with the PDFs in <code>mae-invoice-files</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="code">The code</h3>
+        <p>None of the pages is written by hand. Each one is generated by a Python script, and the generated HTML is not committed:</p>
+        <ul>
+          <li><strong>Builders.</strong> <code>build_receive_page.py</code> (about 2,000 lines) writes the scanner page with the supplier catalog and its barcodes embedded as JavaScript, so the page works with no signal. <code>build_lager_page.py</code> writes the German phone app from the same catalog. The stock, order, receipts, shipments and events pages each have their own builder, and <code>build_pwa.py</code> writes the service worker, manifest and icons that make the phone app installable.</li>
+          <li><strong>Publishing.</strong> <code>publish.py</code> reads the tree, compares each built file's SHA-256 with the stored one, and uploads changed files as a new version of the same document (multipart <code>PUT</code> by id), or <code>POST</code>s a new document and assigns its tree path. Every change is live at once.</li>
+          <li><strong>Seed.</strong> <code>push_to_wren.py</code> pushed the 2026-09-08 stocktake and the first orders. It sets each collection's schema on every run, leaves existing stock documents alone unless told otherwise, and upserts order lines and invoices in full.</li>
+          <li><strong>Movements from the command line.</strong> <code>ship.py</code> records a shipment from a JSON file, moves stock off the shelf and uploads the invoice PDF. Two one-off scripts settled the tournament booth's held and returned lines, with the live document ids written into them.</li>
+          <li><strong>Tests.</strong> A Node harness runs each page's real script against an in-memory fake of WREN. A parity test checks that the phone app writes exactly the documents the desktop scanner page writes. A Playwright test feeds a generated barcode video to Chrome's fake camera and checks that every appearance is counted once, with Chrome's own <code>BarcodeDetector</code> and with the zxing fallback that iPhones get.</li>
+        </ul>
+        <p>A Python client of 25 lines (<code>wren.py</code>) wraps the API. Its comments record two things the agent learned the hard way: the API lives under <code>/api/v1</code> (at the time the docs showed unprefixed paths), and Cloudflare in front of WREN answers Python's default User-Agent with <code>403 error code: 1010</code>.</p>
+
+        <h3 id="counting">How counting works</h3>
+        <p>The scanner page (<code>/receive</code>) treats a USB or Bluetooth barcode scanner as what it is: a burst of keystrokes ending in Enter. It listens for that at document level, beeps once for a known barcode and twice, lower, for an unknown one. An unknown barcode opens a dialog to attach it to an existing product or create a new one, so the next scan just works. Scans of 18 or 19 digits are read as an EAN-13 plus a batch suffix. The check digit only ranks the possible readings, because one supplier publishes at least one barcode with a wrong check digit. Since October the page can also read barcodes from the phone's camera, and the phone app (<code>/lager</code>) does one job at a time in plain German for someone with a box in one hand.</p>
+        <p>It has four modes:</p>
+        <ul>
+          <li><strong>Delivery</strong> scans the boxes against a supplier order and writes a receipt. It does not touch stock. Each line is settled later on the receipts page: onto the shelf, back to the supplier, or held.</li>
+          <li><strong>Inventory</strong> counts a shelf and sets the quantity of the scanned products, and only those.</li>
+          <li><strong>Event</strong> packs stock for a tournament booth and scans it back afterward. The one event so far, a tournament in mid-September, was still open at the time of the backup, with most of what went out scanned back.</li>
+          <li><strong>Ship</strong> packs a customer order. It beeps when one too many is in the box and flags products that aren't on the order.</li>
+        </ul>
+        <p>Nothing is written to stock until you press the button. Until then the tally lives in two places: in the browser at once, and in WREN within a second, as a <code>mae-drafts</code> document. A dead phone, a cleared browser or a second device loses nothing; on load, the newer copy wins.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · from the scanner page</span></div>
+<pre>// Write a quantity, reading the document first so we never clobber a change.
+async function writeQuantity(code, {delta, set, seed, countedBy}) {
+  const key = encodeURIComponent(code);
+  let doc = null;
+  try { doc = await api('GET', `/mae-stock/by-key/${key}`); } catch (e) { if (e.status !== 404) throw e; }
+  const data = doc ? doc.data : seed;
+  const wanted = set !== undefined ? set : (Number(data.quantity) || 0) + (delta || 0);
+  const next = {...data, quantity: Math.max(0, wanted), /* counted_by, dates … */};
+  return api('PUT', `/mae-stock/by-key/${key}`, next);   // new version, same document
+}</pre></div>
+        <p>The comment promises more than WREN can give: reading first doesn't stop a second device from writing between the read and the write. More on that under <a href="#warts">warts</a>.</p>
+        <p>Two labels mark versions worth coming back to. In the page's own words, "Wren already versions every document, so a label is not an audit trail — it is a name for one version worth coming back to." <code>counted</code> on a stock document marks the version that was a real physical count, as opposed to arithmetic from deliveries. <code>as-recorded</code> on a receipt keeps what came out of the box before anyone settled lines.</p>
+
+        <h3 id="history">One item's history</h3>
+        <p>Every movement is a new version of the stock document, and event, shipment and receipt lines record which stock version they produced (<code>stock_version_out</code>, <code>stock_version_back</code>). Here is a white dobok in one size, from its first count to the second delivery:</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 290" role="img" aria-labelledby="h-title h-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="h-title">Versions of one stock document</title>
+            <desc id="h-desc">Quantity on hand of one item across seven versions: set from a size tally on September 8, unchanged when the supplier was added, lower when some went to a tournament on September 11, back up when they returned on September 15, empty when an order was shipped the same day, confirmed empty by a scanned recount on September 25, and up again after a delivery was settled onto the shelf on September 30.</desc>
+            <g font-size="12">
+              <text x="40" y="34" fill="#6b7280">on hand</text>
+              <line x1="60" y1="190" x2="730" y2="190" stroke="#d1d5db"/>
+              <text x="48" y="194" text-anchor="end" fill="#6b7280">0</text>
+              <line x1="60" y1="70" x2="730" y2="70" stroke="#f3f4f6"/>
+              <polyline fill="none" stroke="#4338ca" stroke-width="2.5" points="90,70 180,70 180,70 270,70 270,94 360,94 360,70 450,70 450,190 540,190 540,190 630,190 630,70 700,70"/>
+              <g fill="#4338ca">
+                <circle cx="90" cy="70" r="5"/><circle cx="180" cy="70" r="5"/><circle cx="270" cy="94" r="5"/>
+                <circle cx="360" cy="70" r="5"/><circle cx="450" cy="190" r="5"/><circle cx="540" cy="190" r="5"/>
+                <circle cx="630" cy="70" r="5"/>
+              </g>
+              <circle cx="540" cy="190" r="10" fill="none" stroke="#047857" stroke-width="2"/>
+              <g text-anchor="middle" fill="#111827" font-weight="700">
+                <text x="90" y="216">v1</text><text x="180" y="216">v2</text><text x="270" y="216">v3</text>
+                <text x="360" y="216">v4</text><text x="450" y="216">v5</text><text x="540" y="216">v6</text><text x="630" y="216">v7</text>
+              </g>
+              <g text-anchor="middle" fill="#6b7280">
+                <text x="90" y="234">Sep 8</text><text x="90" y="250">size tally</text>
+                <text x="180" y="234">Sep 8</text><text x="180" y="250">supplier added</text>
+                <text x="270" y="234">Sep 11</text><text x="270" y="250">out to event</text>
+                <text x="360" y="234">Sep 15</text><text x="360" y="250">back</text>
+                <text x="450" y="234">Sep 15</text><text x="450" y="250">shipped</text>
+                <text x="540" y="234">Sep 25</text><text x="540" y="250">recount: empty</text>
+                <text x="630" y="234">Sep 30</text><text x="630" y="250">delivery</text>
+              </g>
+              <text x="540" y="168" text-anchor="middle" fill="#047857" font-weight="600">scanned</text>
+            </g>
+          </svg>
+          <figcaption>Figure 2. Seven versions of one <code>mae-stock</code> document. Nobody designed a movement log; the version history is one.</figcaption>
+        </figure>
+
+        <h3 id="to-shop">From tracker to shop</h3>
+        <p>The shop never reads WREN. On 2026-09-17 the agent working on the tracker sent the agent working on the shop a stock snapshot as text, and the shop side saved it as <code>wren-stock-20260917.csv</code>, with columns <code>item_code, on_shelf, returns_not_yet_shelved, still_out_at_event, supplier, description</code>. A new script, <code>apply-stock.js</code>, takes the first two columns:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>node packages/db/scripts/apply-stock.js packages/db/data/wren-stock-YYYYMMDD.csv [--dry-run] [--zero-missing]</pre></div>
+        <ul>
+          <li><strong>Matching codes.</strong> One supplier's item codes are the shop's variant SKUs. The other supplier's codes are article references, mapped with the same transform the catalog import uses (a prefix, lower case, spaces removed).</li>
+          <li><strong>Through the shop's own function.</strong> Every change goes through <code>shop.admin_update_stock</code>, so product totals and the revision log stay as consistent as with the admin UI.</li>
+          <li><strong>First run.</strong> The dry run matched all but a handful of codes. One shop SKU had been renamed, and a few codes weren't in the shop yet.</li>
+          <li><strong>Placeholders exposed.</strong> About 40 shop variants with stock were not in the snapshot. Every one of them still had its value from the shop's March 2026 seed, with no stock change since: placeholders, not counts. The tracker added them as "not counted, assumed zero", with the shop's figure in a note, and the shop zeroed them with <code>--zero-missing</code>.</li>
+          <li><strong>Barcodes the same way.</strong> The shop had barcodes for only a few percent of its variants. The tracker sent the barcodes from <code>mae-stock</code> plus several hundred more from one supplier's catalog, and <code>apply-eans.js</code> loaded them, cutting 18 and 19 digit scanner reads to EAN-13 and skipping placeholder codes.</li>
+        </ul>
+        <p>That was the only sync. On 2026-10-05 the shop still showed the counts of September 17, while the tracker had moved on after a second delivery.</p>
+
+        <h3 id="timeline">Timeline</h3>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Date (2026)</th><th>What happened</th></tr></thead>
+            <tbody>
+              <tr><td>Mar 29 – Apr 4</td><td>Shop repository started: storefront, MCP server, club stores, an EAN column on products and variants</td></tr>
+              <tr><td>Sep 8</td><td>WREN org created; first stock count, the first supplier orders, and the stock, order and receive pages</td></tr>
+              <tr><td>Sep 11</td><td>First deliveries scanned; packing for a tournament booth; the scanner page changed 22 times that day</td></tr>
+              <tr><td>Sep 14 – 16</td><td>Ship mode and the shipments page; event returns scanned</td></tr>
+              <tr><td>Sep 17</td><td>First snapshot applied to the shop; <code>apply-stock.js</code> and <code>apply-eans.js</code> committed; uncounted lines added to the tracker</td></tr>
+              <tr><td>Sep 25</td><td>Shelf recount with the new <code>counted</code> label; 20 product illustrations uploaded</td></tr>
+              <tr><td>Sep 30</td><td>Second delivery received and settled</td></tr>
+              <tr><td>Oct 1</td><td>Last writes before the backup used for this page</td></tr>
+              <tr><td>Oct 5</td><td>Tracker code committed to git; camera scanning, installable phone app, German warehouse app; a code review of how it uses WREN</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="worked">What worked well</h3>
+        <ul>
+          <li><strong>Upsert by key from day one.</strong> Every collection declared its natural key on the first day, so the pages could write <code>PUT /mae-stock/by-key/{item_code}</code> without looking up ids.</li>
+          <li><strong>Versions as the movement log.</strong> 960 versions of the stock documents, each one a count, a delivery, an event or a shipment. Event and shipment lines point at the stock version they produced, so any number on the stock page can be traced back.</li>
+          <li><strong>Schemas that say what a number means.</strong> <code>counted_by</code> separated real counts from assumptions. That's what showed the shop's seed values for what they were.</li>
+          <li><strong>Drafts that survive.</strong> A tally saved to WREN within a second meant a long event return (one draft has 217 versions) never depended on one phone.</li>
+          <li><strong>No server of its own.</strong> Static pages and a spreadsheet in a tree, same-origin with the API, using the browser session. There is no backend to deploy, and the pages run on any phone or laptop.</li>
+          <li><strong>Files next to data.</strong> The supplier's Excel order form lives in the same tree. The order page fills its quantity cells in the browser and hands back the workbook, with formatting and formulas intact.</li>
+          <li><strong>Tests that run the real page code.</strong> The parity test is what lets two front ends (desktop and phone) write the same data safely.</li>
+        </ul>
+
+        <h3 id="warts">Warts and workarounds</h3>
+        <p>An honest list, from the data and from a review of the code. The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Stock reached the shop once, as text passed between two agent sessions, and was 18 days old by October 5</td><td>CSV plus <code>apply-stock.js</code>, run by hand</td><td>The shop side had no WREN credentials. When the shop's agent looked for a key in the server's configuration, its session blocked that, correctly.</td><td>Design: a narrowed read key or a webhook (Part B)</td></tr>
+              <tr><td>About 40 shop variants showed stock nobody had counted</td><td><code>--zero-missing</code>; "not counted, assumed zero" in the tracker</td><td>The shop's seed values looked like counts</td><td>Data modeling: record how a figure was obtained</td></tr>
+              <tr><td>Two devices moving the same item within a second or two: one movement is lost, silently</td><td>None; "reading first" doesn't prevent it</td><td>Every write is read, compute, <code>PUT</code> the whole document; WREN has no conditional write</td><td>Still open; detect it after writing (Part B)</td></tr>
+              <tr><td>An apply that failed halfway, retried, moves the lines that already went through a second time</td><td>None; the phone app asks the warehouse to call the owner</td><td>The tally is cleared only when every line succeeded; <code>ship.py</code> writes the record last</td><td>Code fix: settle each line as it's written (Part B)</td></tr>
+              <tr><td>Re-running the seed would overwrite live stock and order edits</td><td>Treated as a one-off</td><td>It reads existing stock with <code>?limit=1000</code>, but lists return at most 200, newest first, so the oldest documents look missing; order lines are upserted in full</td><td>Code fix: create only, read with a cursor (Part B)</td></tr>
+              <tr><td>A failed tree assignment, or an invoice uploaded twice, leaves orphaned documents</td><td>None</td><td><code>POST</code> isn't idempotent; files had no name to upsert by</td><td>Fixed: files by name (0.9.0)</td></tr>
+              <tr><td>Each script run resets schema settings changed in the Admin UI</td><td>None</td><td>Scripts send <code>PUT …/_schema</code> on every run, which replaces the whole record, including the natural key</td><td>Practice: set schemas once; partial schema updates are planned</td></tr>
+              <tr><td>The phone app's service worker can answer a read-before-write from its offline cache</td><td>The page sees an offline header but uses the copy</td><td>Offline support and arithmetic on stale data</td><td>Code fix: never compute a write from a cached read</td></tr>
+              <tr><td>The tally autosave made 477 versions in <code>mae-drafts</code>, 217 of them on one document</td><td>None</td><td>Every write keeps the previous version</td><td>Fixed: retention policies (0.8.0)</td></tr>
+              <tr><td>Pages were changed while in use: the scanner page has 34 versions, 22 from the first delivery day; the pages' history takes 7.3 MB</td><td>None; each upload was live at once</td><td>No preview step, and every version kept in full</td><td>Preview and promote; retention (stored-once only helps with identical bytes: 70 of 71 page versions differ)</td></tr>
+              <tr><td>All 2,290 versions in the org are recorded under the same user, whether a scan or the agent wrote them</td><td>A <code>device</code> id in drafts and <code>via</code> on each scan</td><td>One owner account; the scripts' key acts as its creator</td><td>Groups, invites, MCP sign-in (Part B)</td></tr>
+              <tr><td>The scripts' key can do anything the owner can, and never expires; one script put it on curl's command line</td><td>None</td><td>No <code>key:</code> rules on it</td><td><code>key:</code> rules narrow any key, including the owner's (0.7.0)</td></tr>
+              <tr><td>Product illustrations needed a key, so the shop copied them from the older public store instead</td><td>Download from the public site</td><td>Everything stored privately, including images meant to be public</td><td>Public collection rule with a label filter (Part B)</td></tr>
+              <tr><td>Only about a fifth of the items carry the <code>counted</code> label</td><td>None</td><td>The label arrived halfway through the recount of September 25, and failures to set it are ignored on purpose</td><td>Lesson: decide labels before the first write; wrong labels can now be removed (0.9.0)</td></tr>
+              <tr><td>A second device only sees new scans after a reload</td><td>A Refresh button</td><td>Pages read on load</td><td>Live events (0.7.0)</td></tr>
+              <tr><td>One supplier's whole catalog is embedded in the scanner page and the phone app</td><td>Rebuild the pages when the catalog changes</td><td>Reference data kept in code, partly so the app works offline</td><td>Trade-off: a catalog collection, cached by the service worker</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="ideal">
+        <p class="guide-eyebrow">Part B</p>
+        <h2>The same system, built today</h2>
+        <p>Same pages, same scanner, same shop database. Stock stays private: it's operational data, not something to publish. What changes is how the counts reach the shop, how the scripts survive failures, who is recorded as writing, and how pages and history are managed. Everything below is checked against WREN 0.9.0.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 330" role="img" aria-labelledby="ib-title ib-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ib-title">Data flow, built today</title>
+            <desc id="ib-desc">Warehouse helpers sign in with their own accounts through a Warehouse group, and agents connect through MCP. Their writes go to private collections with retention policies. publish.py uploads pages by file name with a preview label and promotes them. A webhook on document.updated notifies a small receiver in the shop, which reads the changed items by key with a read-only key and calls admin_update_stock. Product images are public through a label-filtered rule. Pages refresh from live events.</desc>
+            <defs><marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="24" width="180" height="78" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="110" y="50" text-anchor="middle" font-weight="700" fill="#111827">Helpers + scanner</text>
+              <text x="110" y="70" text-anchor="middle" fill="#6b7280">own accounts, group</text>
+              <text x="110" y="86" text-anchor="middle" fill="#6b7280">Warehouse; live events</text>
+
+              <rect x="20" y="130" width="180" height="64" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="110" y="156" text-anchor="middle" font-weight="700" fill="#111827">Agents via /mcp</text>
+              <text x="110" y="176" text-anchor="middle" fill="#6b7280">sign in as a user</text>
+
+              <rect x="20" y="222" width="180" height="64" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="110" y="248" text-anchor="middle" font-weight="700" fill="#111827">publish.py</text>
+              <text x="110" y="268" text-anchor="middle" fill="#6b7280">by file name; preview, promote</text>
+
+              <rect x="262" y="16" width="236" height="200" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="380" y="40" text-anchor="middle" font-weight="700" fill="#312e81">WREN · private</text>
+              <text x="380" y="62" text-anchor="middle" fill="#374151" font-family="monospace">mae-stock  mae-order</text>
+              <text x="380" y="80" text-anchor="middle" fill="#374151" font-family="monospace">receipts, events,</text>
+              <text x="380" y="98" text-anchor="middle" fill="#374151" font-family="monospace">shipments, drafts</text>
+              <text x="380" y="122" text-anchor="middle" fill="#374151">retention: drafts 5, stock all</text>
+              <text x="380" y="144" text-anchor="middle" fill="#374151">tree mae: "published" for helpers</text>
+              <text x="380" y="168" text-anchor="middle" fill="#6b7280">every version names its writer</text>
+              <text x="380" y="196" text-anchor="middle" fill="#6b7280">webhook: document.updated</text>
+
+              <rect x="262" y="246" width="236" height="64" rx="10" fill="#ecfdf5" stroke="#047857"/>
+              <text x="380" y="272" text-anchor="middle" font-weight="700" fill="#065f46">WREN · public</text>
+              <text x="380" y="292" text-anchor="middle" fill="#374151">mae-product-images, "published"</text>
+
+              <rect x="560" y="60" width="180" height="96" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="650" y="86" text-anchor="middle" font-weight="700" fill="#111827">Shop receiver</text>
+              <text x="650" y="106" text-anchor="middle" fill="#6b7280">checks the signature,</text>
+              <text x="650" y="122" text-anchor="middle" fill="#6b7280">GET by-key (read-only key)</text>
+              <text x="650" y="138" text-anchor="middle" fill="#6b7280">admin_update_stock</text>
+
+              <rect x="560" y="196" width="180" height="64" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="650" y="222" text-anchor="middle" font-weight="700" fill="#111827">Shop + storefront</text>
+              <text x="650" y="242" text-anchor="middle" fill="#6b7280">images by public URL</text>
+
+              <line x1="200" y1="62" x2="259" y2="62" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="200" y1="160" x2="259" y2="140" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="200" y1="254" x2="259" y2="200" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="498" y1="120" x2="557" y2="110" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="650" y1="156" x2="650" y2="193" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="498" y1="280" x2="557" y2="240" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 3. Built today: the shop hears about each change as it happens and reads only what it needs; people and agents write under their own names.</figcaption>
+        </figure>
+
+        <h3 id="ideal-sync">1 · Stock to the shop, without a snapshot</h3>
+        <p>Give the shop its own key and narrow it to reading stock. A key with <code>key:</code> rules uses only those rules:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once</span></div>
+<pre>POST /api/v1/keys          {"name": "shop-stock-read"}                      → id + key (shown once)
+POST /api/v1/permissions   {"principal": "key:&lt;id&gt;", "resource": "collection:mae-stock", "access": "read"}</pre></div>
+        <p>Hand the key over through a secret store, never a chat. With it, <code>apply-stock.js</code> reads <code>mae-stock</code> directly instead of a CSV: <code>POST /api/v1/mae-stock/_query</code> with <code>select: ["item_code", "quantity", "ean", "counted_by"]</code>, up to 1,000 per page, following the <code>cursor</code>. The matching and <code>admin_update_stock</code> stay as they are. Because <code>counted_by</code> comes along, the shop can treat "not counted, assumed zero" differently from a scanned zero instead of losing the difference in a CSV.</p>
+        <p>To stay current without anyone running a script, subscribe a webhook. Webhooks filter by event type, so the receiver skips other collections. It reads each changed item by key and applies it:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · shop receiver, sketch</span></div>
+<pre>// POST /api/v1/webhooks {"url": "https://&lt;shop&gt;/hooks/wren", "events": ["document.created", "document.updated"]}
+async function onWrenWebhook(req) {
+  const body = await req.text();
+  if (!validSignature(body, req.headers.get("X-Wren-Signature"), WEBHOOK_SECRET)) return new Response(null, { status: 401 });
+  for (const { payload } of JSON.parse(body).events) {
+    if (payload.collection !== "mae-stock" || !payload.key) continue;
+    const r = await fetch(`${WREN}/api/v1/mae-stock/by-key/${encodeURIComponent(payload.key)}`,
+                          { headers: { Authorization: `Bearer ${SHOP_STOCK_KEY}` } });
+    const { data } = await r.json();
+    await applyStock(data.item_code, data.quantity);   // same SKU matching + shop.admin_update_stock
+  }
+  return new Response(null, { status: 204 });
+}</pre></div>
+        <p>Events within a few seconds arrive as one delivery, failed deliveries are retried, and <code>POST /api/v1/webhooks/{id}/replay</code> re-sends the last seven days, so a shop outage only delays the update. Since 0.9, a write whose data equals the current version creates no version (the response says <code>"unchanged": true</code>), so a recount to the same figure doesn't wake the receiver for nothing.</p>
+
+        <h3 id="ideal-writes">2 · Writes that survive retries and a second device</h3>
+        <p>Most of the code review's findings are about what happens when a write fails halfway or a second writer acts at the same moment. Three changes cover them:</p>
+        <ul>
+          <li><strong>Settle each line as it's written.</strong> Remove a row from the tally (and the draft) as soon as its stock write succeeds, and save the shipment, event or receipt after each line. A retry then replays only what failed. <code>ship.py</code> skips lines that already carry a <code>stock_version_out</code>. Create a receipt's key once, when the tally starts, and keep it in the draft, so a retried save upserts the same receipt.</li>
+          <li><strong>A seed that can't overwrite.</strong> The seed only creates documents that don't exist (<code>GET …/by-key/{key}</code> answers 404) and never touches a live one. Reading "everything" goes through <code>_query</code> with a cursor, never <code>?limit=1000</code> on the list endpoint, which returns at most 200.</li>
+          <li><strong>Notice a lost update.</strong> WREN can't refuse a stale write yet, but version numbers go up by exactly one per write, so the writer can tell afterwards that someone else wrote in between, and re-apply its change on top:</li>
+        </ul>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">python · in the scripts' WREN client</span></div>
+<pre>def move(code, delta):
+    """GET → PUT on one stock document, and notice when someone else wrote in between."""
+    path = f"/mae-stock/by-key/{quote(code)}"
+    c, doc = call("GET", path)
+    data, v0 = doc["data"], doc["version"]
+    c, saved = call("PUT", path, {**data, "quantity": max(0, int(data["quantity"]) + delta)})
+    expected = v0 if saved.get("unchanged") else v0 + 1          # unchanged: no new version (0.9)
+    if saved["version"] != expected:
+        # someone wrote between our GET and PUT, and our PUT replaced it: re-apply on top of theirs
+        c, theirs = call("GET", f"/mae-stock/{saved['id']}/versions/{saved['version'] - 1}")
+        fixed = max(0, int(theirs["data"]["quantity"]) + delta)
+        c, saved = call("PUT", path, {**theirs["data"], "quantity": fixed})
+    return saved["version"]</pre></div>
+        <p>The pages get the same check after their <code>PUT</code>, or at least a warning ("someone else changed this item at the same time"). And a read that comes right before a write must not be answered from the service worker's offline cache.</p>
+
+        <h3 id="ideal-snapshot">3 · Snapshots before risky runs, and a way back</h3>
+        <p>The booth repairs ran against live data with hard-coded ids and no way back except rolling documents back one by one. Label the collection first; if the run goes wrong, one call puts it back:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre># before a recount, a seed with overwrite, or a repair script: label every stock document
+POST /api/v1/mae-stock/{id}/labels       {"label": "before-recount-2026-10"}      ← per document
+
+# if it went wrong: one transaction for the whole collection (0.9)
+POST /api/v1/mae-stock/_restore          {"label": "before-recount-2026-10"}
+→ { "label": "before-recount-2026-10", "restored": …, "undeleted": …, "deleted": 0, "unchanged": …, "collections": ["mae-stock"] }</pre></div>
+        <p>Restore writes the labeled content as new versions, brings back deleted documents that carry the label, and leaves documents already at the label alone. History moves forward, so the restore itself can be undone. To see what a recount changed on one item, diff the label against the current version: <code>GET /api/v1/mae-stock/{id}/diff?v1=before-recount-2026-10&amp;v2={version}</code>; on receipts, <code>&amp;deep=true</code> names the changed line (<code>/lines/3/quantity</code>) instead of reporting the whole <code>lines</code> array as replaced. A <code>counted</code> label set on the wrong version can be removed: <code>DELETE /api/v1/mae-stock/{id}/labels/counted</code>. And make label failures visible in the page instead of swallowing them.</p>
+
+        <h3 id="ideal-release">4 · Publishing pages: by file name, preview, then promote</h3>
+        <p><code>publish.py</code> is the deploy path this project actually uses, so keep it and let WREN do the bookkeeping. Since 0.9, a file collection whose natural key is <code>filename</code> is addressed by name. Setting the key registers the names of the existing files; if two live documents share a name (the orphans from failed runs), WREN refuses with <code>409</code> and lists them, so delete those first:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">python · once, then publish.py</span></div>
+<pre>call("PUT", "/mae-pages/_schema", {"collectionType": "binary", "naturalKey": "filename",
+                                   "displayName": "{filename}"})      # 200, or 409 listing duplicates
+
+for path, src in files(pages):
+    code, doc = upload("PUT", f"/mae-pages/by-key/{quote(src.name)}", src)   # 201 created / 200 replaced / 200 unchanged
+    if code == 201:
+        call("PUT", f"/tree/mae{path}", {"documentId": doc["id"]})            # new file: mount it once
+    if not doc.get("unchanged"):
+        call("POST", f"/mae-pages/{doc['id']}/labels", {"label": "preview"})</pre></div>
+        <p>No tree listing, no hash comparison in the script, no orphans: an unchanged file returns <code>"unchanged": true</code> and creates no version. Do the same for invoice PDFs (<code>PUT /api/v1/mae-invoice-files/by-key/{invoice_key}.pdf</code>), so uploading an invoice twice is a no-op. And stop the scripts from sending <code>PUT …/_schema</code> on every run, or the next run clears the natural key again.</p>
+        <p>The scanner page was changed 22 times on the first delivery day, each change live on the phone doing the scanning. Once helpers use the app, try a change at <code>/api/v1/tree/mae/lager?label=preview</code>, then release all pages at once with <code>POST /api/v1/tree/mae/_promote {"label": "published", "from": "preview"}</code>, one transaction. That protects people whose rule on <code>tree:mae</code> has <code>labelFilter: "published"</code>; the owner always sees the current version. If a release was bad, <code>POST /api/v1/tree/mae/_restore {"label": "release-…"}</code> puts every page back to a release label in one transaction.</p>
+
+        <h3 id="ideal-people">5 · People and agents under their own names</h3>
+        <p>Today every version says the owner wrote it. Invite the people who scan into a group with write access to the tracker's collections, so each version names who made it:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>POST /api/v1/groups        {"name": "Warehouse", "description": "scan and count"}
+POST /api/v1/permissions   {"principal": "group:&lt;gid&gt;", "resource": "collection:mae-stock", "access": "write"}
+   …same for mae-order, mae-receipts, mae-events, mae-shipments, mae-drafts
+POST /api/v1/permissions   {"principal": "group:&lt;gid&gt;", "resource": "tree:mae", "access": "read", "labelFilter": "published"}
+POST /api/v1/invites       {"email": "…", "role": "member", "groupIds": ["&lt;gid&gt;"]}</pre></div>
+        <div class="callout callout--warn"><p><strong>Label filters on the tree, not on the data.</strong> Under a label-filtered rule, version history and diffs return 403. The receipts page rolls stock back by version number, so the helpers' rules on the data collections must not have a label filter.</p></div>
+        <p>Narrow the scripts' key with <code>key:</code> rules to the <code>mae-*</code> collections it writes and <code>tree:mae</code>. Agents can connect to the built-in MCP endpoint instead of holding a long-lived key: signing in through <code>/mcp/login</code> shows a consent page, acts as that user in that org, and issues one-hour tokens that can be revoked under <em>Settings → Connected apps</em>. MCP writes are labeled <code>preview</code> by default, which suits proposals such as a reorder list a person then accepts. For stock writes, pass <code>label: ""</code>.</p>
+
+        <h3 id="ideal-live">6 · Live pages</h3>
+        <p>Two people scanning at once should see each other's work without a reload, which also makes lost updates rarer. The pages are on the same origin as the API, so the session cookie is enough:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js</span></div>
+<pre>const es = new EventSource("/api/v1/_events?collections=mae-stock,mae-drafts");
+es.onmessage = e => {
+  const ev = JSON.parse(e.data);
+  if (ev.type === "reset") return reloadAll();                          // missed events: re-read
+  if (ev.collection === "mae-stock" &amp;&amp; ev.key) refreshItem(ev.key);     // events carry keys, never data
+};</pre></div>
+        <p>First let the stream past the phone app's service worker, which would otherwise try to cache an endless response. Range filters compare ISO dates since 0.9, so the shipments, receipts and events pages can ask only for recent records (<code>where=shipped_on&gt;=2026-09-01</code>) instead of reading everything. Server-side totals (<code>_query</code> with <code>aggregate</code>) help less than they seem here: the stock page shows every row anyway.</p>
+
+        <h3 id="ideal-retention">7 · Retention: keep the counts, drop the noise</h3>
+        <p>Stock history is the audit trail and must stay complete: receipts, events and shipments store stock version numbers for rollback. Draft autosaves and superseded page builds can go. Preview first; current and labeled versions are always kept:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>POST /api/v1/retention/mae-drafts/_preview  {"maxVersions": 5}
+PUT  /api/v1/retention/mae-drafts           {"maxVersions": 5}
+PUT  /api/v1/retention/mae-pages            {"maxVersions": 10}       # later {"afterLabel": "published"}
+PUT  /api/v1/retention/mae-stock            {}                        # exempt from any org default
+   …{} also for the receipts, events, shipments, orders and invoices</pre></div>
+        <p>Drafts always change, because each save writes a fresh timestamp, so unchanged writes don't slow their growth; retention does. Label the versions you want to keep forever before you set a policy: <code>counted</code> on every real count, <code>as-recorded</code> on every receipt, and the <code>before-…</code> snapshots. Labeled versions survive every rule.</p>
+
+        <h3 id="ideal-public">8 · Public images, private everything else</h3>
+        <p>The 20 product illustrations are meant for the storefront. A collection rule with a label filter publishes exactly those, and only once they're labeled:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>POST /api/v1/permissions  {"principal": "*", "resource": "collection:mae-product-images",
+                           "access": "read", "labelFilter": "published"}
+# the shop links: /api/v1/orgs/{slug}/mae-product-images/{id}/raw/{name}.png</pre></div>
+        <div class="callout callout--warn"><p><strong>Use a collection rule, not a tree rule.</strong> The images are also mounted in the <code>mae</code> tree, next to the stock pages. A <code>tree:mae</code> rule would publish every page in it. Public access is granted per whole tree or collection, so anything public needs its own tree or collection.</p></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="side-by-side">
+        <h2>Side by side</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Concern</th><th>As built</th><th>Built today</th></tr></thead>
+            <tbody>
+              <tr><td>Writes</td><td><code>PUT /by-key/{key}</code></td><td>same, plus a version check after each write</td></tr>
+              <tr><td>Failed applies</td><td>retry replays every line</td><td>each line settled as it's written</td></tr>
+              <tr><td>Stock to the shop</td><td>CSV passed between agent sessions, script run by hand</td><td>webhook plus by-key read with a narrowed key</td></tr>
+              <tr><td>Barcodes to the shop</td><td>one-off CSV, <code>apply-eans.js</code></td><td>the same webhook, or <code>_query</code> on <code>ean</code></td></tr>
+              <tr><td>Page and PDF uploads</td><td>tree lookup, hash check, <code>PUT</code> by id or <code>POST</code> (orphans on failure)</td><td><code>PUT …/by-key/{filename}</code></td></tr>
+              <tr><td>Page changes</td><td>live on upload</td><td>preview label, atomic promote, tree <code>_restore</code> to a release</td></tr>
+              <tr><td>Undo a bad run</td><td>roll back document by document</td><td>label first, collection <code>_restore</code></td></tr>
+              <tr><td>Who wrote it</td><td>the owner, always</td><td>each helper and each agent by name (groups, invites, MCP sign-in)</td></tr>
+              <tr><td>Agent and script access</td><td>owner-equivalent key, no expiry</td><td>MCP sign-in or a key narrowed with <code>key:</code> rules</td></tr>
+              <tr><td>Other devices</td><td>reload</td><td>live events</td></tr>
+              <tr><td>History size</td><td>everything kept, drafts included</td><td>retention per collection; stock kept in full</td></tr>
+              <tr><td>Product images</td><td>private; copied from another site</td><td>public collection rule, label-filtered</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="gaps">
+        <h2>Still open</h2>
+        <ul>
+          <li><strong>No conditional writes.</strong> The scanner reads a stock document and then writes the new quantity. WREN has no "only if still at version n" check (an <code>If-Match</code> header is planned for 0.10), so today the writer can only detect a lost update afterwards, as in Part B. Live events narrow the window but don't close it.</li>
+          <li><strong>Schema changes replace the whole record.</strong> <code>PUT …/_schema</code> overwrites display name, columns, indexes and natural key together. Partial schema updates are planned; until then, set schemas deliberately, once.</li>
+          <li><strong>Webhooks can't be filtered by collection.</strong> They filter by event type, so a receiver sees every write in the org and has to discard most of them.</li>
+          <li><strong>Public files by name.</strong> Files can be uploaded and read by name with a key, but public URLs still use the document id. Public by-key downloads are planned.</li>
+          <li><strong>Two systems of record.</strong> WREN knows what's on the shelf, and the shop knows what sold. Nothing flows back: goods leave the tracker's stock only when they're scanned in Ship mode. And mapping supplier codes to shop SKUs lives in the shop's scripts, not in either data model.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="lessons">
+        <h2>Lessons</h2>
+        <ol>
+          <li><strong>Record how a number was obtained, not just the number.</strong> <code>counted_by</code> caught about 40 placeholder quantities that would otherwise have been sold as stock.</li>
+          <li><strong>Declare natural keys before the first write</strong>, for files too. Documents without a name are what failed runs leave behind.</li>
+          <li><strong>Design every apply for the retry.</strong> Settle line by line, so running it again only does what's left.</li>
+          <li><strong>Label before you repair.</strong> A label set before a risky run makes undoing it one call.</li>
+          <li><strong>Let systems talk to each other, not through agents.</strong> A snapshot relayed between two sessions worked once and then went stale. A narrowed key and a webhook keep working when nobody is looking.</li>
+          <li><strong>Give every writer an identity.</strong> One shared account makes a perfect history that can't say who did what.</li>
+        </ol>
+        <p>For a public, read-heavy project on the same ideas, see the <a href="/guides/tournament-tracker">tournament tracker case study</a>. The agent sessions that built this tracker logged their work in the <a href="/guides/task-tracker">task tracker</a>, and the label-and-restore pattern is worked out for test data in <a href="/guides/testing-with-versions">repeatable test data</a>. New to these ideas? Start with <a href="/concepts">Concepts</a>.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

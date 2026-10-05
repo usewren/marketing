@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Case study: websites maintained by AI agents</title>
+  <meta name="description" content="Four websites served from usewren (WREN) whose code and content are written and updated by AI coding agents: how the agents deploy, check and release them, the workarounds they needed, and how preview labels, atomic promote, restore to a release, unchanged writes, files by name, MCP and narrowed keys (WREN 0.9) fit that work." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#overview">The sites</a></li>
+        <li><a href="#as-built">Part A · As built</a></li>
+        <li><a href="#loop">How an agent ships</a></li>
+        <li><a href="#data-site">A data site</a></li>
+        <li><a href="#fights">A video analysis site</a></li>
+        <li><a href="#styleguide">A style guide</a></li>
+        <li><a href="#bootos">A docs site</a></li>
+        <li><a href="#worked">What worked well</a></li>
+        <li><a href="#warts">Warts &amp; workarounds</a></li>
+        <li><a href="#ideal">Part B · Built today</a></li>
+        <li><a href="#ideal-preview">Stage, then release</a></li>
+        <li><a href="#ideal-rollback">Name releases</a></li>
+        <li><a href="#ideal-dedup">No-op deploys</a></li>
+        <li><a href="#ideal-mcp">MCP and keys</a></li>
+        <li><a href="#ideal-llms">llms.txt</a></li>
+        <li><a href="#ideal-events">Events and retention</a></li>
+        <li><a href="#side-by-side">Side by side</a></li>
+        <li><a href="#gaps">Still open</a></li>
+        <li><a href="#lessons">Lessons</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/tkd-scores">Case study: tournament data site</a></li>
+        <li><a href="/guides/task-tracker">Case study: task tracker</a></li>
+        <li><a href="/guides/tournament-tracker">Case study: live tracker</a></li>
+        <li><a href="/guides/publish-site">Publish a site</a></li>
+        <li><a href="/guides/mcp">MCP guide</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Case study</p>
+        <h1>Websites maintained by AI agents</h1>
+        <p class="guide-lede">Four websites on WREN are written and kept up to date by AI coding agents: the agents write the pages, the build and deploy scripts, and much of the content. A person asks for changes and approves releases. This is how those agents deploy, check and release the sites today, what they had to work around, and how WREN's current features fit that kind of work.</p>
+        <p class="guide-meta">Written October 2026 from the sites' code and deploy scripts, their data in a WREN backup taken on 2026-10-05, and the Claude Code sessions in which they were built. Athlete names, keys and personal details are left out. We only describe what the sessions show was actually done.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="overview">
+        <h2>The sites</h2>
+        <p>Each site lives in its project's own WREN org, with that org's API key. All four were built in Claude Code sessions, and the agents run the deploys themselves.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Site</th><th>WREN</th><th>What the agents do</th><th>Size and time</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Tournament data</strong> at data.tkd-scores.com: World Taekwondo entry lists with ranking seeds</td><td>tree <code>site</code> (13 files) and tree <code>events</code> (92 documents)</td><td>Wrote the single-page app, help, Olympic and LLM pages, and the scraping pipeline that refreshes the data on a schedule</td><td>App page: 43 versions, 2026-04-09 to 2026-09-17. Data: 4,094 versions on 84 days</td></tr>
+              <tr><td><strong>Fight analysis</strong>: videos and scoreboard-based write-ups of Swiss athletes' fights</td><td>tree <code>combats</code>, collections <code>fights</code> and <code>athletes</code></td><td>Built the video and OCR pipeline, wrote reviews, build and publish the page; a daily job republishes it</td><td>378 fight documents with 3,769 versions; site pages 127 versions, 2026-09-09 to 2026-10-05</td></tr>
+              <tr><td><strong>Club Hub UI</strong>: a style guide and component library for a club management app</td><td>tree <code>clubhub-ui</code>, served on its own domain by a Worker</td><td>Wrote the components, guides and deploy script; deployed with labels</td><td>149 files, 278 file versions, all on 2026-10-02</td></tr>
+              <tr><td><strong>bootOS</strong>: the docs and marketing site of an experimental operating system</td><td>tree <code>bootos</code> (9 pages)</td><td>Wrote the site generator and every page; deploy after each change</td><td>134 file versions, 2026-09-23 to 2026-09-27</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Other WREN projects work the same way and have their own case studies: the live results site in <a href="/guides/tournament-tracker">the tournament tracker</a>, the data and pipeline behind <a href="/guides/tkd-scores">data.tkd-scores.com</a>, the <a href="/guides/mae-shop">MAE shop's stock tracker</a>, and the <a href="/guides/task-tracker">task tracker</a> those agents log their work to. Other trees in these orgs, such as earlier club-site drafts and design mockups, are left out: we have no record of how they were made.</p>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="as-built">
+        <p class="guide-eyebrow">Part A</p>
+        <h2>As built</h2>
+
+        <h3 id="loop">How an agent ships a change</h3>
+        <p>The four sites share a pattern. A person asks for a change in plain words. The agent edits the source in a local repository, runs its checks, and runs a deploy script it wrote itself. Every script talks to WREN's REST API with a key read from an environment variable or a <code>.wren</code> file, uploads changed files to a binary collection, assigns tree paths, and makes sure a public read rule exists. Then the agent fetches the public URL without credentials to see what visitors see, and reports back with the link.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 320" role="img" aria-labelledby="ab-title ab-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ab-title">How the agents ship, as built</title>
+            <desc id="ab-desc">A person asks for a change. A Claude Code session edits the repository, runs tests and a browser harness, and runs its own deploy script, which uploads files with an API key, assigns tree paths and checks the public rule. Scheduled jobs run the same scripts. The agent then reads the public URL without credentials, through a Cloudflare Worker or directly, and reports.</desc>
+            <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="20" width="170" height="54" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="44" text-anchor="middle" font-weight="700" fill="#111827">Person</text>
+              <text x="105" y="62" text-anchor="middle" fill="#6b7280">asks, approves "go live"</text>
+
+              <rect x="20" y="110" width="170" height="90" rx="8" fill="#fff" stroke="#6b7280"/>
+              <text x="105" y="134" text-anchor="middle" font-weight="700" fill="#111827">Claude Code session</text>
+              <text x="105" y="154" text-anchor="middle" fill="#374151">edit, test, screenshot</text>
+              <text x="105" y="172" text-anchor="middle" fill="#374151">run own deploy script</text>
+              <text x="105" y="190" text-anchor="middle" fill="#6b7280">key from env or .wren</text>
+
+              <rect x="20" y="236" width="170" height="54" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="260" text-anchor="middle" font-weight="700" fill="#111827">Scheduled jobs</text>
+              <text x="105" y="278" text-anchor="middle" fill="#6b7280">same scripts, daily</text>
+
+              <rect x="265" y="100" width="220" height="120" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="375" y="124" text-anchor="middle" font-weight="700" fill="#312e81">WREN · one org per site</text>
+              <text x="375" y="146" text-anchor="middle" fill="#374151">binary collection + tree</text>
+              <text x="375" y="164" text-anchor="middle" fill="#374151">public rule on the tree</text>
+              <text x="375" y="184" text-anchor="middle" fill="#6b7280">mostly no label filter:</text>
+              <text x="375" y="200" text-anchor="middle" fill="#6b7280">each upload is live at once</text>
+
+              <rect x="560" y="60" width="180" height="70" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="650" y="86" text-anchor="middle" font-weight="700" fill="#111827">Cloudflare</text>
+              <text x="650" y="104" text-anchor="middle" fill="#374151">custom domain Worker</text>
+              <text x="650" y="120" text-anchor="middle" fill="#6b7280">or the WREN URL directly</text>
+
+              <rect x="560" y="190" width="180" height="70" rx="10" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="650" y="216" text-anchor="middle" font-weight="700" fill="#111827">Agent checks</text>
+              <text x="650" y="234" text-anchor="middle" fill="#374151">public URL, no key</text>
+              <text x="650" y="250" text-anchor="middle" fill="#6b7280">bytes, overflow, console</text>
+
+              <line x1="105" y1="74" x2="105" y2="107" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="155" x2="262" y2="155" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="262" x2="262" y2="200" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="557" y1="100" x2="488" y2="130" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="650" y1="187" x2="650" y2="133" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 1. As built: the agent deploys with its own script and checks the result the way a visitor would. In three of the four sites, an upload is visible the moment it lands.</figcaption>
+        </figure>
+
+        <p>In the sessions we have, no agent used WREN's MCP endpoint, and no MCP sign-in was ever granted. The agents read WREN's <code>llms.txt</code>, <code>llms-full.txt</code> and <code>/openapi.json</code>, and wrote small REST clients. Where the docs and the service disagreed, the agents wrote down that "the service wins" and coded against what it did.</p>
+
+        <h3 id="data-site">A data site with a staged redesign</h3>
+        <p>data.tkd-scores.com is a single-page app plus help, Olympic-ranking and LLM-usage pages, stored as files in the <code>site</code> tree of the project's own org and served on the custom domain through a Cloudflare Worker. Its data lives in the <code>events</code> tree, which a scraping pipeline refreshes on a schedule (daily, and fully every three days); the data side has <a href="/guides/tkd-scores">its own case study</a>. The app and the pipeline are maintained by Claude Code sessions: first on a Mac, and since 2026-09-16 on a Windows machine, where all 18 commits of the project's repository carry a Claude co-author line.</p>
+        <p>The September redesign shows how the agent released without a release feature:</p>
+        <ul>
+          <li><strong>Staging by copy.</strong> Offered options, the owner picked "Stage at data.tkd-scores.com/preview/". The agent uploaded new copies of the pages and assigned them under <code>/preview/</code> in the same live tree, so the owner could check them on a phone.</li>
+          <li><strong>Release by overwrite.</strong> After "ok, lets go live with this", the agent uploaded the new app over the live document. The app page went from version 41 to version 43 that day.</li>
+          <li><strong>Cleanup by hand.</strong> It then deleted the 12 <code>/preview/</code> tree paths and the 11 staging documents, noting that "Wren's DELETE endpoints work".</li>
+          <li><strong>Rollback as a note.</strong> The rollback plan is written in the agent's memory: "git tag <code>spa-pre-redesign</code> / Wren v41".</li>
+          <li><strong>Checks.</strong> A Puppeteer harness loads 7 routes at phone, tablet and desktop width in light and dark mode, and fails on horizontal overflow or console errors. A hook reminds the agent to update the help page, <code>llms.html</code> and <code>llms.txt</code> whenever the app or the data shape changes.</li>
+        </ul>
+        <p>The site also publishes its own <code>/llms.txt</code>, which tells other agents what the data means, how to query it, and that the payload sits at <code>.document.data</code>.</p>
+
+        <h3 id="fights">A video analysis site that republishes itself</h3>
+        <p>The fight-analysis site shows videos of Swiss athletes' fights at several 2026 tournaments, with a write-up for each, built from the scoreboard overlay with OCR. An agent built the whole pipeline: locating fights in court streams, cutting clips, reading the scoreboard, writing up each fight, and publishing. Detailed frame-by-frame reviews were also written in the session; the agent's notes put the cost at "roughly 20-40 min and 150-250k tokens per fight".</p>
+        <ul>
+          <li><strong>Data by natural key.</strong> The publish script upserts every fight into the <code>fights</code> collection with <code>PUT …/by-key/{id}</code>, retrying on 5xx. It reads the existing documents first and skips unchanged fights, "so unchanged fights are left alone (no version churn)".</li>
+          <li><strong>The page as one file.</strong> <code>index.html</code> loads the fights from the public collection. The script uploads it as a new version of the same document, keeps the tree path assigned, and sets a <code>published</code> label. The public rules have no label filter, so the label doesn't decide what visitors see.</li>
+          <li><strong>A daily job.</strong> A scheduled batch at 09:30 uploads new clips to YouTube, regenerates write-ups and rankings, rebuilds the pages and republishes. The data shows it: from 2026-09-10 on, every day has a page version between 07:30 and 07:45 UTC.</li>
+          <li><strong>A rename.</strong> After a second tournament was added, the owner asked for a new URL. The agent created a second tree, <code>combats</code>; the old tree still serves its last page.</li>
+          <li><strong>Public versus private.</strong> Rankings and detailed reviews weren't meant to be public. The agent's reasoning: "Wren has no private pages. Anything published there is readable by anyone. It is also listed in Wren's public data summary for your organisation, including the path to ranking.html." So the public page carries only videos and basic scoreboard analysis, and <code>ranking.html</code> holds the rest encrypted with a passphrase.</li>
+        </ul>
+
+        <h3 id="styleguide">A style guide released with labels</h3>
+        <p>The Club Hub UI style guide was built in one session on 2026-10-02: design tokens, about 35 CSS components, JavaScript behaviors, icons, a design guide and a UX guide. It is the only one of the four sites released with labels. The agent's deploy script "mirrors <code>wren deploy</code>":</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · tools/deploy-wren.mjs (simplified)</span></div>
+<pre>// upload new or changed files (SHA-256 in a local state file), assign tree paths
+// labels: everything current → preview; with --promote also → published
+for (const label of PROMOTE ? ['preview', 'published'] : ['preview'])
+  for (const id of docIds) await api('POST', `/${COLLECTION}/${id}/labels`, { label });
+// public read, published versions only
+await api('POST', '/permissions', { principal: '*', resource: `tree:${TREE}`,
+                                    access: 'read', labelFilter: 'published' });</pre></div>
+        <ul>
+          <li>The agent deployed a small Worker that serves the tree on its own domain, read-only, and only what the public rule shows, so only <code>published</code> versions are visible.</li>
+          <li>Before each deploy it ran a CSS lint and the test suite (478 tests at one point), and checked pages in a browser at desktop and phone width.</li>
+          <li>Every deploy command in the session used <code>--promote</code>, so <code>preview</code> and <code>published</code> always moved together. On 2026-10-05 both labels point at the current version of all 149 files.</li>
+          <li>The style guide publishes its own <code>llms.txt</code> and a <code>components.json</code> with each component's data contract, for agents that build screens from it.</li>
+        </ul>
+
+        <h3 id="bootos">A docs site that checks its own bytes</h3>
+        <p>The bootOS site is generated from source by a script the agent wrote. The same build goes to two places: the operating system's own file system, and a WREN tree "where wren itself serves it to the public web". The deploy step:</p>
+        <ul>
+          <li>declares <code>filename</code> as the collection's natural key "so re-deploying replaces rather than piles up";</li>
+          <li>finds existing files by listing the collection, because <code>by-key</code> "answers 404 for every one of them" for uploaded files, and soft-deletes leftover duplicates (8 of the collection's 17 documents are deleted);</li>
+          <li>reads the site's public address from WREN's <code>/api/v1/projects</code> instead of guessing the org slug.</li>
+        </ul>
+        <p>After each deploy the agent fetched every changed page from the public URL without credentials and compared it with the build. Once, <code>style.css</code> didn't match. The agent checked the headers, found the Cloudflare cache still serving the old file (<code>max-age=14400</code> at the time), and confirmed a byte-for-byte match a few seconds later. The site was deployed after each change; of its 134 file versions, 66 are identical to the version before.</p>
+
+        <h3 id="worked">What worked well</h3>
+        <ul>
+          <li><strong>Every agent write is a version.</strong> Nothing an agent uploaded was ever overwritten in place. The data site's rollback plan is simply "v41", and it exists because WREN kept it.</li>
+          <li><strong>A plain HTTP API is enough for an agent.</strong> The agents wrote their deploy clients from WREN's docs, with no SDK: 95 lines for the fights site, 123 for the style guide.</li>
+          <li><strong>Agents check what visitors see.</strong> Public URLs need no key, so an agent can verify a release exactly as a visitor gets it.</li>
+          <li><strong>Natural keys make republishing safe.</strong> The daily job and the agents call the same upsert, and repeating it changes nothing twice.</li>
+          <li><strong>Label filters work as a gate.</strong> Where they were used, the public saw only <code>published</code> versions, with a Worker that needs no logic of its own.</li>
+          <li><strong>One org per site.</strong> Each site's key reaches only its own org, which limited what any one agent could touch.</li>
+        </ul>
+
+        <h3 id="warts">Warts and workarounds</h3>
+        <p>The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>The redesign was staged as copies under <code>/preview/</code> in the live tree, then 12 paths and 11 documents deleted by hand</td><td>Copy, overwrite, delete</td><td>The public rule had no label filter, so anything in the tree was public</td><td>Use labels: deploy with <code>preview</code>, release with <code>promote</code> (Part B)</td></tr>
+              <tr><td>Rollback was "Wren doc v41" for one file, plus a git tag</td><td>Notes in the agent's memory</td><td>No release name across the tree</td><td>Name a release with <code>promote --label</code>; roll back with <code>promote --from</code></td></tr>
+              <tr><td>Republishing unchanged files created new versions: 68 of the fights site's 127 page versions and 66 of bootOS's 134 file versions repeat the one before</td><td>The fights script reads every fight first and skips unchanged data documents, not pages</td><td>Every upload and every JSON write made a version</td><td>Fixed: identical file uploads (0.8.0) and identical JSON writes (0.9.0) return <code>unchanged: true</code> and add no version</td></tr>
+              <tr><td><code>by-key</code> returned 404 for uploaded files, so deploys made duplicates</td><td>Index by listing; soft-delete duplicates</td><td>Natural keys didn't apply to binary uploads</td><td>Fixed in 0.9.0: files by name (<code>naturalKey: "filename"</code>, <code>PUT …/by-key/{name}</code>)</td></tr>
+              <tr><td>The docs said <code>/api/permissions</code>; the service wanted <code>/api/v1/permissions</code></td><td>One place in each client "that can be corrected in one edit"</td><td>Docs described unversioned routes</td><td>Fixed: the docs start with a URL map</td></tr>
+              <tr><td>A deployed file kept its old version at the edge for a while; on the style guide's domain a 404 stayed cached for up to 60 seconds</td><td>Waiting; the Worker stopped caching errors</td><td>Long cache lifetimes, cacheable errors</td><td>Fixed: public responses are <code>max-age=60</code>, errors <code>no-store</code></td></tr>
+              <tr><td>The public fights page showed only 200 fights</td><td>Paging with <code>offset</code> and <code>total</code></td><td>The list endpoint returns at most 200</td><td>By design; or <code>_query</code> with a <code>cursor</code></td></tr>
+              <tr><td>The fights site sets a <code>published</code> label that changes nothing</td><td>None needed</td><td>Its public rules have no label filter</td><td>Add <code>labelFilter</code> if releases should be gated</td></tr>
+              <tr><td>The style guide's preview was never looked at on its own</td><td>Tests and browser checks before each deploy</td><td>Every deploy used <code>--promote</code></td><td>Practice: promote after checking <code>?label=preview</code></td></tr>
+              <tr><td>Renaming the fights site meant a second tree; the old one serves a stale page</td><td>Keep both</td><td>A tree name is part of its URL</td><td>A public <code>alias</code> on the rule adds a short name without a copy</td></tr>
+              <tr><td>A key quoted in a prompt was copied into every summary of a long session</td><td>The key was rotated (2026-10-04) and kept in env and an ignored file</td><td>Secrets in conversation text</td><td>Practice; narrowed keys limit the damage (Part B)</td></tr>
+              <tr><td>WREN was unreachable while its tunnel was down</td><td>A script that waits for a 200, then finishes the deploy</td><td>WREN ran on one workstation behind a tunnel</td><td>Infrastructure, not WREN</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="ideal">
+        <p class="guide-eyebrow">Part B</p>
+        <h2>As we'd build it today</h2>
+        <p>The agents did their job well. What they lacked was a way to separate "written" from "released", a name for each release, and deploys that don't add noise. Those are now WREN features, and they map onto how these sites are actually run: the agent writes, the person says "go live".</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 300" role="img" aria-labelledby="ib-title ib-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ib-title">Release flow, built today</title>
+            <desc id="ib-desc">The agent deploys with the preview label using a key narrowed to its site. The person or the agent checks the preview on the private route. Promote moves the published label on every file in one transaction and can name the release. The public rule shows only published versions, and llms.txt lists only released pages. Rolling back promotes an older release label.</desc>
+            <defs><marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="30" width="160" height="80" rx="8" fill="#fff" stroke="#6b7280"/>
+              <text x="100" y="56" text-anchor="middle" font-weight="700" fill="#111827">Agent</text>
+              <text x="100" y="76" text-anchor="middle" fill="#374151">wren deploy --label preview</text>
+              <text x="100" y="94" text-anchor="middle" fill="#6b7280">or MCP write_file</text>
+
+              <rect x="20" y="180" width="160" height="80" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="100" y="206" text-anchor="middle" font-weight="700" fill="#111827">Person</text>
+              <text x="100" y="226" text-anchor="middle" fill="#374151">checks ?label=preview</text>
+              <text x="100" y="244" text-anchor="middle" fill="#6b7280">says "go live"</text>
+
+              <rect x="250" y="20" width="250" height="250" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="375" y="44" text-anchor="middle" font-weight="700" fill="#312e81">WREN · site tree</text>
+              <text x="375" y="70" text-anchor="middle" fill="#374151">v7 ← preview</text>
+              <text x="375" y="90" text-anchor="middle" fill="#374151">v6 ← published, release-12</text>
+              <text x="375" y="110" text-anchor="middle" fill="#374151">v5 ← release-11</text>
+              <text x="375" y="134" text-anchor="middle" fill="#6b7280">unchanged upload: no version</text>
+              <line x1="270" y1="152" x2="480" y2="152" stroke="#c7d2fe"/>
+              <text x="375" y="176" text-anchor="middle" font-weight="700" fill="#312e81">promote --from preview</text>
+              <text x="375" y="196" text-anchor="middle" fill="#374151">every file, one transaction</text>
+              <text x="375" y="222" text-anchor="middle" font-weight="700" fill="#312e81">promote --from release-11</text>
+              <text x="375" y="242" text-anchor="middle" fill="#374151">rollback, same way</text>
+
+              <rect x="570" y="30" width="170" height="90" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="655" y="56" text-anchor="middle" font-weight="700" fill="#111827">Visitors</text>
+              <text x="655" y="76" text-anchor="middle" fill="#374151">rule: labelFilter</text>
+              <text x="655" y="94" text-anchor="middle" fill="#374151">"published"</text>
+
+              <rect x="570" y="170" width="170" height="90" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="655" y="196" text-anchor="middle" font-weight="700" fill="#111827">Other agents</text>
+              <text x="655" y="216" text-anchor="middle" fill="#374151">/orgs/{slug}/llms.txt</text>
+              <text x="655" y="234" text-anchor="middle" fill="#6b7280">released pages only</text>
+
+              <line x1="180" y1="70" x2="247" y2="70" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="180" y1="220" x2="247" y2="190" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="567" y1="75" x2="503" y2="90" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="567" y1="215" x2="503" y2="215" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 2. Built today: the agent stages, a person releases with one call, and both visitors and other agents see only released versions.</figcaption>
+        </figure>
+
+        <h3 id="ideal-preview">1 · Let agents stage, let people release</h3>
+        <p>Instead of copying the redesign under <code>/preview/</code> and deleting it afterwards, deploy it as the <code>preview</code> label of the same files. A public rule with <code>labelFilter: "published"</code> keeps it invisible. The first deploy with <code>--public</code> creates that rule:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · the agent</span></div>
+<pre>export WREN_URL=https://wren.aemwip.com WREN_API_KEY=wren_…    # this site's key
+wren deploy ./events --tree site --label preview --public
+curl -H "Authorization: Bearer $WREN_API_KEY" \
+  "$WREN_URL/api/v1/tree/site/index.html?label=preview"        # check it like the owner will</pre></div>
+        <p>The harness that checks the live site can check the preview the same way, with the key. When the owner says "go live", one call releases every file at once:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · after "ok, lets go live with this"</span></div>
+<pre>wren promote site --from preview --label release-2026-09-17   # name the release
+wren promote site --from preview                               # every page goes live in one transaction</pre></div>
+        <p>Promote moves the label on every document in the tree "in a single transaction, so readers never see a half-promoted site". There is nothing to clean up: the staged versions are simply older versions. Data that should go live as soon as it's written, like the <code>events</code> tree or the <code>fights</code> collection, keeps a rule without a label filter.</p>
+
+        <h3 id="ideal-rollback">2 · Name releases, roll back in one call</h3>
+        <p>"Wren doc v41" covers one file. A release label covers the whole tree, including the help pages and screenshots that changed with it:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren promote site --from release-2026-09-16    # point "published" back at the old release</pre></div>
+        <p>A site without a label filter, like the fights site, has no <code>published</code> pointer to move back. Since 0.9 it can still go back to a named state in one call: label the files at each release, and <code>POST /api/v1/tree/combats/_restore {"label": "release-…"}</code> writes the labeled content as new versions of every file in the tree, in one transaction. For JSON data, <code>GET …/{id}/diff?v1=published&amp;v2=preview&amp;deep=true</code> shows field by field what a release would change, so the person saying "go live" can see it. For a single document, <code>POST /api/v1/{collection}/{id}/rollback/{n}</code> writes a new version with the old data and keeps the history. Under a label-filtered public rule, version history and diffs return 403, so visitors can't read drafts through the history either.</p>
+
+        <h3 id="ideal-dedup">3 · Deploys that change nothing add nothing</h3>
+        <p>Since 0.8.0, file bytes are stored once per SHA-256, and replacing a file with identical bytes, name and type returns <code>"unchanged": true</code> without a new version. The fights site's daily republish and bootOS's deploy-everything script would have added 134 fewer versions (68 and 66). Since 0.9.0 the same holds for JSON: an upsert whose data equals the current version creates none, so the fights script can send every fight and drop its read-everything-first step. <code>wren deploy</code> also compares hashes before uploading.</p>
+        <p>bootOS's deploy script wanted exactly what 0.9 added: files addressed by name. Declaring <code>filename</code> as the natural key now registers the names of the files already there (or refuses with <code>409</code> and lists duplicate names, which is how the leftover copies would have shown up), and the deploy becomes one call per file:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>PUT /api/v1/bootos-site/_schema           {"collectionType": "binary", "naturalKey": "filename"}
+PUT /api/v1/bootos-site/by-key/style.css  multipart, field "file"   → 201 created / 200 replaced / 200 unchanged
+GET /api/v1/bootos-site/by-key/style.css  → metadata incl. sha256, to compare with the build</pre></div>
+        <p>No listing, no duplicate pruning, and a <code>POST</code> of a name that already exists is refused with <code>409</code> instead of making a second copy. A duplicate deleted by mistake comes back with <code>POST /api/v1/bootos-site/{id}/undelete</code>.</p>
+
+        <h3 id="ideal-mcp">4 · MCP for agents, one narrowed key each</h3>
+        <p>WREN's MCP tools match what these agents did by hand, with the same release step built in. <code>write_file</code> finds the file in the tree, uploads it and labels it <code>preview</code>; <code>promote_tree</code> moves <code>preview</code> to <code>published</code> in one transaction and carries MCP's destructive hint, which clients can use to ask before calling it. <code>list_tree</code>, <code>read_file</code> and <code>diff_versions</code> let the agent see what's there and what changed.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · Claude Code, per site</span></div>
+<pre>claude mcp add --transport http bootos-site \
+  https://wren.aemwip.com/orgs/&lt;slug&gt;/mcp \
+  --header "Authorization: Bearer $BOOTOS_SITE_KEY"</pre></div>
+        <p>The org-bound endpoint accepts only that org's keys. Today each site's key is a full-access key for its org. A key with <code>key:&lt;id&gt;</code> rules uses only those, so a site key can be narrowed to its tree and asset collection:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once per agent key</span></div>
+<pre>POST /api/v1/permissions  {"principal": "key:&lt;id&gt;", "resource": "tree:bootos",              "access": "write"}
+POST /api/v1/permissions  {"principal": "key:&lt;id&gt;", "resource": "collection:bootos-site",   "access": "write"}</pre></div>
+        <p>That key can't change permissions or reach the org's other collections. Had the leaked key been narrowed like this, rotating it would still have been right, but it could only have touched the site. For a person working with an agent, browser sign-in (<code>/mcp/login</code>) avoids keys in prompts entirely: the token works only for MCP, and it is revoked under <em>Settings → Connected apps</em>.</p>
+        <p>Without a key, <code>/orgs/{slug}/mcp?tree=site</code> gives any agent read-only tools over just the released site, which is a cleaner way for other agents to consume the data site than scraping it.</p>
+
+        <h3 id="ideal-llms">5 · Tell agents what's there</h3>
+        <p>Each public org serves <code>/orgs/{slug}/llms.txt</code>, listing its public collections and tree paths. That listing is what told the fights agent that a "private" page in a public tree wasn't private. Since 0.7.0, for a tree whose public rule shows only <code>published</code>, it lists only released pages, so a staged preview doesn't leak through it. Keep writing a site's own <code>llms.txt</code> as the data site and the style guide do: WREN's file says where things are, the site's file says what they mean.</p>
+
+        <h3 id="ideal-events">6 · Live events, webhooks and retention</h3>
+        <ul>
+          <li><strong>Reload on release.</strong> <code>GET /orgs/{slug}/_events?trees=site</code> is public and, under a <code>published</code> filter, sends only moves of the <code>published</code> label. An open page or a monitoring agent can reload when a release lands, instead of polling.</li>
+          <li><strong>React to releases.</strong> A webhook on <code>label.set</code> gets one batched call per promote, signed with HMAC. Use it to purge a custom-domain cache or tell the person the release is live.</li>
+          <li><strong>Keep history bounded.</strong> The fights collection gains versions every day. A retention policy such as <code>{"maxVersions": 20}</code> keeps the newest versions, and labeled versions are always kept, so release labels survive. Run <code>_preview</code> before saving it.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="side-by-side">
+        <h2>Side by side</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Concern</th><th>As built</th><th>Today</th></tr></thead>
+            <tbody>
+              <tr><td>Staging</td><td>Copies under <code>/preview/</code>, deleted after release</td><td><code>preview</code> label on the same files</td></tr>
+              <tr><td>Release</td><td>Overwrite the live files one by one</td><td><code>wren promote</code>, one transaction</td></tr>
+              <tr><td>Rollback</td><td>"Wren v41" for one file, plus a git tag</td><td><code>promote --from release-…</code> for the whole tree</td></tr>
+              <tr><td>Redeploys</td><td>New version for every upload</td><td>Unchanged files and JSON add no version</td></tr>
+              <tr><td>Finding a file</td><td>List the collection, prune duplicates</td><td><code>by-key/{filename}</code></td></tr>
+              <tr><td>Rollback without a label filter</td><td>One document at a time</td><td>tree <code>_restore</code> to a release label</td></tr>
+              <tr><td>Agent access</td><td>Hand-written REST clients</td><td>MCP: <code>write_file</code>, <code>promote_tree</code>, <code>diff_versions</code></td></tr>
+              <tr><td>Keys</td><td>One full-access key per org</td><td>Narrowed per agent; browser sign-in for MCP</td></tr>
+              <tr><td>What other agents see</td><td>Everything public, listed in <code>llms.txt</code></td><td>Released pages only</td></tr>
+              <tr><td>Release signals</td><td>Agent polls the public URL</td><td>Live events and webhooks on <code>label.set</code></td></tr>
+              <tr><td>History growth</td><td>Unbounded</td><td>Retention policy; labeled versions kept</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="gaps">
+        <h2>Still open</h2>
+        <ul>
+          <li><strong>Pages for signed-in viewers.</strong> Public routes serve only what a <code>*</code> rule allows, at the whole-tree level, and private routes need a key or a WREN session. A members-only page on a public site still needs another layer, like the passphrase the fights site uses.</li>
+          <li><strong>Public files by name.</strong> Files can be uploaded and read by name with a key, but visitors still reach them through the tree path or the document id. Public by-key downloads are planned.</li>
+          <li><strong>One person approving.</strong> Nothing in WREN records who approved a release. Write the approval into the release label's name, or into the commit.</li>
+          <li><strong>Unproven here.</strong> None of these sites has used MCP, narrowed keys, live events, retention, restore or files by name yet. Part B is how we'd use them, not a report of using them.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="lessons">
+        <h2>Lessons</h2>
+        <ol>
+          <li><strong>Separate writing from releasing.</strong> Agents write often and fast. A label filter on the public rule lets them do that without anyone seeing half-done work, and promote turns "go live" into one call.</li>
+          <li><strong>Make the agent check what visitors see.</strong> The best habit in these sessions was fetching the public URL without a key after every deploy.</li>
+          <li><strong>Public means listed.</strong> Anything a <code>*</code> rule allows is in the org's <code>llms.txt</code>. Decide what's public before an agent publishes it.</li>
+          <li><strong>One org and one narrow key per site.</strong> It keeps each agent inside its own site, and a leaked key costs one site, not all of them.</li>
+          <li><strong>Keep secrets out of prompts.</strong> A key in a message is copied wherever the conversation goes.</li>
+          <li><strong>Let the agent keep the docs.</strong> Hooks that remind it to update help pages and <code>llms.txt</code> kept these sites' docs in step with their code.</li>
+        </ol>
+        <p>New to these ideas? Start with <a href="/concepts">Concepts</a>, then <a href="/guides/publish-site">Publish a site</a> and the <a href="/guides/mcp">MCP guide</a>.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

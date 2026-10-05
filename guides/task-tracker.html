@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Case study: a task tracker that AI agents write to</title>
+  <meta name="description" content="How a personal task tracker and work log runs on usewren (WREN): projects, tasks and a worklog written mostly by AI coding agents, the workarounds it needed, and how we'd build it on WREN 0.9 with org-bound MCP, narrowed keys, live events, webhooks, ISO date filters, deep diffs and files by name." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#overview">The project</a></li>
+        <li><a href="#as-built">Part A · As built</a></li>
+        <li><a href="#model">Data model</a></li>
+        <li><a href="#writes">How work gets in</a></li>
+        <li><a href="#site">Deploy and public page</a></li>
+        <li><a href="#timeline">Timeline and scale</a></li>
+        <li><a href="#worked">What worked well</a></li>
+        <li><a href="#warts">Warts &amp; workarounds</a></li>
+        <li><a href="#ideal">Part B · Built today</a></li>
+        <li><a href="#ideal-mcp">Agents over MCP</a></li>
+        <li><a href="#ideal-keys">One key per agent</a></li>
+        <li><a href="#ideal-live">A live board</a></li>
+        <li><a href="#ideal-share">Sharing a project</a></li>
+        <li><a href="#ideal-dates">Dates, history, undo</a></li>
+        <li><a href="#ideal-site">The public page</a></li>
+        <li><a href="#side-by-side">Side by side</a></li>
+        <li><a href="#gaps">Still open</a></li>
+        <li><a href="#lessons">Lessons</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/ai-maintained-sites">Case study: AI-maintained sites</a></li>
+        <li><a href="/guides/mae-shop">Case study: stock tracker</a></li>
+        <li><a href="/guides/mcp">MCP guide</a></li>
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Case study</p>
+        <h1>A task tracker that AI agents write to</h1>
+        <p class="guide-lede">The Organizer is one person's task tracker and work log: projects, tasks, a kanban board and a record of what was done each day. Almost everything in it was written by AI coding agents, during the sessions in which they did the work. This is how it's built on WREN, what we had to work around, and how we'd build it now.</p>
+        <p class="guide-meta">Written October 2026 from the project's code (the setup bundle published in its WREN tree), its data in a WREN backup taken on 2026-10-05, and the work log it kept about itself. Task titles and personal details are left out.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="overview">
+        <h2>The project</h2>
+        <p>The Organizer keeps <strong>projects → tasks → worklog</strong>. A task has a status (<code>inbox</code>, <code>todo</code>, <code>in-progress</code>, <code>blocked</code>, <code>done</code>, <code>dropped</code>), a priority, a due date, comments and dependencies on other tasks. A worklog entry says what was done on a given day and why. A web board shows the open tasks in lanes, and a report lists today's or this week's work.</p>
+        <p>It has one human user. The other writers are Claude Code sessions on that person's machines. On machines where logging is switched on, every coding session is reminded at its start to offer to record its work. When the person says yes, the agent files tasks and writes worklog entries as it goes. Each write names the session that made it, for example <code>claude:tkd-scores</code>.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>At a glance</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Writers</td><td>Claude Code sessions (through a CLI and a skill), the web board, any script with a key</td></tr>
+              <tr><td>Front end</td><td>a REST API, CLI and single-file web UI, deployed as a Cloudflare Worker on its own domain; it stores no credentials</td></tr>
+              <tr><td>WREN data</td><td>private JSON collections <code>org-projects</code>, <code>org-tasks</code>, <code>org-worklog</code>, each with a JSON Schema and the natural key <code>slug</code>; a materialized query <code>open-tasks</code></td></tr>
+              <tr><td>WREN site</td><td>public tree <code>organizer</code> with two files: a redirect page and the setup bundle</td></tr>
+              <tr><td>Size on 2026-10-05</td><td>10 projects, 45 tasks, 280 worklog entries, about 600 versions in all</td></tr>
+              <tr><td>Who wrote it</td><td>40 of 45 tasks and all 280 worklog entries carry a <code>claude:…</code> source on their current version; 5 tasks came from the web board</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="as-built">
+        <p class="guide-eyebrow">Part A</p>
+        <h2>As built</h2>
+        <p>The Organizer was built and deployed on 2026-08-14 and 2026-08-15 by Claude Code, and its own work log records each step. It has been in daily use since.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 330" role="img" aria-labelledby="ab-title ab-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ab-title">Architecture as built</title>
+            <desc id="ab-desc">Claude Code sessions, the CLI and the web board call the Organizer API, a stateless Cloudflare Worker, with the caller's own WREN key. The Worker passes the key through to WREN's private collections. A public WREN tree holds a redirect page and the setup bundle, which makes the project show up in WREN's projects directory.</desc>
+            <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="20" width="170" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="46" text-anchor="middle" font-weight="700" fill="#111827">Claude Code sessions</text>
+              <text x="105" y="64" text-anchor="middle" fill="#6b7280">skill + start-of-session hook</text>
+              <text x="105" y="80" text-anchor="middle" fill="#6b7280">ORG_SOURCE=claude:topic</text>
+
+              <rect x="20" y="110" width="170" height="54" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="134" text-anchor="middle" font-weight="700" fill="#111827">CLI  bin/org</text>
+              <text x="105" y="152" text-anchor="middle" fill="#6b7280">profiles: real, test, mock</text>
+
+              <rect x="20" y="184" width="170" height="54" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="208" text-anchor="middle" font-weight="700" fill="#111827">Web board</text>
+              <text x="105" y="226" text-anchor="middle" fill="#6b7280">key in localStorage</text>
+
+              <rect x="265" y="70" width="200" height="120" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="365" y="96" text-anchor="middle" font-weight="700" fill="#111827">Organizer API</text>
+              <text x="365" y="116" text-anchor="middle" fill="#374151">Cloudflare Worker</text>
+              <text x="365" y="134" text-anchor="middle" fill="#374151">slugs, status rules, boards,</text>
+              <text x="365" y="150" text-anchor="middle" fill="#374151">dependencies, reports</text>
+              <text x="365" y="172" text-anchor="middle" fill="#6b7280">no secrets: passes caller's key</text>
+
+              <rect x="540" y="20" width="200" height="140" rx="10" fill="#fff7ed" stroke="#d97706"/>
+              <text x="640" y="44" text-anchor="middle" font-weight="700" fill="#7c2d12">WREN · private</text>
+              <text x="640" y="68" text-anchor="middle" fill="#374151" font-family="monospace">org-projects</text>
+              <text x="640" y="86" text-anchor="middle" fill="#374151" font-family="monospace">org-tasks</text>
+              <text x="640" y="104" text-anchor="middle" fill="#374151" font-family="monospace">org-worklog</text>
+              <text x="640" y="126" text-anchor="middle" fill="#6b7280">schema + naturalKey "slug"</text>
+              <text x="640" y="144" text-anchor="middle" fill="#6b7280">materialized open-tasks</text>
+
+              <rect x="540" y="200" width="200" height="100" rx="10" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="640" y="224" text-anchor="middle" font-weight="700" fill="#312e81">WREN · public tree</text>
+              <text x="640" y="246" text-anchor="middle" fill="#374151" font-family="monospace">organizer</text>
+              <text x="640" y="266" text-anchor="middle" fill="#6b7280">/index.html → redirect</text>
+              <text x="640" y="284" text-anchor="middle" fill="#6b7280">/organizer.zip setup bundle</text>
+
+              <rect x="265" y="250" width="200" height="54" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="365" y="274" text-anchor="middle" font-weight="700" fill="#111827">curl PUT by document id</text>
+              <text x="365" y="292" text-anchor="middle" fill="#6b7280">republish the bundle</text>
+
+              <line x1="190" y1="60" x2="262" y2="100" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="137" x2="262" y2="134" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="210" x2="262" y2="170" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="465" y1="110" x2="537" y2="95" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="465" y1="277" x2="537" y2="260" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 1. As built: every writer goes through the Organizer API, which holds the rules and no credentials. WREN stores the data and hosts two public files.</figcaption>
+        </figure>
+
+        <h3 id="model">Data model</h3>
+        <p>Three JSON collections, each with a JSON Schema and <code>slug</code> declared as the natural key, so every write is an upsert by key:</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Collection</th><th>Key</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td><code>org-projects</code></td><td><code>slug</code></td><td>name, status, client, color, description, tags, board buckets, source</td></tr>
+              <tr><td><code>org-tasks</code></td><td><code>slug</code></td><td>title, project, status, priority, due, notes, tags, bucket, rank, <code>dependsOn[]</code>, <code>comments[]</code>, completion stamps, source</td></tr>
+              <tr><td><code>org-worklog</code></td><td><code>slug</code> (<code>YYYY-MM-DD-xxxxxx</code>)</td><td>date, summary, details, project, task, duration in minutes, source</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul>
+          <li><strong>The <code>org-</code> prefix.</strong> The first attempt used the bare names <code>projects</code>, <code>tasks</code> and <code>worklog</code>. Within three minutes they were renamed, because "bare names can collide with Wren's own reserved routes (<code>projects</code> is its public project directory)". The bare-name documents from those minutes are still in the test org, and a <code>tasks</code> materialized query in both orgs.</li>
+          <li><strong>Dates twice.</strong> Every date also has a numeric <code>YYYYMMDD</code> twin (<code>dateNum</code>, <code>completedOnNum</code>), because "Wren's SQL range operators (<code>&gt;=</code>, <code>&lt;=</code>) cast to numeric, so date strings can't be range-filtered". Reports filter on the twins. (WREN 0.9 compares ISO dates directly; see Part B.)</li>
+          <li><strong>Dependencies stored once.</strong> A task stores only what it waits for. What it blocks is worked out on read, "so the two halves can never disagree". Cycles and unknown slugs are refused, and finishing a task with open dependencies returns 409 unless the caller insists.</li>
+          <li><strong>History is the audit trail.</strong> The task view interleaves comments with WREN version diffs, so "who changed what, when" needs no extra table.</li>
+        </ul>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · server/wren.mjs (the whole write path)</span></div>
+<pre>upsertByKey(collection, key, data) {
+  return this.#req("PUT", `/${collection}/by-key/${encodeURIComponent(key)}`, data);
+}</pre></div>
+
+        <h3 id="writes">How work gets in</h3>
+        <p>The project's rule for agents is short: "Never call the Wren API directly for task/project/worklog data." Agents use the CLI or the REST API, so slug generation, status rules, completion stamps, board order and referential integrity live in one place.</p>
+        <ul>
+          <li><strong>A start-of-session hook.</strong> An installer adds a <code>SessionStart</code> hook to Claude Code on each machine that opts in. When logging is on, the hook tells the session to ask once, in its first reply, whether this session's work should be recorded. It is per machine and off by default, so a private computer stays untouched.</li>
+          <li><strong>A skill and a conventions file.</strong> The skill tells the agent how to log: one entry per meaningful unit of work, "summaries for a future [owner] skimming his week", and a duration "only when defensible". <code>AGENTS.md</code> carries the same rules for other tools, and the API serves its own <code>/llms.txt</code> so "a fresh agent with no repo access" can drive it.</li>
+          <li><strong>Who wrote it.</strong> Every write carries a <code>source</code> (<code>ORG_SOURCE</code> in the CLI, <code>X-Organizer-Source</code> over REST). WREN's version history records which account wrote a version, and here every agent writes with the same key, so the source field is what tells sessions apart. 66 different <code>claude:…</code> sources appear in the data.</li>
+          <li><strong>The board.</strong> The web UI asks for a WREN key or an email and password once and keeps the credential in the browser. Its writes carry <code>source: web-ui</code>.</li>
+        </ul>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · what an agent runs</span></div>
+<pre>export ORG_SOURCE="claude:tkd-scores"
+org --env real task add "Title" -p tkd-scores
+org --env real task update &lt;slug&gt; -s in-progress
+org --env real log add "What was actually done" -p tkd-scores -t &lt;slug&gt;
+org --env real task done &lt;slug&gt;</pre></div>
+        <p>The agents followed the duration rule: only 4 of 280 worklog entries carry a duration.</p>
+
+        <h3 id="site">Deploy and public page</h3>
+        <ul>
+          <li><strong>The API is a Worker with no secrets.</strong> <code>npx wrangler deploy</code> publishes it on its own domain. Every request carries the caller's own WREN credential, which the Worker passes on, so "Wren scopes all data to that key's org" and any WREN account can use the tool. Real and test data are simply two accounts: the CLI keeps a <code>real</code> and a <code>test</code> profile, and a <code>mock</code> profile with an in-memory backend for development.</li>
+          <li><strong>Sign-in by proxy.</strong> For people, the API forwards email and password to WREN's sign-in endpoint and hands back the session token. It had to send both cookie names, because "https deployments expect the <code>__Secure-</code> prefix".</li>
+          <li><strong>The WREN tree exists for the projects directory.</strong> WREN lists an org's public trees at <code>/projects</code> and links a tree that has an <code>/index.html</code>. To appear there, the tree holds a small redirect page as <code>/index.html</code>, which forwards visitors to the real project page on the Organizer's domain. It also holds <code>organizer.zip</code>, the setup bundle a new machine downloads. Republishing the bundle is a multipart <code>PUT</code> to its document id, "so the URL never changes".</li>
+        </ul>
+
+        <h3 id="timeline">Timeline and scale</h3>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>When</th><th>What happened (from the work log and the data)</th></tr></thead>
+            <tbody>
+              <tr><td>2026-08-14</td><td>API, CLI and test org built; deployed as a Worker; web UI; email sign-in; kanban board with buckets. The four steps with a recorded duration took 170 minutes in all. The start-of-session hook, Windows installer, <code>AGENTS.md</code> and <code>/llms.txt</code> followed the same day.</td></tr>
+              <tr><td>2026-08-15</td><td>Public tree reworked (see the warts below); task dependencies added.</td></tr>
+              <tr><td>August</td><td>30 tasks and 79 worklog entries created.</td></tr>
+              <tr><td>September</td><td>13 tasks and 192 worklog entries created. One topic alone, the sessions that built <a href="/guides/mae-shop">a shop's stock tracker</a>, wrote 137 worklog entries between 2026-09-08 and 2026-10-01.</td></tr>
+              <tr><td>2026-10-01</td><td>Last write in the backup; the key was last used that evening.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>On 2026-10-05 the 45 tasks were 27 done, 1 dropped, 2 in the inbox, 13 to do and 2 in progress. The busiest task has 9 versions. The <code>open-tasks</code> materialized query has been refreshed 143 times and holds 17 rows.</p>
+
+        <h3 id="worked">What worked well</h3>
+        <ul>
+          <li><strong>Natural keys make agent retries safe.</strong> "Upserts are idempotent (Wren natural keys), so agent retries are safe." An agent that repeats a call after a timeout changes nothing twice.</li>
+          <li><strong>Schemas catch bad writes.</strong> Status and priority are enums, slugs and dates have patterns. A typo from an agent is a 422, not a stray value on the board.</li>
+          <li><strong>Versions as task history.</strong> The task view shows every change as a diff, taken straight from WREN. Nobody built an audit table.</li>
+          <li><strong>No secrets in the service.</strong> Because the Worker only passes the caller's credential through, there was nothing to configure in the cloud and nothing to leak from it.</li>
+          <li><strong>Built for agents from day one.</strong> A skill, a hook, a conventions file and an <code>/llms.txt</code> meant that sessions on other machines and other tools could use it without being shown how.</li>
+        </ul>
+
+        <h3 id="warts">Warts and workarounds</h3>
+        <p>The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Bare collection names (<code>projects</code>) collided with WREN routes</td><td><code>org-</code> prefix on every collection</td><td><code>/api/v1/projects</code> is WREN's public directory</td><td>Still applies: avoid <code>projects</code> as a collection name</td></tr>
+              <tr><td>Date strings couldn't be range-filtered</td><td>Numeric <code>YYYYMMDD</code> twins</td><td><code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code> compare as numbers</td><td>Fixed in 0.9.0: range filters compare non-numbers as text, so ISO dates work (Part B)</td></tr>
+              <tr><td>The client had to find the real base path</td><td>Hard-coded <code>/api/v1</code>, with a comment that the docs showed unprefixed paths</td><td>Docs described unversioned routes</td><td>Fixed: docs start with a URL map; everything authenticated is under <code>/api/v1</code></td></tr>
+              <tr><td>Email sign-in failed in production</td><td>Send both cookie names</td><td>HTTPS uses the <code>__Secure-</code> cookie prefix</td><td>For agents, MCP browser sign-in replaces the proxy (Part B)</td></tr>
+              <tr><td>A per-tree public rule (<code>tree:site</code>) seemed not to be saved or enforced</td><td>Public rule on <code>tree:*</code>; then a tree literally named <code>*</code> so the directory had something to link</td><td>Unclear. On a retry the next day, the rule <code>tree:organizer</code> was saved and enforced, and the workaround trees were removed</td><td>Per-tree rules work (the org's public rule today is <code>tree:organizer</code>)</td></tr>
+              <tr><td>The projects directory showed a tree named <code>*</code> with no link</td><td>See above</td><td>The directory resolves trees by the rule's literal name</td><td>Gone with the per-tree rule</td></tr>
+              <tr><td>A republished bundle took hours to reach everyone</td><td>Documented: "Cloudflare caches these for 4 hours"</td><td>Long cache lifetime on public files</td><td>Fixed: public responses are <code>max-age=60</code>; errors are <code>no-store</code></td></tr>
+              <tr><td>All agents shared one key</td><td>Self-reported <code>source</code> field</td><td>One full-access key for the account</td><td>Narrow a key per agent (Part B); keep <code>source</code></td></tr>
+              <tr><td>Reads stop at 200 documents and don't page; the unfiltered worklog list already returns 200 of 280 (with the total)</td><td>None yet</td><td>The list endpoint's maximum is 200</td><td>Page with <code>offset</code>, or <code>_query</code> with a <code>cursor</code></td></tr>
+              <tr><td><code>open-tasks</code> is refreshed on every task write, but nothing reads it; the report runs the same query itself</td><td>None</td><td>Set up, never wired in</td><td>Read it, or drop it</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="ideal">
+        <p class="guide-eyebrow">Part B</p>
+        <h2>As we'd build it today</h2>
+        <p>The data model stays: schemas, natural keys and versions already do most of the work. What changes is how agents connect, what each one may touch, and how the board learns about their writes. The Organizer's README already named the next step: "a thin MCP server wrapping these endpoints … Not built yet." WREN now has one built in.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 300" role="img" aria-labelledby="ib-title ib-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ib-title">Architecture, built today</title>
+            <desc id="ib-desc">Each agent connects to the org-bound MCP endpoint with its own key, narrowed by key rules to the task collections. Rules that span documents stay in the Organizer API. WREN's live event stream tells the board to reload when an agent writes, and a webhook can notify other systems.</desc>
+            <defs><marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="20" width="180" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="110" y="46" text-anchor="middle" font-weight="700" fill="#111827">Agent sessions</text>
+              <text x="110" y="64" text-anchor="middle" fill="#6b7280">one narrowed key each</text>
+              <text x="110" y="80" text-anchor="middle" fill="#6b7280">or browser sign-in</text>
+
+              <rect x="20" y="200" width="180" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="110" y="226" text-anchor="middle" font-weight="700" fill="#111827">Web board</text>
+              <text x="110" y="244" text-anchor="middle" fill="#6b7280">reloads on live events</text>
+              <text x="110" y="260" text-anchor="middle" fill="#6b7280">invited members, groups</text>
+
+              <rect x="270" y="20" width="200" height="70" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="370" y="46" text-anchor="middle" font-weight="700" fill="#111827">/orgs/{slug}/mcp</text>
+              <text x="370" y="64" text-anchor="middle" fill="#374151">only this org's keys</text>
+              <text x="370" y="80" text-anchor="middle" fill="#6b7280">writes are versions</text>
+
+              <rect x="270" y="200" width="200" height="70" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="370" y="226" text-anchor="middle" font-weight="700" fill="#111827">Organizer API</text>
+              <text x="370" y="244" text-anchor="middle" fill="#374151">cross-document rules:</text>
+              <text x="370" y="260" text-anchor="middle" fill="#6b7280">dependencies, boards, reports</text>
+
+              <rect x="540" y="60" width="200" height="170" rx="10" fill="#fff7ed" stroke="#d97706"/>
+              <text x="640" y="84" text-anchor="middle" font-weight="700" fill="#7c2d12">WREN · private</text>
+              <text x="640" y="106" text-anchor="middle" fill="#374151" font-family="monospace">org-tasks  org-worklog</text>
+              <text x="640" y="124" text-anchor="middle" fill="#374151" font-family="monospace">org-projects</text>
+              <text x="640" y="146" text-anchor="middle" fill="#6b7280">schemas do field checks</text>
+              <text x="640" y="166" text-anchor="middle" fill="#6b7280">key rules per agent</text>
+              <text x="640" y="190" text-anchor="middle" fill="#312e81" font-family="monospace">/api/v1/_events</text>
+              <text x="640" y="208" text-anchor="middle" fill="#312e81">webhooks</text>
+
+              <line x1="200" y1="55" x2="267" y2="55" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="200" y1="235" x2="267" y2="235" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="470" y1="60" x2="537" y2="95" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="470" y1="230" x2="537" y2="195" stroke="#6b7280" stroke-width="2" marker-end="url(#ai)"/>
+              <line x1="537" y1="215" x2="203" y2="250" stroke="#4338ca" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ai)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 2. Built today: agents reach WREN over MCP with keys that can only touch the task collections, the API keeps the rules that span documents, and the board hears about every write (dashed).</figcaption>
+        </figure>
+
+        <h3 id="ideal-mcp">1 · Agents over MCP, bound to one org</h3>
+        <p>WREN's MCP endpoint gives an agent document tools (<code>query_documents</code>, <code>get_document</code>, <code>write_document</code>, <code>list_versions</code>, <code>diff_versions</code>) that call the REST API in-process, "so permissions, label filters and org isolation apply unchanged". The org-bound endpoint <code>/orgs/{slug}/mcp</code> accepts only keys of that org; a key from another org gets 403. That replaces the "real or test?" question with a configuration: one endpoint per org.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · Claude Code, once per machine</span></div>
+<pre>claude mcp add --transport http organizer \
+  https://wren.aemwip.com/orgs/&lt;real-slug&gt;/mcp \
+  --header "Authorization: Bearer $ORGANIZER_AGENT_KEY"</pre></div>
+        <p>For a person at a desk, <code>/mcp/login</code> signs in through the browser instead: WREN shows a consent page where they pick the org, the token works for MCP only, and the connection can be revoked under <em>Settings → Connected apps</em>. No password passes through the Organizer.</p>
+        <div class="callout callout--warn"><p><strong>Two things to know.</strong> <code>write_document</code> labels each version <code>preview</code> unless you pass <code>label: ""</code>; for task data, pass it. And MCP writes go straight to WREN, so they skip the Organizer's rules. Schemas still check every field, but dependencies, completion stamps and board order span documents. Either keep agents on the Organizer API for writes and use MCP for reading and history, or move those rules into the schema where they fit and accept the rest as conventions.</p></div>
+
+        <h3 id="ideal-keys">2 · One key per agent, narrowed by key rules</h3>
+        <p>Today every session writes with the same full-access key, and the only record of which session wrote is the <code>source</code> it reports. A WREN key acts as its creator unless it has <code>key:&lt;id&gt;</code> rules of its own, which then narrow it. Give each machine or tool its own key that can write tasks and the worklog, read projects, and nothing else:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once per agent key</span></div>
+<pre>POST /api/v1/keys         {"name": "agent-laptop"}            → id, key (shown once)
+POST /api/v1/permissions  {"principal": "key:&lt;id&gt;", "resource": "collection:org-tasks",    "access": "write"}
+POST /api/v1/permissions  {"principal": "key:&lt;id&gt;", "resource": "collection:org-worklog",  "access": "write"}
+POST /api/v1/permissions  {"principal": "key:&lt;id&gt;", "resource": "collection:org-projects", "access": "read"}</pre></div>
+        <p>A key that leaks from one machine can then only write task data, and revoking it stops one agent without touching the others. Keep the <code>source</code> field; it names the session, which a key can't. Rules can also set <code>auditWrites</code> to log matching requests.</p>
+
+        <h3 id="ideal-live">3 · A board that updates when an agent writes</h3>
+        <p>The board loads when you open it. Since 0.7.0, WREN streams committed changes as server-sent events: <code>GET /api/v1/_events?collections=org-tasks,org-projects</code> with the caller's credential. Events carry ids, versions and natural keys, never data, so the board re-reads what changed. The Worker already passes the caller's credential through, so it can pass this stream through as well:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">text · one event</span></div>
+<pre>data: {"type":"document.updated","collection":"org-tasks","id":"…","version":4,"key":"fix-login-bug","at":"…"}</pre></div>
+        <p>Webhooks get the same payloads, batched, signed with HMAC and retried. A webhook on <code>document.updated</code> for <code>org-tasks</code> could post to a chat when a task moves to <code>blocked</code>, without any poller.</p>
+
+        <h3 id="ideal-share">4 · Sharing a project</h3>
+        <p>The org has one member. Since 0.6.0, WREN has groups and invites: create a group, give it read (or write) on the task collections, and invite someone straight into it. Invite links only work for the invited email address. The pass-through design means the Organizer itself needs no change; a new member signs in and sees what their group allows.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>POST /api/v1/groups       {"name": "Helpers"}                        → id
+POST /api/v1/permissions  {"principal": "group:&lt;id&gt;", "resource": "collection:org-tasks", "access": "write"}
+POST /api/v1/invites      {"email": "…", "role": "member", "groupIds": ["&lt;id&gt;"]}</pre></div>
+        <p>Granularity is the collection, so a group sees all tasks, not one project's. Showing one project only would need a data filter on a read rule (<code>filterLang</code> and <code>filterExpr</code>, for example <code>project == 'website'</code> in JMESPath).</p>
+
+        <h3 id="ideal-dates">5 · Dates, history and undo</h3>
+        <p>The numeric twins can go. Since 0.9, range operators compare numbers numerically and anything else as text, so ISO dates filter correctly on the fields the Organizer already stores:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>GET  /api/v1/org-worklog?where=date&gt;=2026-09-28 AND date&lt;=2026-10-04&amp;limit=200
+POST /api/v1/org-tasks/_query  {"where": "status:done AND completedOn&gt;=2026-09-21", "cursor": …}</pre></div>
+        <p>The task view diffs every pair of versions to show its history. A task keeps its comments and dependencies in arrays, so a top-level diff reports "<code>/comments</code> replaced" for one new comment. With <code>deep=true</code> the diff names the element (<code>{"op": "add", "path": "/comments/3"}</code>), and <code>v1</code>/<code>v2</code> also accept label names.</p>
+        <p>Agents retry, and a retried write used to add a version with the same data. Since 0.9, a write equal to the current version returns <code>"unchanged": true</code> and creates none, so a task's history shows only real changes. To undo an agent's bad edit, <code>POST /api/v1/org-tasks/{id}/rollback/{n}</code> writes a new version with the old data and keeps the history; a task deleted by mistake comes back with <code>POST /api/v1/org-tasks/{id}/undelete</code>. Before letting an agent reorganize a whole board, label the tasks (<code>before-cleanup</code>), and if the result is wrong, <code>POST /api/v1/org-tasks/_restore {"label": "before-cleanup"}</code> puts every task back in one transaction.</p>
+
+        <h3 id="ideal-site">6 · The public page and the bundle</h3>
+        <p>Replace the hand-run <code>curl PUT</code> with <code>wren deploy</code>. It compares SHA-256 hashes, and since 0.8.0 identical bytes are stored once: re-uploading an unchanged file returns <code>unchanged: true</code> and creates no version.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>export WREN_URL=https://wren.aemwip.com WREN_API_KEY=wren_…
+wren deploy ./public --tree organizer --label preview --public
+wren promote organizer --from preview</pre></div>
+        <p>For the bundle alone, files by name (0.9) replace the lookup by document id: declare <code>{"collectionType": "binary", "naturalKey": "filename"}</code> on <code>org-site</code> once, then republish with <code>PUT /api/v1/org-site/by-key/organizer.zip</code> (multipart). It replaces the same document, so the tree path and its public URL stay as they are. At about 600 versions, the org needs no retention policy; if it ever does, exempt the task collections with an empty policy (<code>{}</code>), because their history is the audit trail.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="side-by-side">
+        <h2>Side by side</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Concern</th><th>As built</th><th>Today</th></tr></thead>
+            <tbody>
+              <tr><td>Agent access</td><td>CLI or REST through the Organizer API</td><td>Same for writes; <code>/orgs/{slug}/mcp</code> for reads and history</td></tr>
+              <tr><td>Real vs test</td><td>CLI profiles, "if it's ambiguous, ask"</td><td>One org-bound endpoint per org; other orgs' keys get 403</td></tr>
+              <tr><td>Credentials</td><td>One full-access key; password proxied for people</td><td>A narrowed key per agent; browser sign-in for MCP</td></tr>
+              <tr><td>Who wrote it</td><td>Self-reported <code>source</code></td><td><code>source</code> plus a key per agent, optional write audit</td></tr>
+              <tr><td>Board freshness</td><td>On page load</td><td>Live events, passed through by the Worker</td></tr>
+              <tr><td>Notifications</td><td>None</td><td>Webhooks on <code>org-tasks</code></td></tr>
+              <tr><td>Sharing</td><td>One person</td><td>Groups and invites</td></tr>
+              <tr><td>Date ranges</td><td>numeric <code>YYYYMMDD</code> twins</td><td>ISO dates in <code>where</code></td></tr>
+              <tr><td>Task history</td><td>top-level diffs; retries add versions</td><td><code>deep=true</code> diffs; unchanged writes add none</td></tr>
+              <tr><td>Public files</td><td><code>curl PUT</code> by id</td><td><code>wren deploy</code> and <code>promote</code>, or <code>PUT …/by-key/organizer.zip</code></td></tr>
+              <tr><td>Undo</td><td>Re-edit by hand</td><td><code>rollback/{n}</code>, <code>undelete</code>, <code>_restore</code> to a label</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="gaps">
+        <h2>Still open</h2>
+        <ul>
+          <li><strong>Rules across documents.</strong> Schemas validate one document. "A task may only be done when its dependencies are" needs code outside WREN, which is why the Organizer API stays.</li>
+          <li><strong>Which key wrote a version.</strong> Version history records the account that wrote it. Telling agents apart by key means turning on write audit for their rules, or keeping the <code>source</code> field.</li>
+          <li><strong>Two writers on one task.</strong> Adding a comment reads the task and writes it back whole. If an agent and the board do that at the same moment, the later write wins and a comment is lost. WREN has no conditional write yet; an <code>If-Match</code> header is planned for 0.10.</li>
+          <li><strong>Public files by name.</strong> Files can be upserted and read by name with a key, but a public download still goes through the tree path or the document id. Public by-key downloads are planned.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="lessons">
+        <h2>Lessons</h2>
+        <ol>
+          <li><strong>Give agents a narrow, documented door.</strong> One API, one conventions file and an <code>/llms.txt</code> got many sessions on several machines writing consistent data.</li>
+          <li><strong>Make agents say who they are.</strong> A <code>source</code> on every write made the history readable. Add a key per agent so the server can enforce what the label only describes.</li>
+          <li><strong>Natural keys first.</strong> Idempotent upserts are what make an agent's retries harmless.</li>
+          <li><strong>Ask before logging.</strong> The hook asks once per session and stays silent on machines that never opted in. That kept the log useful and the person in charge of it.</li>
+          <li><strong>Read what you build.</strong> The materialized query was refreshed 143 times and never read. Check that each piece of WREN you set up is actually used.</li>
+        </ol>
+        <p>New to these ideas? Start with <a href="/concepts">Concepts</a>, then the <a href="/guides/mcp">MCP guide</a>.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
