@@ -94,8 +94,8 @@ compatibility_date = "2026-10-01"
 routes = [{ pattern = "www.example.com", custom_domain = true }]
 
 [vars]
-UPSTREAM = "https://wren.aemwip.com/orgs/oak-spur-spur/tree/mysite"
-MCP      = "https://wren.aemwip.com/orgs/oak-spur-spur/mcp?tree=mysite"</pre></div>
+UPSTREAM = "https://wren.aemwip.com/orgs/brave-fox-hill/tree/mysite"
+MCP      = "https://wren.aemwip.com/orgs/brave-fox-hill/mcp?tree=mysite"</pre></div>
         <p>Rewrite <code>/about</code> to <code>/about/index.html</code> only if your site uses folder-style pages. If it has flat files like <code>/about.html</code>, drop that line.</p>
       </section>
 
@@ -121,9 +121,9 @@ curl -sI https://www.example.com/ | head -5      # 200, content-type: text/html<
         <h2>Data on the same domain</h2>
         <p>Pages can call WREN's public data API directly, since public routes send <code>Access-Control-Allow-Origin: *</code>:</p>
         <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js</span></div>
-<pre>const API = "https://wren.aemwip.com/api/v1/orgs/oak-spur-spur";
+<pre>const API = "https://wren.aemwip.com/api/v1/orgs/brave-fox-hill";
 const { items } = await (await fetch(`${API}/results?limit=100`)).json();</pre></div>
-        <p>Or with <code>wren.js</code>: <code>&lt;script src="https://wren.aemwip.com/wren.js" data-base="https://wren.aemwip.com/api/v1/orgs/oak-spur-spur"&gt;&lt;/script&gt;</code>. If you'd rather keep everything on your domain, add a second route in the Worker (e.g. <code>/data/*</code> → <code>/api/v1/orgs/{slug}/*</code>). Public data still needs no key.</p>
+        <p>Or with <code>wren.js</code>: <code>&lt;script src="https://wren.aemwip.com/wren.js" data-base="https://wren.aemwip.com/api/v1/orgs/brave-fox-hill"&gt;&lt;/script&gt;</code>. If you'd rather keep everything on your domain, add a second route in the Worker (e.g. <code>/data/*</code> → <code>/api/v1/orgs/{slug}/*</code>). Public data still needs no key.</p>
       </section>
 
       <section class="guide-section" id="caching">

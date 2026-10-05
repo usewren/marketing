@@ -538,9 +538,11 @@ PUT /api/v1/{collection}/_schema
   "naturalKey": "slug"            ← optional; declares a field as the document's natural key (see Documents)
 }
 
-Response 200: <Schema>
+Response 200: <Schema>   (with "keysRegistered": n when naturalKey is set)
+Response 409: existing documents share a natural-key value (nothing changed)
 Response 422: invalid JSON Schema
 ```
+Setting `naturalKey` registers the key of every existing document from its current data, so by-key reads and upserts find them (instead of creating duplicates); `keysRegistered` says how many. If two live documents have the same value, the request is refused with `409` listing the values, and nothing changes. An unchanged write still updates a document's stored key.
 
 ### Delete schema
 ```
@@ -758,7 +760,7 @@ Nothing is public by default. A tree or collection becomes publicly readable onl
 ### Recipe
 ```
 # 1. Find your slug
-GET  /api/v1/me                                  → { "org": { "slug": "oak-spur-spur", … } }
+GET  /api/v1/me                                  → { "org": { "slug": "brave-fox-hill", … } }
 
 # 2. Allow anonymous reads (labelFilter keeps drafts private)
 POST /api/v1/permissions  {"principal":"*","resource":"tree:mysite","access":"read","labelFilter":"published"}
@@ -768,8 +770,8 @@ POST /api/v1/permissions  {"principal":"*","resource":"collection:mydata","acces
 POST /api/v1/{collection}/{id}/labels  {"label":"published"}      (wren promote does this for a deployed tree)
 
 # 4. Share the public URLs
-https://<host>/orgs/oak-spur-spur/tree/mysite/index.html           site, for people
-https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50           data, for code
+https://<host>/orgs/brave-fox-hill/tree/mysite/index.html           site, for people
+https://<host>/api/v1/orgs/brave-fox-hill/mydata?limit=50           data, for code
 ```
 
 ### Public endpoints (no auth, read-only)
