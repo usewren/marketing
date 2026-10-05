@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WREN — Case study: a task tracker that AI agents write to</title>
-  <meta name="description" content="How a personal task tracker and work log runs on usewren (WREN): projects, tasks and a worklog written mostly by AI coding agents, the workarounds it needed, and how we'd build it on WREN 0.9 with org-bound MCP, narrowed keys, live events, webhooks, ISO date filters, deep diffs and files by name." />
+  <meta name="description" content="How a personal task tracker and work log runs on usewren (WREN): projects, tasks and a worklog written mostly by AI coding agents, the workarounds it needed, and how we'd build it on WREN 0.10 with conditional writes, org-bound MCP, narrowed keys, live events, webhooks, ISO date filters, deep diffs and files by name." />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/guides.css" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -221,7 +221,7 @@ org --env real task done &lt;slug&gt;</pre></div>
         </ul>
 
         <h3 id="warts">Warts and workarounds</h3>
-        <p>The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <p>The status column refers to WREN 0.10.0, the release that publishes this page.</p>
         <div class="guide-table-wrap">
           <table class="guide-table">
             <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
@@ -372,8 +372,8 @@ wren promote organizer --from preview</pre></div>
         <ul>
           <li><strong>Rules across documents.</strong> Schemas validate one document. "A task may only be done when its dependencies are" needs code outside WREN, which is why the Organizer API stays.</li>
           <li><strong>Which key wrote a version.</strong> Version history records the account that wrote it. Telling agents apart by key means turning on write audit for their rules, or keeping the <code>source</code> field.</li>
-          <li><strong>Two writers on one task.</strong> Adding a comment reads the task and writes it back whole. If an agent and the board do that at the same moment, the later write wins and a comment is lost. WREN has no conditional write yet; an <code>If-Match</code> header is planned for 0.10.</li>
-          <li><strong>Public files by name.</strong> Files can be upserted and read by name with a key, but a public download still goes through the tree path or the document id. Public by-key downloads are planned.</li>
+          <li><strong>Two writers on one task.</strong> Adding a comment reads the task and writes it back whole. If an agent and the board do that at the same moment, the later write wins and a comment is lost. Since 0.10 the fix is a conditional write: send the version read as <code>If-Match</code>, and on <code>412</code> re-read the task and add the comment again. The tracker doesn't do this yet.</li>
+          <li><strong>Public files by name.</strong> Since 0.10, a public file collection keyed by filename is also served by name: <code>/orgs/{slug}/{collection}/by-key/{name}/raw</code>.</li>
         </ul>
       </section>
 

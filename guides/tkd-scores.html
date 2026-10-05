@@ -67,7 +67,7 @@
       <header>
         <p class="guide-eyebrow">Case study</p>
         <h1>An open tournament data site on WREN</h1>
-        <p class="guide-lede">data.tkd-scores.com lists who is entered in upcoming World Taekwondo events, with each athlete's world-ranking seed, Olympic rankings and past results. It is a browsable site and an open JSON API at the same time. A scheduled pipeline writes the data, WREN stores and serves it, and a small Cloudflare Worker puts it on its own domain. This is how it's built, what we worked around, and how we'd build it with WREN 0.9.0.</p>
+        <p class="guide-lede">data.tkd-scores.com lists who is entered in upcoming World Taekwondo events, with each athlete's world-ranking seed, Olympic rankings and past results. It is a browsable site and an open JSON API at the same time. A scheduled pipeline writes the data, WREN stores and serves it, and a small Cloudflare Worker puts it on its own domain. This is how it's built, what we worked around, and how we'd build it with WREN 0.10.0.</p>
         <p class="guide-meta">Written October 2026 from the project's code, scripts and git history, notes from earlier working sessions, a backup of its WREN data from 2026-10-05, and the public site on 2026-10-05.</p>
       </header>
 
@@ -270,7 +270,7 @@ const res = await fetch("/api/v1/orgs/{slug}/events/_query", { method: "POST",
         </ul>
 
         <h3 id="warts">Warts and workarounds</h3>
-        <p>An honest list. The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <p>An honest list. The status column refers to WREN 0.10.0, the release that publishes this page.</p>
         <div class="guide-table-wrap">
           <table class="guide-table">
             <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
@@ -515,7 +515,7 @@ PUT  /api/v1/retention/events            {"maxVersions": 30}     # then hourly</
           <li><strong>Keys and paths are separate.</strong> An upsert by key doesn't mount a tree path. As long as the <code>/tree/events/{slug}</code> URLs are kept, a new event still needs one tree <code>PUT</code>.</li>
           <li><strong>Previews on a phone.</strong> A labeled preview is only visible with a key. The redesign was staged on the public domain because a phone couldn't reach the development machine. Checking a preview on a phone needs a signed-in browser or a private proxy that adds the key.</li>
           <li><strong>Natural keys need an admin.</strong> That's intentional, but it is a one-time step before the pipeline can upsert.</li>
-          <li><strong>Overlapping runs.</strong> With WREN as the source of truth, the pipeline reads an event, merges and writes it back. Two runs at once would still overwrite each other, because WREN has no conditional write yet (an <code>If-Match</code> header is planned for 0.10). Keep the single-instance lock.</li>
+          <li><strong>Overlapping runs.</strong> With WREN as the source of truth, the pipeline reads an event, merges and writes it back. Since 0.10 the write can carry the version it read (<code>If-Match</code>), so an overlapping run gets <code>412</code> instead of overwriting; it re-reads and merges again. Keep the single-instance lock anyway: it avoids the wasted work.</li>
         </ul>
       </section>
 

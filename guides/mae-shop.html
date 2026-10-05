@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WREN — Case study: a webshop and its warehouse stock tracker</title>
-  <meta name="description" content="How the MAE shop counts its stock with a barcode scanner on pages that store everything in private WREN collections, and copies the counts into the shop's own database: the system as built, with its real workarounds and bugs, and the same system rebuilt on WREN 0.9 with files by name, collection restore, unchanged writes, narrowed keys, webhooks, groups, live events and retention." />
+  <meta name="description" content="How the MAE shop counts its stock with a barcode scanner on pages that store everything in private WREN collections, and copies the counts into the shop's own database: the system as built, with its real workarounds and bugs, and the same system rebuilt on WREN 0.10 with conditional writes, files by name, collection restore, unchanged writes, narrowed keys, webhooks, groups, live events and retention." />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/guides.css" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -68,7 +68,7 @@
       <header>
         <p class="guide-eyebrow">Case study</p>
         <h1>A webshop and its warehouse stock tracker</h1>
-        <p class="guide-lede">The MAE shop sells martial arts gear. Its stock is counted with a barcode scanner (or a phone camera) on a handful of web pages that keep everything in private WREN collections, and the counts are copied into the shop's own database by a script. This is how it was built, what we had to work around, and how we'd build it on WREN 0.9.</p>
+        <p class="guide-lede">The MAE shop sells martial arts gear. Its stock is counted with a barcode scanner (or a phone camera) on a handful of web pages that keep everything in private WREN collections, and the counts are copied into the shop's own database by a script. This is how it was built, what we had to work around, and how we'd build it on WREN 0.10.</p>
         <p class="guide-meta">Written October 2026 from the tracker's repository (the Python scripts that build and publish the pages, its seed and repair scripts, and its tests) and a code review of it, the shop's code and history, the tracker's data in the backup taken before the 0.8.0 upgrade on 2026-10-05, and the working sessions in which both were built. Business figures (units, products, orders) are rounded or left out, and supplier, event and customer names are left out on purpose.</p>
       </header>
 
@@ -316,7 +316,7 @@ async function writeQuantity(code, {delta, set, seed, countedBy}) {
         </ul>
 
         <h3 id="warts">Warts and workarounds</h3>
-        <p>An honest list, from the data and from a review of the code. The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <p>An honest list, from the data and from a review of the code. The status column refers to WREN 0.10.0, the release that publishes this page.</p>
         <div class="guide-table-wrap">
           <table class="guide-table">
             <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
@@ -327,7 +327,7 @@ async function writeQuantity(code, {delta, set, seed, countedBy}) {
               <tr><td>An apply that failed halfway, retried, moves the lines that already went through a second time</td><td>None; the phone app asks the warehouse to call the owner</td><td>The tally is cleared only when every line succeeded; <code>ship.py</code> writes the record last</td><td>Code fix: settle each line as it's written (Part B)</td></tr>
               <tr><td>Re-running the seed would overwrite live stock and order edits</td><td>Treated as a one-off</td><td>It reads existing stock with <code>?limit=1000</code>, but lists return at most 200, newest first, so the oldest documents look missing; order lines are upserted in full</td><td>Code fix: create only, read with a cursor (Part B)</td></tr>
               <tr><td>A failed tree assignment, or an invoice uploaded twice, leaves orphaned documents</td><td>None</td><td><code>POST</code> isn't idempotent; files had no name to upsert by</td><td>Fixed: files by name (0.9.0)</td></tr>
-              <tr><td>Each script run resets schema settings changed in the Admin UI</td><td>None</td><td>Scripts send <code>PUT …/_schema</code> on every run, which replaces the whole record, including the natural key</td><td>Practice: set schemas once; partial schema updates are planned</td></tr>
+              <tr><td>Each script run resets schema settings changed in the Admin UI</td><td>None</td><td>Scripts send <code>PUT …/_schema</code> on every run, which replaces the whole record, including the natural key</td><td>Fixed in 0.10: <code>PATCH …/_schema</code> changes only the fields sent</td></tr>
               <tr><td>The phone app's service worker can answer a read-before-write from its offline cache</td><td>The page sees an offline header but uses the copy</td><td>Offline support and arithmetic on stale data</td><td>Code fix: never compute a write from a cached read</td></tr>
               <tr><td>The tally autosave made 477 versions in <code>mae-drafts</code>, 217 of them on one document</td><td>None</td><td>Every write keeps the previous version</td><td>Fixed: retention policies (0.8.0)</td></tr>
               <tr><td>Pages were changed while in use: the scanner page has 34 versions, 22 from the first delivery day; the pages' history takes 7.3 MB</td><td>None; each upload was live at once</td><td>No preview step, and every version kept in full</td><td>Preview and promote; retention (stored-once only helps with identical bytes: 70 of 71 page versions differ)</td></tr>
@@ -348,7 +348,7 @@ async function writeQuantity(code, {delta, set, seed, countedBy}) {
       <section class="guide-section" id="ideal">
         <p class="guide-eyebrow">Part B</p>
         <h2>The same system, built today</h2>
-        <p>Same pages, same scanner, same shop database. Stock stays private: it's operational data, not something to publish. What changes is how the counts reach the shop, how the scripts survive failures, who is recorded as writing, and how pages and history are managed. Everything below is checked against WREN 0.9.0.</p>
+        <p>Same pages, same scanner, same shop database. Stock stays private: it's operational data, not something to publish. What changes is how the counts reach the shop, how the scripts survive failures, who is recorded as writing, and how pages and history are managed. Everything below is checked against WREN 0.10.0.</p>
 
         <figure class="guide-figure">
           <svg viewBox="0 0 760 330" role="img" aria-labelledby="ib-title ib-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
@@ -545,10 +545,10 @@ PUT  /api/v1/retention/mae-stock            {}                        # exempt f
       <section class="guide-section" id="gaps">
         <h2>Still open</h2>
         <ul>
-          <li><strong>No conditional writes.</strong> The scanner reads a stock document and then writes the new quantity. WREN has no "only if still at version n" check (an <code>If-Match</code> header is planned for 0.10), so today the writer can only detect a lost update afterwards, as in Part B. Live events narrow the window but don't close it.</li>
-          <li><strong>Schema changes replace the whole record.</strong> <code>PUT …/_schema</code> overwrites display name, columns, indexes and natural key together. Partial schema updates are planned; until then, set schemas deliberately, once.</li>
+          <li><strong>Conditional writes need adopting.</strong> Since 0.10 a write can say "only if still at version n": the scanner sends the version it read as <code>If-Match</code> and gets <code>412</code> with the current version if someone wrote in between, then re-reads and re-applies the count. Imports use <code>?ifVersion=0</code> so a re-run can't overwrite live stock. The pages and scripts as built don't send it yet; that is part of the shop's own to-do list.</li>
+          <li><strong>Schema changes: use PATCH in scripts.</strong> <code>PUT …/_schema</code> still replaces display name, columns, indexes and natural key together. Since 0.10, <code>PATCH …/_schema</code> changes only the fields sent, so a script that sets its schema on every run no longer drops settings made in the Admin UI.</li>
           <li><strong>Webhooks can't be filtered by collection.</strong> They filter by event type, so a receiver sees every write in the org and has to discard most of them.</li>
-          <li><strong>Public files by name.</strong> Files can be uploaded and read by name with a key, but public URLs still use the document id. Public by-key downloads are planned.</li>
+          <li><strong>Public files by name.</strong> Since 0.10, a public file collection keyed by filename is also served by name: <code>/orgs/{slug}/{collection}/by-key/{name}/raw</code>. Stock photos stay private here, so this matters only for files the shop chooses to publish.</li>
           <li><strong>Two systems of record.</strong> WREN knows what's on the shelf, and the shop knows what sold. Nothing flows back: goods leave the tracker's stock only when they're scanned in Ship mode. And mapping supplier codes to shop SKUs lives in the shop's scripts, not in either data model.</li>
         </ul>
       </section>

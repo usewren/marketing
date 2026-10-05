@@ -206,7 +206,7 @@ await api('POST', '/permissions', { principal: '*', resource: `tree:${TREE}`,
         </ul>
 
         <h3 id="warts">Warts and workarounds</h3>
-        <p>The status column refers to WREN 0.9.0, the release that publishes this page.</p>
+        <p>The status column refers to WREN 0.10.0, the release that publishes this page.</p>
         <div class="guide-table-wrap">
           <table class="guide-table">
             <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
@@ -363,7 +363,7 @@ POST /api/v1/permissions  {"principal": "key:&lt;id&gt;", "resource": "collectio
         <h2>Still open</h2>
         <ul>
           <li><strong>Pages for signed-in viewers.</strong> Public routes serve only what a <code>*</code> rule allows, at the whole-tree level, and private routes need a key or a WREN session. A members-only page on a public site still needs another layer, like the passphrase the fights site uses.</li>
-          <li><strong>Public files by name.</strong> Files can be uploaded and read by name with a key, but visitors still reach them through the tree path or the document id. Public by-key downloads are planned.</li>
+          <li><strong>Public files by name.</strong> Since 0.10, a public file collection keyed by filename is also served by name: <code>/orgs/{slug}/{collection}/by-key/{name}/raw</code>, under the same public rule and label filter.</li>
           <li><strong>One person approving.</strong> Nothing in WREN records who approved a release. Write the approval into the release label's name, or into the commit.</li>
           <li><strong>Unproven here.</strong> None of these sites has used MCP, narrowed keys, live events, retention, restore or files by name yet. Part B is how we'd use them, not a report of using them.</li>
         </ul>

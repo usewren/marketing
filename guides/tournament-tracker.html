@@ -359,7 +359,7 @@ wren promote tkd-scores --from preview           # every page goes live in one t
         <h2>Still open</h2>
         <p>Not everything above is possible yet. These are the gaps the project still hits:</p>
         <ul>
-          <li><strong>Public files by name.</strong> Since 0.9.0, a file collection with <code>naturalKey: "filename"</code> can be uploaded and read by name with a key, but public reads still go through the tree path or the document id. Public by-key downloads are planned.</li>
+          <li><strong>Public files by name.</strong> Since 0.9.0, a file collection with <code>naturalKey: "filename"</code> can be uploaded and read by name with a key; since 0.10, a public one is also served by name at <code>/orgs/{slug}/{collection}/by-key/{name}/raw</code>.</li>
           <li><strong>Natural keys need an admin.</strong> That's intentional, since schemas are a contract, but it means a one-time admin step before writers can upsert.</li>
           <li><strong>Edge settings.</strong> A Cloudflare browser-integrity check in front of a server blocks some HTTP clients (<code>403 error code: 1010</code>). That's a setting on the deployment, not in WREN.</li>
         </ul>
