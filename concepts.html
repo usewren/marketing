@@ -106,6 +106,8 @@
           <li><strong>Rollback moves forward.</strong> <code>POST …/{id}/rollback/{n}</code> writes a <em>new</em> version with the content of version n, so the history stays intact.</li>
           <li><strong><code>current_version</code></strong> is the newest version. Reads without a label return it.</li>
           <li><strong>Writes are transactional.</strong> A version, its label change or its tree assignment either commits fully or not at all.</li>
+          <li><strong>History is kept until you decide otherwise.</strong> By default every version stays. An org admin can set a retention policy, for the whole org or one collection: keep only labeled versions, the newest <em>n</em>, versions younger than <em>n</em> days, or nothing older than a label's version. The current version and every labeled version are always kept.</li>
+          <li><strong>Files are stored once.</strong> Identical bytes take space once, however many versions or documents use them, and re-uploading an unchanged file creates no new version.</li>
         </ul>
         <div class="callout callout--key"><p><strong>Natural keys.</strong> If your data has its own identifier (a tournament id, a URL slug), declare it as the collection's <code>naturalKey</code> and write with <code>PUT /api/v1/{collection}/by-key/{value}</code>. That call creates the document the first time and adds a version afterwards, so re-running an import never creates duplicates.</p></div>
       </section>
