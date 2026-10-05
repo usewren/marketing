@@ -12,7 +12,7 @@ There are exactly three URL families. Do not mix them.
 
 | Family | URL shape | Auth | Org comes from |
 |---|---|---|---|
-| Private API (read + write) | `/api/v1/{collection}…`, `/api/v1/tree/{tree}/{path}`, `/api/v1/me`, `/api/v1/permissions`… | `Authorization: Bearer wren_…` or session cookie | the API key / session — never the URL |
+| Private API (read + write) | `/api/v1/{collection}…`, `/api/v1/tree/{tree}/{path}`, `/api/v1/me`, `/api/v1/permissions`, `/api/v1/retention`… | `Authorization: Bearer wren_…` or session cookie | the API key / session — never the URL |
 | Public data (read-only) | `/api/v1/orgs/{slug}/{collection}…`, `/api/v1/orgs/{slug}/tree/{tree}/{path}` | none | `{slug}` in the URL |
 | Public site (read-only) | `/orgs/{slug}/tree/{tree}/{path}` | none | `{slug}` in the URL |
 
@@ -57,10 +57,11 @@ https://<host>/api/v1/orgs/oak-spur-spur/mydata?limit=50          (data, for cod
 - **Collections** — named document namespaces; schema-free by default, optionally validated with JSON Schema
 - **Documents** — JSON objects stored with a UUID; every mutation creates a new version
 - **Versions** — immutable snapshots; list, diff, or roll back to any point in history
+- **Retention policies** — optional per-org default (`*`) and per-collection rules (keep only labeled, keep newest N, remove older than N days, remove older than a label) that remove old versions hourly; the current version and every labeled version are always kept; preview first with `POST /api/v1/retention/{collection|*}/_preview` (org owner/admin)
 - **Labels** — named pointers to a specific version (`published`, `draft`, `staging`, etc.)
 - **Trees** — hierarchical path assignment (`/site/about`, `/blog/2026/hello`) for CMS navigation and static site serving
 - **Deploy** — `wren deploy ./dist --tree mysite` uploads files, assigns tree paths, and serves the site. `wren promote` moves the published label on every document in the tree in one transaction (`POST /api/v1/tree/{name}/_promote`).
-- **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata. To publish a new version of a file, `PUT` multipart to the existing document id; `POST` creates a new document.
+- **Binary assets** — collections can store files (HTML, CSS, JS, images, PDFs) alongside JSON metadata. To publish a new version of a file, `PUT` multipart to the existing document id; `POST` creates a new document. Identical bytes are stored once; re-uploading the same bytes, filename and type creates no version and returns `"unchanged": true`.
 - **Multi-tenancy** — each org is isolated in its own Postgres schema; invite collaborators with role-based access
 - **$ref resolution** — documents can reference other documents, tree paths, or queries; add `?depth=N` to resolve server-side with loop detection
 - **Live events** — Server-Sent Events of every change: `GET /api/v1/_events` (what you can read) and `GET /api/v1/orgs/{slug}/_events` (public: only published label moves). Ids and versions, no data; resume with `Last-Event-ID`
@@ -183,6 +184,13 @@ PUT    /api/v1/webhooks/{id}                        update url/events/enabled
 DELETE /api/v1/webhooks/{id}                        delete
 GET    /api/v1/webhooks/{id}/deliveries             delivery log
 POST   /api/v1/webhooks/{id}/replay                 re-deliver past events
+
+# Retention (org owner/admin; {collection} or * for the org default; current + labeled versions always kept)
+GET    /api/v1/retention                            {default, collections, runs}
+PUT    /api/v1/retention/{collection}               {labeledOnly?, maxVersions?, maxAgeDays?, afterLabel?} → replace policy ({} = keep everything)
+DELETE /api/v1/retention/{collection}               remove policy (falls back to the default)
+POST   /api/v1/retention/{collection}/_preview      optional proposed rules → {collections, total:{versions, documents, bytes}}; changes nothing
+POST   /api/v1/retention/_apply                     remove now (also runs hourly) → same shape as _preview
 ```
 
 ## Public API reference (no auth, read-only, gated by principal "*" rules)
