@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — Case study: repeatable test data with versions</title>
+  <meta name="description" content="How a club platform tested against a Webling API emulator backed by WREN, snapshotting and restoring the whole dataset with labels and rollback; what worked, what hurt, and the same pattern on WREN 0.9 with tree promote, collection restore, undelete, deep diffs, unchanged writes, natural keys, live events and retention." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#problem">The problem</a></li>
+        <li><a href="#as-built">Part A · As built</a></li>
+        <li><a href="#emulator">The emulator</a></li>
+        <li><a href="#restore">Snapshot and restore</a></li>
+        <li><a href="#loop">A test run, in versions</a></li>
+        <li><a href="#fscheck">A second example</a></li>
+        <li><a href="#worked">What worked well</a></li>
+        <li><a href="#warts">Pain points</a></li>
+        <li><a href="#pattern">Part B · The pattern today</a></li>
+        <li><a href="#org">An org per suite</a></li>
+        <li><a href="#keys">Stable ids</a></li>
+        <li><a href="#label">Label a known-good state</a></li>
+        <li><a href="#read">Read the fixture</a></li>
+        <li><a href="#reset">Reset after a run</a></li>
+        <li><a href="#diff">What did the test change?</a></li>
+        <li><a href="#events">Watch the system under test</a></li>
+        <li><a href="#retention">Keep fixtures, drop scratch</a></li>
+        <li><a href="#agents">Agents writing tests</a></li>
+        <li><a href="#side-by-side">Side by side</a></li>
+        <li><a href="#gaps">Still open</a></li>
+        <li><a href="#lessons">Lessons</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/mae-shop">Case study: stock tracker</a></li>
+        <li><a href="/guides/ai-maintained-sites">Case study: AI-maintained sites</a></li>
+        <li><a href="/guides/update-without-duplicates">Update without duplicates</a></li>
+        <li><a href="/guides/mcp">MCP</a></li>
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Case study</p>
+        <h1>Repeatable test data with versions</h1>
+        <p class="guide-lede">A club platform needed to test against its member database without touching the real one. It built an emulator of that database's API on WREN, and used labels and rollback to put the whole dataset back after every test run. This is how it worked, what it cost, and how we'd build it on WREN today.</p>
+        <p class="guide-meta">Written October 2026 from the emulator's code, README and git history (August 2026), its test script, the platform's docs, and the versions and labels the emulator left in WREN (backup of 2026-10-04). Part B is checked against WREN 0.9.0.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="problem">
+        <h2>The problem</h2>
+        <p>Tests need data that looks like production and is the same every time they run. Both halves are hard:</p>
+        <ul>
+          <li><strong>Realistic</strong> means related records, real field names, real shapes of responses. A hand-written stub rarely has them.</li>
+          <li><strong>Repeatable</strong> means a test that writes must not change what the next test sees. A shared test database drifts with every run.</li>
+        </ul>
+        <p>The usual answer is a mock: an in-memory stand-in for the service. Mocks are fast, but they only know what their author taught them. Two projects on this platform show the trade-off in their own code:</p>
+        <ul>
+          <li>The athlete app's unit tests use a 63-line in-memory fake of WREN. It supports natural keys, <code>where</code> on equality and regex joined by <code>AND</code>, <code>select</code>, cursor pages and two metrics, and throws <code>unsupported where</code> on anything else. It keeps no versions.</li>
+          <li>bootOS, a small operating-system project, unit-tests against an in-memory store and keeps one separate live check against the real WREN, which its comment calls "the one that proves the store on the other end really behaves the way the rest of the code assumes".</li>
+        </ul>
+        <p>A mock drifts from the real service the day the service changes. The alternative this page is about: run the tests against a real store that keeps every version, and use those versions to put the data back.</p>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="as-built">
+        <p class="guide-eyebrow">Part A</p>
+        <h2>As built: a Webling emulator on WREN</h2>
+        <p>The platform is a set of web apps for a taekwondo club. Member data lives in Webling, the club's member management system (a CRM). Every app reaches Webling through one connector, which reads its target from <code>WEBLING_BASE_URL</code>. To test "without touching the real Webling instance", an emulator was built in August 2026.</p>
+
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>At a glance</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>What it is</td><td>a Cloudflare Worker that serves Webling's URL scheme (<code>/api/1/…</code>) on top of WREN, plus an admin UI</td></tr>
+              <tr><td>Built</td><td>2026-08-02 to 2026-08-05, five commits</td></tr>
+              <tr><td>WREN data</td><td>one collection per Webling resource type (24 object types, 5 singletons) and a <code>presence</code> extension, each with a JSON Schema; in a WREN org shared with other projects</td></tr>
+              <tr><td>Test data</td><td>a coherent club: 8 members in nested groups, a 2026 accounting period, invoices (paid and open), VAT, articles, documents, users, presence lists</td></tr>
+              <tr><td>Tests</td><td><code>worker/test.mjs</code> runs the Worker's request handler in Node against the real WREN backend</td></tr>
+              <tr><td>Users</td><td>the platform's local development setup: "Everything runs against the webling-emulator with seeded test data. No real Webling, no Gmail, no Cloudflare login."</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 320" role="img" aria-labelledby="ab-title ab-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="ab-title">The emulator as built</title>
+            <desc id="ab-desc">The club apps' connector and the test script call the emulator Worker with Webling URLs. The Worker translates them to WREN calls on one collection per Webling type, keyed by the Webling id, and adds an /api/_wren namespace for labels, restore, versions and diff. A Python seeder writes the test data to WREN with idempotent by-key upserts.</desc>
+            <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="20" y="24" width="170" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="50" text-anchor="middle" font-weight="700" fill="#111827">Club apps</text>
+              <text x="105" y="68" text-anchor="middle" fill="#6b7280">via the connector</text>
+              <text x="105" y="84" text-anchor="middle" fill="#6b7280">WEBLING_BASE_URL</text>
+
+              <rect x="20" y="118" width="170" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="144" text-anchor="middle" font-weight="700" fill="#111827">test.mjs, curl, UI</text>
+              <text x="105" y="162" text-anchor="middle" fill="#6b7280">snapshot, run, restore</text>
+              <text x="105" y="178" text-anchor="middle" fill="#6b7280">?apikey= like Webling</text>
+
+              <rect x="20" y="226" width="170" height="64" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="105" y="252" text-anchor="middle" font-weight="700" fill="#111827">seed_wren.py</text>
+              <text x="105" y="272" text-anchor="middle" fill="#6b7280">schemas + PUT by-key</text>
+
+              <rect x="262" y="40" width="210" height="140" rx="10" fill="#fff" stroke="#6b7280"/>
+              <text x="367" y="64" text-anchor="middle" font-weight="700" fill="#111827">Emulator (Worker)</text>
+              <text x="367" y="88" text-anchor="middle" fill="#374151" font-family="monospace">/api/1/member?filter=…</text>
+              <text x="367" y="106" text-anchor="middle" fill="#6b7280">Webling filters, shapes, /changes</text>
+              <text x="367" y="132" text-anchor="middle" fill="#374151" font-family="monospace">/api/_wren/labels</text>
+              <text x="367" y="150" text-anchor="middle" fill="#374151" font-family="monospace">/api/_wren/restore</text>
+              <text x="367" y="168" text-anchor="middle" fill="#6b7280">versions, diff, rollback</text>
+
+              <rect x="545" y="40" width="195" height="250" rx="10" fill="#fff7ed" stroke="#d97706"/>
+              <text x="642" y="64" text-anchor="middle" font-weight="700" fill="#7c2d12">WREN · shared org</text>
+              <text x="642" y="88" text-anchor="middle" fill="#374151" font-family="monospace">member  membergroup</text>
+              <text x="642" y="106" text-anchor="middle" fill="#374151" font-family="monospace">debitor  account  …</text>
+              <text x="642" y="124" text-anchor="middle" fill="#6b7280">30 collections</text>
+              <text x="642" y="150" text-anchor="middle" fill="#374151">natural key = Webling id</text>
+              <text x="642" y="168" text-anchor="middle" fill="#374151" font-family="monospace">by-key/110</text>
+              <text x="642" y="194" text-anchor="middle" fill="#374151">labels per document</text>
+              <text x="642" y="212" text-anchor="middle" fill="#374151" font-family="monospace">test-snapshot</text>
+              <text x="642" y="240" text-anchor="middle" fill="#6b7280">other projects' data</text>
+              <text x="642" y="256" text-anchor="middle" fill="#6b7280">in the same org</text>
+
+              <line x1="190" y1="59" x2="259" y2="80" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="153" x2="259" y2="135" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="472" y1="110" x2="542" y2="110" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+              <line x1="190" y1="258" x2="542" y2="258" stroke="#6b7280" stroke-width="2" marker-end="url(#ar)"/>
+            </g>
+          </svg>
+          <figcaption>Figure 1. As built: the apps think they talk to Webling; the data, its history and its snapshots live in WREN.</figcaption>
+        </figure>
+
+        <h3 id="emulator">The emulator</h3>
+        <p>Each Webling object is one WREN document, and the Webling numeric id is the collection's natural key. That made the mapping almost one to one:</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Webling</th><th>WREN</th></tr></thead>
+            <tbody>
+              <tr><td><code>GET /api/1/member/110</code></td><td><code>GET /api/v1/member/by-key/110</code></td></tr>
+              <tr><td><code>PUT /api/1/member/110</code></td><td><code>PUT /api/v1/member/by-key/110</code></td></tr>
+              <tr><td><code>GET /api/1/member?filter=…</code></td><td><code>POST /api/v1/member/_query</code>, then Webling's filter language evaluated in the Worker</td></tr>
+              <tr><td><code>GET /api/1/config</code></td><td><code>GET /api/v1/config/by-key/1</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The seeder declares a schema with <code>naturalKey: "id"</code> on every collection and writes each record with <code>PUT …/by-key/{id}</code>. Its docstring: "Idempotent: uses PUT by-key upserts, safe to re-run." Running it again is also the documented way to go back to the canonical seed.</p>
+
+        <h3 id="restore">Snapshot and restore</h3>
+        <p>The emulator adds a namespace that is not part of Webling, "so a test run can be snapshotted and rolled back":</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · emulator routes</span></div>
+<pre>GET  /api/_wren/labels                       known labels + document counts
+POST /api/_wren/labels  {label}              snapshot: label EVERY document
+POST /api/_wren/restore {label}              restore all documents to a label
+GET  /api/_wren/{type}/{id}/versions         version history of one object
+GET  /api/_wren/{type}/{id}/diff?v1=&amp;v2=     field-level diff
+POST /api/_wren/{type}/{id}/rollback/{n}     roll one object back</pre></div>
+        <p>Every Webling read also accepts <code>?label=</code>, so <code>GET /api/1/member?label=vor-test&amp;format=full</code> returns the members as they were when the label was set. Under the hood, each of these is a loop over WREN's per-document API:</p>
+        <ul>
+          <li><strong>Snapshot</strong> lists every document of every type and sets the label on its current version, one <code>POST …/{id}/labels</code> each.</li>
+          <li><strong>Restore</strong> reads each document at the label. If it has no labeled version, it was created after the snapshot and is deleted. If its version differs, it is rolled back to the labeled one. The response counts <code>{restored, deleted, unchanged}</code>. The README is explicit: "Restore is a true snapshot restore, not a merge."</li>
+        </ul>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js · emulator, simplified</span></div>
+<pre>async function restoreAll(wren, label) {
+  for (const type of OBJECT_TYPES) {
+    for (const d of await wren.listDocs(type)) {
+      const at = await wren.docMeta(type, d.data.id, label);   // GET by-key/{id}?label=
+      if (!at) { await wren.deleteDoc(type, d.data.id); continue; }   // created after the snapshot
+      const now = await wren.docMeta(type, d.data.id);
+      if (now.version !== at.version) await wren.rollback(type, now.id, at.version);
+    }
+  }
+}</pre></div>
+        <p>The documented test loop, from the platform's local development guide:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>curl -X POST -H "Content-Type: application/json" -d '{"label":"vor-test"}' \
+  "http://webling.localhost:8000/api/_wren/labels?apikey=test"     # snapshot
+# … run the tests, mutate freely …
+curl -X POST -H "Content-Type: application/json" -d '{"label":"vor-test"}' \
+  "http://webling.localhost:8000/api/_wren/restore?apikey=test"    # restore</pre></div>
+        <p>The admin UI exposes the same thing to people: create a named snapshot, list labels with document counts, restore everything to a label, and preview any label's data read-only.</p>
+
+        <h3 id="loop">A test run, in versions</h3>
+        <p>The test script exercises the loop itself: it labels every document <code>test-snapshot</code>, changes member 110's town from Bern to Zürich, creates a new member (it gets Webling id 118), checks that a <code>?label=</code> read still shows Bern and leaves out 118, restores, and checks that 110 is back in Bern and 118 is gone. The data in WREN shows the result of the last run on 2026-08-04:</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 250" role="img" aria-labelledby="lp-title lp-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="lp-title">Member 110's last three versions</title>
+            <desc id="lp-desc">Version 58 has town Bern and carries the test-snapshot label. Version 59, written by the test, has town Zürich. Version 60, written by the restore, is a copy of version 58 with town Bern. Member 118 was created and deleted again by the tests and exists as 64 deleted documents.</desc>
+            <defs><marker id="al" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <text x="720" y="30" text-anchor="end" font-weight="700" fill="#111827">member 110 (natural key "110")</text>
+
+              <rect x="40" y="56" width="180" height="70" rx="8" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="130" y="82" text-anchor="middle" font-weight="700" fill="#312e81">v58</text>
+              <text x="130" y="104" text-anchor="middle" fill="#374151">Ort: Bern</text>
+
+              <rect x="290" y="56" width="180" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="380" y="82" text-anchor="middle" font-weight="700" fill="#111827">v59</text>
+              <text x="380" y="104" text-anchor="middle" fill="#374151">Ort: Zürich</text>
+
+              <rect x="540" y="56" width="180" height="70" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="630" y="82" text-anchor="middle" font-weight="700" fill="#111827">v60 (current)</text>
+              <text x="630" y="104" text-anchor="middle" fill="#374151">Ort: Bern</text>
+
+              <line x1="220" y1="91" x2="287" y2="91" stroke="#6b7280" stroke-width="2" marker-end="url(#al)"/>
+              <line x1="470" y1="91" x2="537" y2="91" stroke="#6b7280" stroke-width="2" marker-end="url(#al)"/>
+              <path d="M630,128 C630,170 130,170 130,131" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#al)"/>
+
+              <rect x="70" y="10" width="120" height="24" rx="12" fill="#4338ca"/>
+              <text x="130" y="27" text-anchor="middle" fill="#fff" font-weight="600">test-snapshot</text>
+              <line x1="130" y1="34" x2="130" y2="53" stroke="#4338ca" stroke-width="2"/>
+
+              <text x="380" y="146" text-anchor="middle" fill="#6b7280">the test's edit</text>
+              <text x="380" y="186" text-anchor="middle" fill="#6b7280">restore: rollback to v58 writes a new version</text>
+
+              <rect x="40" y="206" width="680" height="32" rx="8" fill="#fff7ed" stroke="#d97706"/>
+              <text x="380" y="227" text-anchor="middle" fill="#7c2d12">member 118: created and deleted again by the tests. 64 deleted copies by 2026-08-04.</text>
+            </g>
+          </svg>
+          <figcaption>Figure 2. Restore never rewinds. It writes the labeled data again, so the restore itself is in the history and can be undone.</figcaption>
+        </figure>
+
+        <h3 id="fscheck">A second, smaller example</h3>
+        <p>bootOS keeps its whole file system as one WREN document whose versions are file-system snapshots. Its live check, <code>fscheck.js</code>, runs only on demand because "it needs the network and a credential, and it writes". It publishes a new root, labels it <code>fscheck</code> and reads it back by that label, rolls back one version and asserts that the history grew ("Forward, not rewound"), then removes what it wrote. The labels <code>fscheck</code> and <code>known-good</code> are still on that document in WREN.</p>
+
+        <h3 id="worked">What worked well</h3>
+        <ul>
+          <li><strong>Time travel without building it.</strong> <code>?label=</code> on every Webling read was a few lines in the Worker, because WREN already resolves a document at a label.</li>
+          <li><strong>Natural keys kept the foreign ids.</strong> Webling's numeric ids became WREN natural keys, so links between records (<code>parents</code>, <code>children</code>, <code>links</code>) resolved across collections unchanged, and the seeder could be re-run at any time.</li>
+          <li><strong>Rollback is a write.</strong> Restoring never destroyed anything. A bad restore could itself be rolled back, and the history shows every run.</li>
+          <li><strong>Tests against the real backend.</strong> <code>test.mjs</code> checked the emulator against WREN itself, including the snapshot and restore round trip, so the emulator's assumptions about WREN were tested on every run.</li>
+          <li><strong>The whole platform, locally.</strong> With <code>WEBLING_BASE_URL</code> pointed at the emulator, every app ran against the seeded club instead of the real member data.</li>
+        </ul>
+
+        <h3 id="warts">Pain points</h3>
+        <p>From the code, its comments and the data it left. The status column refers to WREN 0.9.0; in August 2026 none of the "fixed" features existed yet.</p>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What happened</th><th>Workaround</th><th>Root cause</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>A snapshot took "a few hundred wren requests", seconds rather than milliseconds</td><td>Accepted: "Fine for testing, not a hot path"</td><td>Labels are set one document at a time</td><td>Better: tree <code>_promote</code> labels every document in a tree in one transaction (0.5.0)</td></tr>
+              <tr><td>Restore fans out hundreds of calls; one flaky connection could abort it</td><td>One retry after 250 ms on network errors</td><td>No bulk rollback; each rollback is its own request</td><td>Fixed in 0.9.0: <code>POST /{collection}/_restore</code> and <code>POST /tree/{name}/_restore</code>, one transaction each</td></tr>
+              <tr><td>Listing which snapshots exist walks every version of every document</td><td>Done in the Worker</td><td>No call lists labels</td><td>Better: <code>GET /api/v1/{collection}?label=…</code> returns the documents carrying a label, with a <code>total</code></td></tr>
+              <tr><td>WREN's diff reported <code>/properties</code> as replaced when one field changed</td><td>The Worker computes its own field-level diff</td><td>Diff compared top-level fields only</td><td>Fixed in 0.9.0: <code>deep=true</code> reports each changed nested field</td></tr>
+              <tr><td>Webling's sync API needs a revision counter</td><td>Faked from the newest <code>updatedAt</code></td><td>No change feed</td><td>Fixed: live events with ids, versions and <code>Last-Event-ID</code> (0.7.0)</td></tr>
+              <tr><td>Test data shared an org with other projects</td><td>The raw-data browser is fenced to the emulator's own collections; 29 per-collection write rules for the seed key</td><td>One org for everything</td><td>Use an org per test suite, with groups and narrowed keys (0.6.0)</td></tr>
+              <tr><td>Member 110 reached version 60 between 2026-08-02 and 2026-08-04; 64 deleted copies of member 118</td><td>None</td><td>Every run writes an edit and a rollback; a deleted key re-created by <code>PUT by-key</code> is a new document</td><td>Better: retention removes unlabeled versions (0.8.0); deleted documents remain as tombstones</td></tr>
+              <tr><td>The <code>test-snapshot</code> label was set on 2026-08-02 and moved again on 2026-08-04</td><td>None</td><td>The test labels the current state at the start of each run, and setting a label again moves it</td><td>By design: use dated fixture labels and never re-set them in a test</td></tr>
+              <tr><td>The Worker lists each type with one request (<code>?limit=1000</code>)</td><td>Fine for 8 members</td><td>No paging</td><td>Page with <code>offset</code> (200 per page) or <code>_query</code> with <code>cursor</code></td></tr>
+              <tr><td>"Local" development depended on an internet-hosted, shared store</td><td>None</td><td>One WREN server for everything</td><td>Run a WREN container for CI (<code>reusr1/wren</code>)</td></tr>
+              <tr><td>Python's default User-Agent was blocked (Cloudflare error 1010), and the Worker's requests needed one too</td><td>A custom User-Agent on every request</td><td>Browser-integrity check in front of the server</td><td>Infrastructure setting, not WREN</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="guide-divider" />
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="pattern">
+        <p class="guide-eyebrow">Part B</p>
+        <h2>The pattern today</h2>
+        <p>Same idea: tests run against a real WREN, and versions put the data back. What changes is that a fixture set is labeled in one transaction, kept by retention, compared with diff and observed with live events. The examples use a <code>members</code> collection; any set of collections works the same way.</p>
+
+        <figure class="guide-figure">
+          <svg viewBox="0 0 760 270" role="img" aria-labelledby="pb-title pb-desc" xmlns="http://www.w3.org/2000/svg" font-family="Inter, system-ui, sans-serif">
+            <title id="pb-title">Fixture lifecycle</title>
+            <desc id="pb-desc">Seed with by-key upserts and assign each document to a fixtures tree. Promote the tree to a dated fixture label in one transaction. Tests read at the label or write current data while a live event stream records what the system under test wrote. Afterwards, diff the label against current, then restore each collection to the label in one transaction, deleting documents the test created. A retention policy keeps labeled versions and removes scratch versions.</desc>
+            <defs><marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+            <g font-size="12">
+              <rect x="16" y="40" width="160" height="80" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="96" y="64" text-anchor="middle" font-weight="700" fill="#111827">1 · Seed</text>
+              <text x="96" y="84" text-anchor="middle" fill="#374151" font-family="monospace">PUT by-key/{key}</text>
+              <text x="96" y="102" text-anchor="middle" fill="#6b7280">assign to tree fixtures</text>
+
+              <rect x="206" y="40" width="160" height="80" rx="8" fill="#eef2ff" stroke="#4338ca"/>
+              <text x="286" y="64" text-anchor="middle" font-weight="700" fill="#312e81">2 · Label</text>
+              <text x="286" y="84" text-anchor="middle" fill="#374151" font-family="monospace">tree _promote</text>
+              <text x="286" y="102" text-anchor="middle" fill="#6b7280">fixture-2026-10-01</text>
+
+              <rect x="396" y="40" width="160" height="80" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="476" y="64" text-anchor="middle" font-weight="700" fill="#111827">3 · Run tests</text>
+              <text x="476" y="84" text-anchor="middle" fill="#374151">read ?label= or</text>
+              <text x="476" y="102" text-anchor="middle" fill="#374151">write current</text>
+
+              <rect x="586" y="40" width="160" height="80" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="666" y="64" text-anchor="middle" font-weight="700" fill="#111827">4 · Inspect</text>
+              <text x="666" y="84" text-anchor="middle" fill="#374151">diff label vs current</text>
+              <text x="666" y="102" text-anchor="middle" fill="#6b7280">events of the run</text>
+
+              <rect x="396" y="168" width="350" height="54" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+              <text x="571" y="190" text-anchor="middle" font-weight="700" fill="#111827">5 · Reset</text>
+              <text x="571" y="210" text-anchor="middle" fill="#374151">_restore {label, deleteUnlabeled}, one transaction</text>
+
+              <rect x="16" y="168" width="350" height="54" rx="8" fill="#fff7ed" stroke="#d97706"/>
+              <text x="191" y="190" text-anchor="middle" font-weight="700" fill="#7c2d12">Retention: labeledOnly</text>
+              <text x="191" y="210" text-anchor="middle" fill="#374151">keeps fixtures and current, drops scratch hourly</text>
+
+              <line x1="176" y1="80" x2="203" y2="80" stroke="#6b7280" stroke-width="2" marker-end="url(#ap)"/>
+              <line x1="366" y1="80" x2="393" y2="80" stroke="#6b7280" stroke-width="2" marker-end="url(#ap)"/>
+              <line x1="556" y1="80" x2="583" y2="80" stroke="#6b7280" stroke-width="2" marker-end="url(#ap)"/>
+              <line x1="666" y1="120" x2="666" y2="165" stroke="#6b7280" stroke-width="2" marker-end="url(#ap)"/>
+              <path d="M450,168 C450,150 476,140 476,123" fill="none" stroke="#6b7280" stroke-width="2" marker-end="url(#ap)"/>
+              <text x="430" y="150" text-anchor="end" fill="#6b7280">next run</text>
+            </g>
+          </svg>
+          <figcaption>Figure 3. A fixture is a label on a set of versions. Tests can move the current data anywhere; the label stays where it was put.</figcaption>
+        </figure>
+
+        <h3 id="org">1 · An org per test suite</h3>
+        <p>Each WREN org is its own Postgres schema. Give each test suite its own org instead of a corner of a shared one: nothing to fence off, and a restore can't touch anyone else's data. Inside it, people get access through groups (every org starts with <em>Editors</em> and <em>Viewers</em>), and the CI key is narrowed with <code>key:</code> rules. An admin sets this up once:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin, once</span></div>
+<pre>POST /api/v1/keys         {"name": "ci members-suite"}          ← full key shown once
+POST /api/v1/permissions  {"principal": "key:&lt;keyId&gt;", "resource": "collection:members", "access": "write"}
+POST /api/v1/permissions  {"principal": "key:&lt;keyId&gt;", "resource": "tree:fixtures",      "access": "write"}</pre></div>
+        <p>A key acts in the org it was created in, so the suite's key can't reach production data in another org. For CI that should not depend on a shared server at all, run WREN itself in a container (<code>reusr1/wren</code>).</p>
+
+        <h3 id="keys">2 · Stable ids: natural keys</h3>
+        <p>Fixtures refer to each other, and tests refer to fixtures. UUIDs change every time you seed a fresh org; natural keys don't. Declare the key once, then seed with upserts that are safe to re-run:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>PUT /api/v1/members/_schema
+{ "naturalKey": "key",
+  "schema": { "type": "object", "required": ["key", "city"] } }
+
+PUT /api/v1/members/by-key/m-110
+{ "key": "m-110", "city": "Bern", "groups": ["g-101"] }      ← 201 created; 200 + new version if it changed</pre></div>
+        <p>Re-running the seeder is cheap since 0.9: a write whose data equals the current version (compared by meaning, so key order and whitespace don't matter) returns <code>200</code> with <code>"unchanged": true</code> and creates no version. A seed of 8 members run 50 times leaves 8 versions, not 400. Add <code>?force=true</code> if a test really needs a new version with the same data.</p>
+
+        <h3 id="label">3 · Label a known-good state, in one transaction</h3>
+        <p>Assign every fixture document to a tree, then promote the tree to a dated label. Promote points the label at the current version of every document in the tree in a single transaction, across collections, so there is never a half-labeled fixture. This replaces the emulator's per-document snapshot loop.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">typescript · @usewren/client</span></div>
+<pre>import { WrenClient } from "@usewren/client";
+
+const wren = new WrenClient({ baseUrl: process.env.WREN_URL!, apiKey: process.env.WREN_API_KEY! });
+const FIXTURE = "fixture-2026-10-01";
+
+for (const m of seed.members) {                          // idempotent
+  const doc = await wren.documents.upsertByKey("members", m.key, m);
+  await wren.trees.assign("fixtures", `/members/${m.key}`, doc.id);
+}
+
+// The client has no promote helper; request() calls any /api/v1 route.
+const { promoted } = await wren.request&lt;{ promoted: { documentId: string; version: number }[] }&gt;(
+  "POST", "/tree/fixtures/_promote", { label: FIXTURE });</pre></div>
+        <p>To make an older fixture the one tests use, move a second label in one step: <code>POST /api/v1/tree/fixtures/_promote {"label": "fixture-current", "from": "fixture-2026-09-01"}</code>. Documents without the <code>from</code> label are left alone.</p>
+
+        <h3 id="read">4 · Read the fixture, whatever happened since</h3>
+        <p>Tests that only read can read at the label. They see exactly the labeled versions, no matter what was written after:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>GET  /api/v1/members/by-key/m-110?label=fixture-2026-10-01
+GET  /api/v1/members?label=fixture-2026-10-01&amp;limit=200          ← only documents carrying the label
+POST /api/v1/members/_query  {"where": "city:Bern", "label": "fixture-2026-10-01"}</pre></div>
+        <p>A system under test usually reads current data, not a label. For those tests, reset the current data to the label before (or after) each run.</p>
+
+        <h3 id="reset">5 · Reset after a run</h3>
+        <p>The emulator's restore was a loop of hundreds of requests. Since 0.9 it is one call per collection, in one transaction. Every document carrying the label gets the labeled content as a new version (as in Figure 2), deleted fixtures come back, and with <code>deleteUnlabeled</code> the documents the test created are deleted:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">typescript</span></div>
+<pre>type Restored = { label: string; restored: number; undeleted: number; deleted: number;
+                  unchanged: number; collections: string[] };
+
+export async function resetTo(label: string, collections: string[]) {
+  for (const c of collections) {
+    const r = await wren.request&lt;Restored&gt;("POST", `/${c}/_restore`, { label, deleteUnlabeled: true });
+    // e.g. { restored: 1, undeleted: 0, deleted: 1, unchanged: 7, collections: ["members"] }
+  }
+}
+
+await resetTo(FIXTURE, ["members", "invoices"]);</pre></div>
+        <p>Documents already at the labeled content count as <code>unchanged</code> and get no new version, so a reset after a read-only test writes nothing. History moves forward: the restore is itself versioned and can be undone. If a test deleted a fixture and then created a new document with the same key, the restore would give two live documents one key; it refuses with <code>409</code> and changes nothing, so delete the newcomer first.</p>
+        <p>To restore several collections in one transaction, restore the fixtures tree instead: <code>POST /api/v1/tree/fixtures/_restore {"label": "fixture-2026-10-01"}</code> covers every document mounted in it, across collections. It can't see documents a test created outside the tree, so follow it with the per-collection call, or have the system under test mount what it creates.</p>
+        <div class="callout callout--info"><p><strong>Deleted fixtures come back.</strong> A restore undeletes documents that carry the label, and <code>POST /api/v1/members/{id}/undelete</code> brings back a single one with its whole history. Tests may delete fixtures now; a test that wants to check "removal" no longer needs an <code>"active": false</code> workaround.</p></div>
+
+        <h3 id="diff">6 · What did the test change?</h3>
+        <p>Diff the label against the current version. Since 0.9, <code>v1</code> and <code>v2</code> accept label names as well as version numbers, and <code>deep=true</code> walks nested objects and arrays:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">typescript</span></div>
+<pre>const before = await wren.documents.getByKey("members", "m-110", { label: FIXTURE });
+const now    = await wren.documents.getByKey("members", "m-110");
+if (now.version !== before.version) {                    // a version diffed with itself is a 404
+  const { diff } = await wren.request&lt;{ diff: { op: string; path: string }[] }&gt;(
+    "GET", `/members/${now.id}/diff?v1=${FIXTURE}&amp;v2=${now.version}&amp;deep=true`);
+  // [{ op: "replace", path: "/city", value: "Zürich", oldValue: "Bern" },
+  //  { op: "add", path: "/groups/1", value: "g-102" }]
+}</pre></div>
+        <p>Without <code>deep=true</code>, paths are top-level fields, and a change inside a nested record (the Webling objects kept everything under <code>properties</code>) shows up as the whole sub-object replaced. That is why the emulator computed its own field-level diff; with <code>deep=true</code> it no longer has to.</p>
+
+        <h3 id="events">7 · Watch what the system under test wrote</h3>
+        <p>Open a live event stream before the run. Every committed change arrives as one event with the collection, id, version and natural key, from every write path (REST, upserts, uploads, promote, MCP). Events never carry data; read what changed through the API.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>curl -N -H "Authorization: Bearer $WREN_API_KEY" \
+  "$WREN_URL/api/v1/_events?collections=members,invoices"
+
+data: {"type":"ready","at":"…"}
+id: …-42
+data: {"type":"document.updated","collection":"members","id":"…","version":7,"key":"m-110","at":"…"}</pre></div>
+        <p>In a test, collect these lines while the system runs and assert on them: "exactly one update to <code>m-110</code>, no new invoices". Wait for <code>ready</code> before starting. A <code>reset</code> event means the server couldn't replay what you missed. Webhooks carry the same events in batches, but they only deliver to public addresses unless the server allows a host with <code>WREN_WEBHOOK_ALLOW_HOSTS</code>, so for a local test runner the stream is simpler.</p>
+
+        <h3 id="retention">8 · Keep fixtures, drop scratch versions</h3>
+        <p>Every test run adds versions: the system's writes and the reset's rollbacks. In the emulator's org, member 110 reached version 60 between 2026-08-02 and 2026-08-04. A retention policy cleans that up. A document's current version and every labeled version are always kept, so fixture labels are safe by construction:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash · admin</span></div>
+<pre>curl -X POST "$WREN_URL/api/v1/retention/members/_preview" -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" -d '{"labeledOnly": true}'      # what would go; changes nothing
+curl -X PUT  "$WREN_URL/api/v1/retention/members" -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" -d '{"labeledOnly": true}'</pre></div>
+        <p>Policies run hourly, or on demand with <code>POST /api/v1/retention/_apply</code>. Removal is permanent. Only org owners and admins can set them. In a test org, <code>PUT /api/v1/retention/*</code> sets the same rule as the org default. A fixture you retire keeps its versions until its label goes: remove it per document with <code>DELETE /api/v1/members/{id}/labels/fixture-2026-09-01</code>, and the next run trims them.</p>
+
+        <h3 id="agents">9 · Agents writing tests</h3>
+        <p>A coding agent writing these tests needs the API, not guesses. Point it at <code>/llms.txt</code> or <code>/llms-full.txt</code> on the server, or connect it over MCP with a key for the test org:</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>claude mcp add --transport http wren-tests "https://wren.example.com/mcp?readonly=1" \
+  --header "Authorization: Bearer $WREN_API_KEY"</pre></div>
+        <p>The read tools cover what test authoring needs: <code>query_documents</code> and <code>get_document</code> with a label, <code>list_versions</code> and <code>diff_versions</code>. <code>?readonly=1</code> keeps an agent that only inspects fixtures from writing. If an agent does write, note that <code>write_document</code> labels the new version <code>preview</code> unless told otherwise (<code>label: ""</code>), and <code>promote_tree</code> moves labels on a whole tree: confirm before running it against a fixture tree.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="side-by-side">
+        <h2>Side by side</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>Concern</th><th>As built (August 2026)</th><th>Today (0.9.0)</th></tr></thead>
+            <tbody>
+              <tr><td>Isolation</td><td>shared org, collections fenced in code</td><td>an org per suite, groups, narrowed keys</td></tr>
+              <tr><td>Stable ids</td><td>Webling id as natural key</td><td>same: <code>PUT …/by-key/{key}</code></td></tr>
+              <tr><td>Snapshot</td><td>label every document, one request each</td><td>tree <code>_promote</code>, one transaction</td></tr>
+              <tr><td>Snapshot name</td><td><code>test-snapshot</code>, re-set every run</td><td>dated, never moved: <code>fixture-2026-10-01</code></td></tr>
+              <tr><td>Read a past state</td><td><code>?label=</code> per document</td><td><code>?label=</code> on lists, by-key and <code>_query</code></td></tr>
+              <tr><td>Restore</td><td>per-document rollback and delete</td><td><code>_restore {label, deleteUnlabeled}</code>, one transaction per collection</td></tr>
+              <tr><td>What changed</td><td>own field-level diff</td><td><code>diff?v1={label}&amp;v2={n}&amp;deep=true</code></td></tr>
+              <tr><td>Re-seeding</td><td>a new version per document per run</td><td>unchanged writes create no version</td></tr>
+              <tr><td>Observe writes</td><td>revision faked from <code>updatedAt</code></td><td><code>/api/v1/_events</code></td></tr>
+              <tr><td>Version growth</td><td>unbounded</td><td>retention: <code>labeledOnly</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="gaps">
+        <h2>Still open</h2>
+        <ul>
+          <li><strong>One transaction per collection, or per tree.</strong> A collection <code>_restore</code> is atomic for that collection; several collections take several calls. A tree <code>_restore</code> spans collections in one transaction, but only covers documents mounted in the tree, so it can't delete documents a test created elsewhere. A reset that fails between two calls leaves a mix; running it again converges, because documents already at the label count as unchanged.</li>
+          <li><strong>Old versions of deleted documents.</strong> A deleted document comes back whole with <code>undelete</code> or a restore, but while it is deleted its versions and diffs aren't readable.</li>
+          <li><strong>No org or collection copy.</strong> The platform's architecture plan asks for "cloning a seed workspace" so each end-to-end run gets a fresh club. WREN has no clone call; seeding by key into a fresh org is the substitute.</li>
+        </ul>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="lessons">
+        <h2>Lessons</h2>
+        <ol>
+          <li><strong>Test against the real store when you can.</strong> The emulator tested its WREN assumptions on every run; the in-memory fakes only test what their authors remembered.</li>
+          <li><strong>A label is a pointer, so name fixtures like releases.</strong> Use dated names and never set a fixture label from inside a test.</li>
+          <li><strong>Label a fixture set in one step.</strong> Put fixtures in a tree and promote it, instead of labeling documents in a loop.</li>
+          <li><strong>Reset forward, not backward.</strong> Restore writes new versions, so every reset is visible and reversible.</li>
+          <li><strong>Clean up old fixture names.</strong> Labels can be removed now; a label you no longer need otherwise keeps its versions safe from retention forever.</li>
+          <li><strong>Give tests their own org</strong>, and set a retention policy in it on day one.</li>
+        </ol>
+        <p>The same label-then-restore move protects production data too: the <a href="/guides/mae-shop#ideal-snapshot">MAE stock tracker</a> labels its stock before a recount, and <a href="/guides/ai-maintained-sites#ideal-rollback">AI-maintained sites</a> restore a tree to a release. New to these ideas? Start with <a href="/concepts">Concepts</a>.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+        <ul class="footer__links">
+          <li><a href="/concepts">Concepts</a></li>
+          <li><a href="/guides">Guides</a></li>
+          <li><a href="/docs">API Docs</a></li>
+          <li><a href="https://github.com/usewren">GitHub (usewren)</a></li>
+        </ul>
+      </div>
+      <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

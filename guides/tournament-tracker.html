@@ -50,6 +50,8 @@
       </ul>
       <p class="guide-sidebar__title">See also</p>
       <ul class="guide-sidebar__list">
+        <li><a href="/guides/tkd-scores">Case study: tournament data site</a></li>
+        <li><a href="/guides/ai-maintained-sites">Case study: AI-maintained sites</a></li>
         <li><a href="/concepts">Concepts</a></li>
         <li><a href="/guides">All guides</a></li>
       </ul>
@@ -66,7 +68,7 @@
       <!-- ─────────────────────────────────────────────────────────── -->
       <section class="guide-section" id="overview">
         <h2>The project</h2>
-        <p><a href="https://tournaments.tkd-scores.com">tournaments.tkd-scores.com</a> shows, for each tournament day, the brackets, who fights when and where, results and scores as they come in, and links to match video. It also offers filtered views per country and per club. A companion site, <a href="https://data.tkd-scores.com">data.tkd-scores.com</a>, lists the entries for World Taekwondo events and keeps a history of how registrations grew.</p>
+        <p><a href="https://tournaments.tkd-scores.com">tournaments.tkd-scores.com</a> shows, for each tournament day, the brackets, who fights when and where, results and scores as they come in, and links to match video. It also offers filtered views per country and per club. A companion site, <a href="https://data.tkd-scores.com">data.tkd-scores.com</a>, lists the entries for World Taekwondo events and keeps a history of how registrations grew; it has <a href="/guides/tkd-scores">its own case study</a>.</p>
         <div class="guide-table-wrap">
           <table class="guide-table">
             <thead><tr><th>At a glance</th><th></th></tr></thead>
@@ -178,7 +180,7 @@ const r  = await fetch(`${API}/days/${id}?depth=2`, { headers: H });</pre></div>
         <h3 id="worked">What worked well</h3>
         <ul>
           <li><strong>Versions as a free history.</strong> The data site rebuilds registration-over-time charts from the <code>/versions</code> of each event document. The events index has been rewritten 131 times, and every snapshot is still there. Nobody designed a history table.</li>
-          <li><strong>One document, two paths.</strong> "Today's" <code>/data.js</code> and <code>/portugal-open-2026/day1/data.js</code> point at the same document, so switching the active day is a tree assignment, not a copy.</li>
+          <li><strong>One document, two paths.</strong> "Today's" <code>/data.js</code> and <code>/example-open-2026/day1/data.js</code> point at the same document, so switching the active day is a tree assignment, not a copy.</li>
           <li><strong><code>$ref</code> composition.</strong> One read returns a whole tournament day assembled from four collections.</li>
           <li><strong>Hosting and data in one place.</strong> Static files, JSON and binaries share one API, one key and one permission model, behind an ordinary custom domain.</li>
           <li><strong>Live data without deploys.</strong> Results reach visitors seconds after a poller writes them. Pages only change when the site itself changes.</li>
@@ -200,7 +202,7 @@ const r  = await fetch(`${API}/days/${id}?depth=2`, { headers: H });</pre></div>
               <tr><td>Python's default client got <code>403 error code: 1010</code></td><td>Browser User-Agent on every script and Worker request</td><td>Cloudflare browser-integrity check in front of the server</td><td>Infrastructure setting, not WREN (documented)</td></tr>
               <tr><td>Live data needed a secret-holding Worker</td><td><code>/api/*</code> routes with a key</td><td>Everything stored privately, including data meant to be public</td><td>Design choice, see Part B</td></tr>
               <tr><td>Big days were cut off at 1,000 rows</td><td>Requesting 2,000 (silently capped)</td><td><code>_query</code> caps a page at 1,000</td><td>Paginate with <code>cursor</code>, or use a materialized query</td></tr>
-              <tr><td>Date filters didn't work</td><td>Filtering in the browser</td><td>Dates stored as <code>MM/DD/YYYY</code> strings</td><td>Data modelling: store ISO dates</td></tr>
+              <tr><td>Date filters didn't work</td><td>Filtering in the browser</td><td>Dates stored as <code>MM/DD/YYYY</code> strings</td><td>Data modelling: store ISO dates (range filters compare them since 0.9.0)</td></tr>
               <tr><td>Windows line endings broke ids in shell glue (<code>slug\r</code>), and two scheduled runs failed silently</td><td>Stripping <code>\r</code></td><td>Shell pipelines between scripts</td><td>Gone once writes are single upserts</td></tr>
             </tbody>
           </table>
@@ -288,7 +290,7 @@ def upsert(collection: str, doc: dict) -> dict:
     r.raise_for_status()
     return r.json()
 
-upsert("results", {"key": "swiss-open-2026:1:3", "event": "swiss-open-2026",
+upsert("results", {"key": "example-open-2026:1:3", "event": "example-open-2026",
                    "day": 1, "ring": 3, "date": "2026-09-26", "bouts": bouts})</pre></div>
         <p>This replaces the query-then-write client and the separator workarounds, and it makes the shell glue (and its line-ending bugs) unnecessary. With a natural key in place, <code>$ref</code>s can point at <code>{"$ref": "results", "$key": "…"}</code> directly, so the Worker's second lookup goes away too.</p>
 
@@ -311,7 +313,7 @@ POST /api/v1/permissions  {"principal":"*", "resource":"collection:standings", "
         <p>Public routes now send <code>Access-Control-Allow-Origin: *</code>, so pages on the custom domain can read them directly, with plain <code>fetch</code> or with <code>wren.js</code>:</p>
         <div class="code-block"><div class="code-block__header"><span class="code-block__lang">html</span></div>
 <pre>&lt;script src="https://wren.aemwip.com/wren.js"
-        data-base="https://wren.aemwip.com/api/v1/orgs/tkd-tracker"&gt;&lt;/script&gt;
+        data-base="https://wren.aemwip.com/api/v1/orgs/{slug}"&gt;&lt;/script&gt;
 
 &lt;wren-materialized collection="standings" name="medals"&gt;
   &lt;template&gt;&lt;tr&gt;&lt;td&gt;{{country}}&lt;/td&gt;&lt;td&gt;{{place}}&lt;/td&gt;&lt;td&gt;{{athletes}}&lt;/td&gt;&lt;/tr&gt;&lt;/template&gt;
@@ -357,7 +359,7 @@ wren promote tkd-scores --from preview           # every page goes live in one t
         <h2>Still open</h2>
         <p>Not everything above is possible yet. These are the gaps the project still hits:</p>
         <ul>
-          <li><strong>By-key for files.</strong> Binary uploads can't be addressed by natural key; the tree path is the de-facto key for site files.</li>
+          <li><strong>Public files by name.</strong> Since 0.9.0, a file collection with <code>naturalKey: "filename"</code> can be uploaded and read by name with a key; since 0.10, a public one is also served by name at <code>/orgs/{slug}/{collection}/by-key/{name}/raw</code>.</li>
           <li><strong>Natural keys need an admin.</strong> That's intentional, since schemas are a contract, but it means a one-time admin step before writers can upsert.</li>
           <li><strong>Edge settings.</strong> A Cloudflare browser-integrity check in front of a server blocks some HTTP clients (<code>403 error code: 1010</code>). That's a setting on the deployment, not in WREN.</li>
         </ul>
