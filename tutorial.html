@@ -741,7 +741,7 @@ PUT /images/xyz   (multipart/form-data, field: file)</pre>
       <section class="tutorial-section" id="versioning">
         <h2><span class="step-badge">5</span> Versioning</h2>
 
-        <p>Every mutation — create, update, rollback — produces a new numbered version. Versions start at 1, increment by 1, and are immutable. Nothing is ever deleted from the version history.</p>
+        <p>Every mutation — create, update, rollback — produces a new numbered version. Versions start at 1, increment by 1, and are immutable. Nothing is deleted from the version history unless your org sets a <a href="/llms-full.txt">retention policy</a>, and even then the current version and every labeled version are kept.</p>
 
         <h3 id="history">View history</h3>
         <p>Open any document and click the <strong>History</strong> tab. A timeline shows every version, newest first. Click <strong>View</strong> on any entry to expand the raw data for that version.</p>
