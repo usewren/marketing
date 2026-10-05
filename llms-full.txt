@@ -151,12 +151,21 @@ Content-Type: application/json
 Response 200: <DocumentResponse>  ← version is incremented
 ```
 
+**Unchanged writes create no version.** If the data equals the current version (compared by meaning: key order and whitespace don't matter), the response is `200` with the current `version` and `"unchanged": true`, and nothing is written. The same holds for upserts by key and for file uploads with the same bytes, name and type. Add `?force=true` to write a version anyway.
+
 ### Delete a document (soft delete — creates tombstone)
 ```
 DELETE /api/v1/{collection}/{id}
 
 Response 200: { "id": "uuid", "deleted": true }
 ```
+
+### Undelete a document
+```
+POST /api/v1/{collection}/{id}/undelete
+Response 200: { "id": "uuid", "undeleted": true, "version": 4 }
+```
+Brings a deleted document back with its whole history (emits `document.undeleted`). `404` if no deleted document has that id; `409` if another document took its natural key meanwhile.
 
 ### Natural keys — upsert / read / delete by external identifier
 A collection can declare one document field as its natural key (commonly `slug`). Once declared, the `by-key/{value}` routes address documents by that value instead of the UUID. `PUT /by-key/{value}` is a **transactional upsert** — create if absent, update if present — which makes it the idempotent alternative to `POST` for ingestion scripts.
@@ -276,6 +285,9 @@ Response 200:
 ```
 `op` is one of `"add"`, `"remove"`, `"replace"`. `path` is a JSON Pointer (RFC 6901).
 
+- `v1`/`v2` take a version number or a label name: `?v1=published&v2=preview` compares what's live with what's staged.
+- By default only top-level fields are compared (a changed nested object is one `replace`). `&deep=true` walks nested objects and arrays and reports each changed leaf: `{ "op": "replace", "path": "/venue/city", … }`, `{ "op": "add", "path": "/tags/2", … }`.
+
 ---
 
 ## Labels
@@ -383,6 +395,21 @@ Also in the Admin UI (Settings → Retention), the CLI (`wren retention get|set|
 
 ---
 
+### Remove a label
+```
+DELETE /api/v1/{collection}/{id}/labels/{label}
+Response 200: { "id": "uuid", "label": "snapshot", "removed": true, "version": 3 }
+```
+
+### Restore a collection or tree to a label
+```
+POST /api/v1/{collection}/_restore        { "label": "fixture", "deleteUnlabeled": true }
+POST /api/v1/tree/{name}/_restore         { "label": "release-12" }
+
+Response 200: { "label": "fixture", "restored": 3, "undeleted": 1, "deleted": 2, "unchanged": 40, "collections": ["members"] }
+```
+One transaction for the whole set: every document that carries the label gets a new version with the labeled content (unless it already matches — files included, by hash), deleted ones come back, and with `deleteUnlabeled: true` documents without the label (made since it was set) are deleted. History moves forward, so the restore itself can be undone. Use it to reset test fixtures after a run, or to undo a bad import or release. A tree restore needs write access to every collection in the tree. `404` if no document has the label; `409` (nothing changed) if it would give two live documents the same natural key.
+
 ## Query API
 
 The list endpoint and a dedicated `_query` endpoint support SQL-level filtering, field projection, and aggregation — replacing the need for hand-built index documents.
@@ -399,7 +426,7 @@ Response 200:
 }
 ```
 
-`?select=` returns only the named fields from `data`. `?where=` filters at the SQL level (not post-query). Operators: `:` (equals), `=`, `!=`, `>`, `>=`, `<`, `<=`, `~*` (regex), `@>` (containment). Combine with `AND`/`OR`.
+`?select=` returns only the named fields from `data`. `?where=` filters at the SQL level (not post-query). Operators: `:` (equals), `=`, `!=`, `>`, `>=`, `<`, `<=`, `~*` (regex), `@>` (containment). Combine with `AND`/`OR`. Range operators compare numbers numerically and anything else as text, so ISO dates work directly: `where=day>=2026-09-15` (store dates as `YYYY-MM-DD` or full ISO timestamps; other formats like `MM/DD/YYYY` don't sort).
 
 ### Query endpoint (projection + aggregation)
 ```
@@ -621,6 +648,16 @@ file=<binary>  (form field named "file")
 
 Response 201: <DocumentResponse>  ← data contains filename, contentType, size, etc.
 ```
+
+### Files by name (natural key "filename")
+```
+PUT /api/v1/assets/_schema                 { "collectionType": "binary", "naturalKey": "filename" }
+PUT /api/v1/assets/by-key/logo.svg         multipart/form-data, field "file"   → 201 created / 200 replaced / 200 unchanged
+GET /api/v1/assets/by-key/logo.svg         → the file's metadata (id, version, sha256…)
+GET /api/v1/assets/by-key/logo.svg/raw     → the bytes (?version= and ?label= work)
+DELETE /api/v1/assets/by-key/logo.svg
+```
+A file collection keyed by filename is addressed by name: a sync script uploads by key and never creates duplicates. The stored file is named by its key and its type follows that name. A plain `POST` of a name that already exists is refused with `409`.
 
 ### Replace / update a file
 ```
