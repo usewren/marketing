@@ -53,6 +53,7 @@ Guarantees and non-guarantees agents commonly need before they act:
 - **Retries on 5xx.** `GET`, `PUT /{id}`, `DELETE /{id}`, and `PUT /by-key/{value}` are safe to retry — each is idempotent at the resource level (PUT overwrites, DELETE converges to deleted). `POST /api/v1/{collection}` is not — retrying after a 5xx may produce duplicate documents.
 - **Writes are transactional.** Each mutation (create, update, delete, rollback, label change) commits atomically with its version row. Partial writes are not observable.
 - **Soft delete.** `DELETE` creates a tombstone and makes the document 404 on subsequent reads. Nothing is physically removed. The UUID is not reused.
+- **Version history is kept** unless the org sets a retention policy (see "Retention policies"), which permanently removes old versions it matches. A document's current version and every labeled version are never removed.
 
 ---
 
@@ -292,6 +293,93 @@ Response 200: { "id": "uuid", "label": "published", "version": 3 }
 
 Common label names: `published`, `draft`, `staging`, `featured`, `archived`.
 Fetch a labeled version: `GET /api/v1/{collection}/{id}?label=published`
+
+---
+
+## Retention policies
+
+Every write keeps the old version, so history grows without bound. A retention policy removes old versions you don't need. Policies are per org: one **org default** (`*`) and, optionally, a policy per collection that **replaces** the default for that collection. Only org owners and admins can read or change them (others get **403**).
+
+**Always kept, whatever the rules say:** a document's **current version** and **every version a label points to**. Of the remaining versions, one is removed if **any** rule of its collection's policy says so:
+
+| Rule | Meaning |
+|---|---|
+| `labeledOnly: true` | Keep only labeled versions |
+| `maxVersions: n` | Keep the newest n versions (the current one counts) |
+| `maxAgeDays: n` | Remove versions older than n days |
+| `afterLabel: "name"` | Remove versions older than the version the label `name` points to (per document; documents without that label are untouched by this rule) |
+
+A policy with **no rule** (`{}`) keeps everything; use it to exempt a collection from the org default. Internal collections (names starting with `_`) can't have a policy and are never touched.
+
+Policies run **hourly**, and on demand with `_apply`. Removal is permanent: a removed version returns **404** (`GET …/versions/{n}`), and version numbers keep their gaps (e.g. 1, 4, 5; numbers are never reused). File bytes are freed once no remaining version uses them. Always `_preview` before saving or applying.
+
+### Get policies and recent runs
+```
+GET /api/v1/retention
+
+Response 200:
+{
+  "default": { "collection": "*", "labeledOnly": false, "maxVersions": 20, "maxAgeDays": null, "afterLabel": null,
+               "updatedAt": "2026-10-05T09:00:00Z", "updatedBy": "user-id" },     ← null when there is no default
+  "collections": [
+    { "collection": "contracts", "labeledOnly": false, "maxVersions": null, "maxAgeDays": null, "afterLabel": null, … }  ← exempt
+  ],
+  "runs": [   ← the last 20 runs that removed something
+    { "collection": "articles", "versionsRemoved": 120, "bytesFreed": 482113, "triggeredBy": "schedule", "ranAt": "2026-10-05T10:00:00Z" }
+  ]
+}
+```
+`triggeredBy` is the user id of whoever called `_apply`, or `"schedule"` for the hourly run.
+
+### Set a policy
+```
+PUT /api/v1/retention/{collection}     ← or /api/v1/retention/* for the org default
+{ "maxVersions": 20, "maxAgeDays": 90 }
+
+Response 200: <policy>   ← same shape as in GET
+Response 400: invalid rule (e.g. maxVersions < 1) or a name starting with "_"
+```
+`PUT` replaces the whole policy: rules left out are switched off. `maxVersions` and `maxAgeDays` are whole numbers ≥ 1 or `null`; `labeledOnly` is a boolean; `afterLabel` is a label name or `null`.
+
+### Remove a policy
+```
+DELETE /api/v1/retention/{collection}  ← or * for the org default
+
+Response 200: { "collection": "articles", "deleted": true }
+Response 404: no policy for that collection
+```
+Without its own policy a collection follows the org default; without a default nothing is removed.
+
+### Preview (changes nothing)
+```
+POST /api/v1/retention/{collection}/_preview     ← the saved policy
+POST /api/v1/retention/{collection}/_preview     ← or a proposed one, before saving it
+{ "maxVersions": 5 }
+
+Response 200:
+{
+  "collections": [ { "collection": "articles", "versions": 120, "documents": 14, "bytes": 482113 } ],  ← only collections with something to remove
+  "total": { "versions": 120, "documents": 14, "bytes": 482113 }
+}
+```
+For `*`, the preview covers every collection that has no policy of its own.
+
+### Apply now
+```
+POST /api/v1/retention/_apply
+
+Response 200: same shape as the preview — what was actually removed
+```
+
+### Example: keep 20 versions everywhere, keep everything in `contracts`
+```bash
+curl -X POST "$WREN/api/v1/retention/*/_preview" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"maxVersions":20}'
+curl -X PUT  "$WREN/api/v1/retention/*"          -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"maxVersions":20}'
+curl -X PUT  "$WREN/api/v1/retention/contracts"  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}'
+```
+Pin anything you must keep with a label first (e.g. `published`, `release-2026-10`): labeled versions survive every rule.
+
+Also in the Admin UI (Settings → Retention), the CLI (`wren retention get|set|preview|remove|apply`), and both clients (`wren.retention.get/set/remove/preview/apply`).
 
 ---
 
@@ -542,6 +630,8 @@ file=<binary>
 
 Response 200: <DocumentResponse>
 ```
+
+**Identical bytes are stored once.** File contents are stored by SHA-256, so the same bytes uploaded to many documents or versions take the space of one copy. Replacing a file with one whose bytes, filename and content type equal the current version creates **no** new version: the response is `200` with the current `version` and `"unchanged": true` (otherwise `unchanged` is absent). Re-deploying an unchanged site therefore adds no versions.
 
 ### Download raw file (authenticated)
 ```
@@ -940,9 +1030,15 @@ try {
   if (e instanceof WrenNotFoundError) console.log("not found");
   if (e instanceof WrenValidationError) console.log(e.details);
 }
+
+// Retention (org owner/admin): current and labeled versions are always kept
+const preview = await wren.retention.preview("*", { maxVersions: 20 });  // { collections, total: { versions, documents, bytes } }
+await           wren.retention.set("*", { maxVersions: 20 });
+await           wren.retention.set("contracts", {});                     // no rule = keep everything
+await           wren.retention.apply();
 ```
 
-Resources available on `WrenClient`: `documents`, `versions`, `labels`, `diff`, `collections`, `trees`, `keys`, `members`, `invites`, `permissions`.
+Resources available on `WrenClient`: `documents`, `versions`, `labels`, `diff`, `collections`, `trees`, `keys`, `members`, `invites`, `permissions`, `query`, `materialized`, `webhooks`, `retention`.
 
 ---
 
@@ -997,6 +1093,12 @@ with WrenClient("https://…", api_key="wren_…") as wren:
     except WrenValidationError as e:
         print(e.details)
 
+    # Retention (org owner/admin): current and labeled versions are always kept
+    preview = wren.retention.preview("*", max_versions=20)   # .total.versions / .documents / .bytes
+    wren.retention.set("*", max_versions=20)
+    wren.retention.set("contracts")                          # no rule = keep everything
+    wren.retention.apply()
+
 # ── Async ─────────────────────────────────────────────────────────────────────
 import asyncio
 
@@ -1009,7 +1111,7 @@ async def main():
 asyncio.run(main())
 ```
 
-Resources available on both clients: `documents`, `versions`, `labels`, `diff`, `collections`, `trees`, `keys`, `members`, `invites`, `permissions`.
+Resources available on both clients: `documents`, `versions`, `labels`, `diff`, `collections`, `trees`, `keys`, `members`, `invites`, `permissions`, `query`, `materialized`, `webhooks`, `retention`.
 
 Response objects are Python dataclasses. Fields use `snake_case` (e.g. `created_at`, `user_id`, `label_filter`).
 
