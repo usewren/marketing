@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WREN — I did this. Is there a better way?</title>
+  <meta name="description" content="Workarounds that real apps on usewren (WREN) used, phrased the way people describe them, each with why it hurts and the better way today: natural keys, conditional writes, PATCH schema, unchanged writes, ISO date filters, cursors, live events, webhooks, files by name, preview and promote, restore, narrowed keys and retention." />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/guides.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <meta name="theme-color" content="#4338ca" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__logo"><img src="/wren-logo.svg" alt="WREN" class="nav__logo-img" />WREN</a>
+      <ul class="nav__links">
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides" style="color:var(--color-primary);font-weight:600">Guides</a></li>
+        <li><a href="/tutorial/deploy">Tutorial</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/projects">Projects</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="guide-layout">
+    <aside class="guide-sidebar">
+      <p class="guide-sidebar__title">On this page</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="#writing">Writing data</a></li>
+        <li><a href="#reading">Reading and querying</a></li>
+        <li><a href="#changes">Reacting to changes</a></li>
+        <li><a href="#files">Files and sites</a></li>
+        <li><a href="#access">Keys and access</a></li>
+        <li><a href="#testing">Test data</a></li>
+        <li><a href="#gotchas">Small gotchas</a></li>
+      </ul>
+      <p class="guide-sidebar__title">See also</p>
+      <ul class="guide-sidebar__list">
+        <li><a href="/guides/update-without-duplicates">Update without duplicates</a></li>
+        <li><a href="/guides/publish-site">Publish a site</a></li>
+        <li><a href="/concepts">Concepts</a></li>
+        <li><a href="/guides">All guides and case studies</a></li>
+      </ul>
+    </aside>
+
+    <main class="guide-main">
+      <header>
+        <p class="guide-eyebrow">Patterns</p>
+        <h1>I did this. Is there a better way?</h1>
+        <p class="guide-lede">Every entry below is something a real app on WREN did, most of them written by AI coding agents. Each one was a reasonable answer to the WREN of its time. Each entry says why it hurts and what to do instead, with the version where the better way arrived, and links to the <a href="/guides#case-studies">case study</a> where it happened.</p>
+        <p class="guide-meta">Collected October 2026 from six case studies. Checked against WREN 0.10. Requests are abridged; the <a href="/docs">API reference</a> has the details.</p>
+      </header>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="writing">
+        <h2>Writing data</h2>
+
+        <h3 id="search-then-create">“Before creating a document, I search for it, then PUT or POST.”</h3>
+        <p><strong>Why it hurts:</strong> two calls, not atomic, and a failed search or a race creates a duplicate. Variants of the same thing: a slug-to-id map built by listing a tree before every deploy, ids saved in a local file.</p>
+        <p><strong>Better:</strong> declare a natural key once (an admin does this), then write with one idempotent upsert.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>PATCH /api/v1/events/_schema          { "naturalKey": "slug" }       ← once, admin
+PUT   /api/v1/events/by-key/swiss-open-2026   { "slug": "swiss-open-2026", … }   ← every run</pre></div>
+        <p>Setting a natural key registers the keys of documents that already exist, so they're found rather than duplicated (0.9). More in <a href="/guides/update-without-duplicates">Update without duplicates</a>. Seen in: <a href="/guides/tournament-tracker">tournament tracker</a>, <a href="/guides/tkd-scores">tkd-scores</a>.</p>
+
+        <h3 id="lost-updates">“I read the document, change a field and write it back. Sometimes a change disappears.”</h3>
+        <p><strong>Why it hurts:</strong> two writers that read the same version both write; the later one silently replaces the earlier one's change. In the stock tracker, two devices moving the same item within a second lost a movement. A comment added by an agent and one added on the board at the same moment can do the same.</p>
+        <p><strong>Better:</strong> make the write conditional on the version you read (0.10). On <code>412</code>, read again and re-apply your change.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>GET /api/v1/stock/abc                  → ETag: "7"
+PUT /api/v1/stock/abc   If-Match: "7"  → 200 (version 8), or 412 { "currentVersion": 8 }</pre></div>
+        <p>Never compute a write from a cached read: an offline cache or a service worker can hand you an old version. Seen in: <a href="/guides/mae-shop">stock tracker</a>, <a href="/guides/task-tracker">task tracker</a>, <a href="/guides/tkd-scores">tkd-scores</a>.</p>
+
+        <h3 id="rerun-import">“Re-running my seed or import script would overwrite what people changed since.”</h3>
+        <p><strong>Why it hurts:</strong> you end up treating the script as a one-off you're afraid to run again.</p>
+        <p><strong>Better:</strong> a create-only upsert: <code>PUT …/by-key/{key}?ifVersion=0</code> creates the document if it doesn't exist and returns <code>412</code> if it does (0.10). Re-runs fill gaps and leave live data alone. Seen in: <a href="/guides/mae-shop">stock tracker</a>.</p>
+
+        <h3 id="schema-every-run">“My script sets the schema on every run, and settings someone changed in the Admin UI keep disappearing.”</h3>
+        <p><strong>Why it hurts:</strong> <code>PUT …/_schema</code> replaces the whole definition: display name, list columns, indexes and natural key.</p>
+        <p><strong>Better:</strong> <code>PATCH …/_schema</code> changes only the fields you send (0.10). Better still, set schemas once, deliberately. Seen in: <a href="/guides/mae-shop">stock tracker</a>.</p>
+
+        <h3 id="rewrite-everything">“Every run rewrites every document, changed or not.”</h3>
+        <p><strong>Why it hurts:</strong> each write used to add a version. One pipeline's history was half identical repeats: 2,078 of 4,002 updates, 228 MB of JSON.</p>
+        <p><strong>Better:</strong> nothing to change in the script. Since 0.9, a write equal to the current version returns <code>"unchanged": true</code> and adds no version; identical file uploads do the same since 0.8. Add <code>?force=true</code> if you really want a version. Trim the repeats already stored with a <a href="#history-grows">retention policy</a>. Seen in: <a href="/guides/tkd-scores">tkd-scores</a>, <a href="/guides/ai-maintained-sites">AI-maintained sites</a>.</p>
+
+        <h3 id="history-grows">“Autosave writes a draft every few seconds, and history keeps growing.”</h3>
+        <p><strong>Why it hurts:</strong> every write keeps the previous version. One drafts collection reached 477 versions, 217 of them on a single document.</p>
+        <p><strong>Better:</strong> a retention policy for that collection (0.8). Current and labeled versions are always kept.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>POST /api/v1/retention/drafts/_preview   { "maxVersions": 5, "maxAgeDays": 14 }   ← see what would go
+PUT  /api/v1/retention/drafts            { "maxVersions": 5, "maxAgeDays": 14 }</pre></div>
+        <p>Seen in: <a href="/guides/mae-shop">stock tracker</a>, <a href="/guides/testing-with-versions">test data</a>.</p>
+
+        <h3 id="label-as-audit">“I set a label on every version that matters, as an audit trail.”</h3>
+        <p><strong>Why it hurts:</strong> it isn't needed. Every write is already a version, with who wrote it and when. A label that arrives halfway through, or whose failures are ignored, only marks some of the versions it was meant to.</p>
+        <p><strong>Better:</strong> a label is a name for one version worth coming back to: <code>published</code>, <code>counted</code>, <code>release-12</code>, <code>fixture-2026-10-01</code>. Decide labels before the first write. A wrong label can be removed (0.9). Seen in: <a href="/guides/mae-shop">stock tracker</a>.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="reading">
+        <h2>Reading and querying</h2>
+
+        <h3 id="dates-twice">“I store each date twice, once as a number (<code>20261005</code>), so I can filter by range.”</h3>
+        <p><strong>Why it hurts:</strong> two fields to keep in sync, and every writer has to know. The same goes for parsing <code>MM/DD/YYYY</code> in every reader.</p>
+        <p><strong>Better:</strong> store ISO dates (<code>2026-10-05</code> or full timestamps). Since 0.9, range filters compare anything that isn't a number as text, which sorts ISO dates correctly: <code>?where=endDate&gt;=2026-10-05</code>. Seen in: <a href="/guides/task-tracker">task tracker</a>, <a href="/guides/tkd-scores">tkd-scores</a>, <a href="/guides/tournament-tracker">tournament tracker</a>.</p>
+
+        <h3 id="limit-1000">“I ask for <code>?limit=1000</code> and use whatever comes back.”</h3>
+        <p><strong>Why it hurts:</strong> the list endpoint returns at most 200, newest first, so the oldest documents look missing. One seed script concluded existing stock was absent and would have recreated it. <code>_query</code> caps a page at 1,000.</p>
+        <p><strong>Better:</strong> compare with <code>total</code> and page with <code>offset</code>, or use <code>POST /{collection}/_query</code> and follow its <code>cursor</code> until there is none. Seen in: <a href="/guides/mae-shop">stock tracker</a>, <a href="/guides/tournament-tracker">tournament tracker</a>, <a href="/guides/task-tracker">task tracker</a>.</p>
+
+        <h3 id="summaries">“Every page loads all documents and computes the summary itself.”</h3>
+        <p><strong>Why it hurts:</strong> slow, and each client can get it slightly differently.</p>
+        <p><strong>Better:</strong> <code>_query</code> with <code>aggregate</code> (count, sum, min, max, avg, grouped) runs it in the database. If many readers need the same answer, a materialized query stores it and refreshes on every write: <code>PUT /{collection}/_materialized/{name}</code>. If you set one up, read it: one app refreshed a materialized query on every write that nothing ever read. Seen in: <a href="/guides/tournament-tracker">tournament tracker</a>, <a href="/guides/task-tracker">task tracker</a>.</p>
+
+        <h3 id="own-diff">“WREN's diff said the whole object changed, so I wrote my own field-by-field diff.”</h3>
+        <p><strong>Better:</strong> <code>GET …/diff?v1=fixture&amp;v2=7&amp;deep=true</code> reports each changed nested field and array element, and accepts label names (0.9). Seen in: <a href="/guides/testing-with-versions">test data</a>.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="changes">
+        <h2>Reacting to changes</h2>
+
+        <h3 id="polling">“The page polls every few seconds” or “there's a Refresh button”.</h3>
+        <p><strong>Better:</strong> live events (0.7). One stream per page, filtered to what it shows; events carry ids and versions, so re-read what changed. Public streams follow the public rules, so drafts stay invisible.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">js</span></div>
+<pre>const es = new EventSource("/orgs/acme/_events?collections=stock");
+es.onmessage = e =&gt; { const ev = JSON.parse(e.data); if (ev.type !== "ready") refresh(ev); };</pre></div>
+        <p>Seen in: <a href="/guides/mae-shop">stock tracker</a>, <a href="/guides/task-tracker">task tracker</a>.</p>
+
+        <h3 id="copy-by-hand">“Another system gets our data by someone running a script (or an agent passing it along).”</h3>
+        <p><strong>Why it hurts:</strong> the copy is as old as the last run. In one shop, stock counts were 18 days old.</p>
+        <p><strong>Better:</strong> a webhook on the collection, so the other system is told within seconds and re-reads with a key that can only read that collection. Deliveries are batched, signed, retried and replayable.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>POST /api/v1/webhooks   { "url": "https://shop.example/hooks/stock", "events": ["document.updated", "document.created"] }</pre></div>
+        <p>Seen in: <a href="/guides/mae-shop">stock tracker</a>.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="files">
+        <h2>Files and sites</h2>
+
+        <h3 id="files-by-id">“I upload files with POST and keep track of their ids” or “by-key returned 404 for my uploads, so I got duplicates”.</h3>
+        <p><strong>Better:</strong> files by name (0.9). Key a file collection by filename and upload with <code>PUT …/by-key/{name}</code>: created, replaced or unchanged, never duplicated.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>PATCH /api/v1/invoices/_schema   { "collectionType": "binary", "naturalKey": "filename" }
+PUT   /api/v1/invoices/by-key/2026-10-05-0042.pdf      (multipart, field "file")
+GET   /api/v1/invoices/by-key/2026-10-05-0042.pdf/raw</pre></div>
+        <p>Seen in: <a href="/guides/ai-maintained-sites">AI-maintained sites</a>, <a href="/guides/mae-shop">stock tracker</a>.</p>
+
+        <h3 id="redeploy-all">“Every deploy uploads every file” or “I keep my own manifest of hashes”.</h3>
+        <p><strong>Better:</strong> <code>wren deploy ./dist --tree site</code> compares SHA-256 hashes and uploads only what changed; an identical upload adds no version anyway (0.8). Seen in: <a href="/guides/tournament-tracker">tournament tracker</a>, <a href="/guides/ai-maintained-sites">AI-maintained sites</a>.</p>
+
+        <h3 id="preview-copy">“To preview a redesign, I copied the site under <code>/preview/</code> in the live tree and deleted the copies afterwards.”</h3>
+        <p><strong>Why it hurts:</strong> the preview is public, and the clean-up is by hand (12 paths and 11 documents, in one case).</p>
+        <p><strong>Better:</strong> give the public rule a label filter, deploy with a label, look at it, then promote. Promote is one transaction, so readers never see half a release.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">bash</span></div>
+<pre>wren deploy ./dist --tree site --label preview      # private: the public rule shows only "published"
+# check it: GET …/tree/site/index.html?label=preview (with a key), or on a phone via a private link
+wren promote site --from preview                    # now everyone sees it</pre></div>
+        <p>More in <a href="/guides/publish-site">Publish a site</a>. Seen in: <a href="/guides/ai-maintained-sites">AI-maintained sites</a>, <a href="/guides/tkd-scores">tkd-scores</a>.</p>
+
+        <h3 id="rollback-notes">“To roll back, I note which document version each file was on, plus a git tag.”</h3>
+        <p><strong>Better:</strong> name each release when you promote it (<code>wren promote site --from preview --label release-12</code>). To go back, restore the tree to that label in one transaction (0.9): <code>wren restore --tree site --label release-12</code>, then promote. Seen in: <a href="/guides/ai-maintained-sites">AI-maintained sites</a>.</p>
+
+        <h3 id="cache-busting">“I add <code>?v=</code> stamps or a build id to every URL, because the edge kept old files.”</h3>
+        <p><strong>Better:</strong> usually not needed any more. Public responses are <code>max-age=60</code> with <code>stale-while-revalidate</code>, and errors are <code>no-store</code>, so a 404 is no longer cached for hours. If a CDN or Worker sits in front, let it follow WREN's <code>Cache-Control</code> instead of setting its own. Seen in: <a href="/guides/tournament-tracker">tournament tracker</a>, <a href="/guides/tkd-scores">tkd-scores</a>, <a href="/guides/task-tracker">task tracker</a>.</p>
+
+        <h3 id="secret-worker">“Public pages need data, so a Worker holds a key and forwards the calls.”</h3>
+        <p><strong>Why it hurts:</strong> a key at the edge, a proxy to maintain, and if it forwards all of <code>/api/*</code>, more than you meant to expose.</p>
+        <p><strong>Better:</strong> if the data is meant to be public, make it public with a rule, ideally with a label filter, and read it from the browser: public routes send <code>Access-Control-Allow-Origin: *</code>. A domain Worker then needs no key and only maps public paths. Seen in: <a href="/guides/tournament-tracker">tournament tracker</a>, <a href="/guides/tkd-scores">tkd-scores</a>; see <a href="/guides/custom-domain">custom domain</a>.</p>
+
+        <h3 id="private-images">“Product images are private, so the shop copies them from somewhere else.”</h3>
+        <p><strong>Better:</strong> keep what's operational private and publish only what's meant for visitors: a public rule on that file collection, and since 0.10 its files are served by name at <code>/orgs/{slug}/{collection}/by-key/{name}/raw</code>. Seen in: <a href="/guides/mae-shop">stock tracker</a>.</p>
+
+        <h3 id="extra-rules">“I made the media collection public as well as the site tree.”</h3>
+        <p><strong>Why it hurts:</strong> anyone can then list the whole collection, including the files no page uses (791 of 937 in one case).</p>
+        <p><strong>Better:</strong> a <code>tree:site</code> rule alone serves everything mounted in the tree. Seen in: <a href="/guides/tkd-scores">tkd-scores</a>.</p>
+
+        <h3 id="second-tree">“To rename a site I created a second tree, and the old one still serves a stale page.”</h3>
+        <p><strong>Better:</strong> an <code>alias</code> on the public rule adds a second name for the same tree without a copy. Seen in: <a href="/guides/ai-maintained-sites">AI-maintained sites</a>.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="access">
+        <h2>Keys and access</h2>
+
+        <h3 id="one-key">“All scripts and agents share one key, the owner's.”</h3>
+        <p><strong>Why it hurts:</strong> each of them can do anything the owner can, history can't tell them apart, and revoking it stops everything at once.</p>
+        <p><strong>Better:</strong> one key per job, narrowed with <code>key:</code> rules to what it needs (0.7). A key with rules of its own uses only those.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http · admin</span></div>
+<pre>POST /api/v1/keys          { "name": "stock-sync" }             → { "id": "…", "key": "wren_…" }
+POST /api/v1/permissions   { "principal": "key:&lt;id&gt;", "resource": "collection:stock", "access": "read" }</pre></div>
+        <p>For agents, MCP with browser sign-in avoids handing them a key at all; see <a href="/guides/mcp">MCP</a>. Seen in: <a href="/guides/mae-shop">stock tracker</a>, <a href="/guides/task-tracker">task tracker</a>.</p>
+
+        <h3 id="key-in-text">“The key is in the script” (or on curl's command line, or in a prompt).</h3>
+        <p><strong>Why it hurts:</strong> it ends up in git, in shell history, or copied into every summary of a long agent session.</p>
+        <p><strong>Better:</strong> environment variables or an ignored file, never the repo or the conversation. If one leaked, create the replacement first, switch every user of it, then revoke the old one. Narrowed keys limit the damage. Seen in: <a href="/guides/ai-maintained-sites">AI-maintained sites</a>, <a href="/guides/mae-shop">stock tracker</a>.</p>
+
+        <h3 id="everyone-owner">“Everything is recorded under one user, whether a person or a script wrote it.”</h3>
+        <p><strong>Better:</strong> invite people, give them groups (<code>Editors</code>, <code>Viewers</code>, or your own) (0.6), and give each script its own key. Then each version says who actually wrote it. Seen in: <a href="/guides/mae-shop">stock tracker</a>.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="testing">
+        <h2>Test data</h2>
+
+        <h3 id="snapshot-loop">“To snapshot test data, I label each document one by one” (hundreds of requests).</h3>
+        <p><strong>Better:</strong> mount the fixtures in a tree and label them all in one transaction: <code>POST /api/v1/tree/fixtures/_promote {"label": "fixture-2026-10-01"}</code>. Seen in: <a href="/guides/testing-with-versions">test data</a>.</p>
+
+        <h3 id="restore-loop">“After a test run, I roll back every document separately, with retries.”</h3>
+        <p><strong>Better:</strong> one transactional restore (0.9). Documents created by the test can go too.</p>
+        <div class="code-block"><div class="code-block__header"><span class="code-block__lang">http</span></div>
+<pre>POST /api/v1/members/_restore         { "label": "fixture-2026-10-01", "deleteUnlabeled": true }
+POST /api/v1/tree/fixtures/_restore   { "label": "fixture-2026-10-01" }</pre></div>
+        <p>Seen in: <a href="/guides/testing-with-versions">test data</a>.</p>
+
+        <h3 id="same-label">“Each test run sets the <code>test-snapshot</code> label again at the start.”</h3>
+        <p><strong>Why it hurts:</strong> setting a label moves it, so a run after a failed one snapshots the broken state.</p>
+        <p><strong>Better:</strong> dated fixture labels that tests never set again; move a separate <code>fixture-current</code> label when you change fixtures. And use an org per test suite (with its own keys), not the org your other projects live in. Seen in: <a href="/guides/testing-with-versions">test data</a>.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────── -->
+      <section class="guide-section" id="gotchas">
+        <h2>Small gotchas</h2>
+        <div class="guide-table-wrap">
+          <table class="guide-table">
+            <thead><tr><th>What happened</th><th>What to do</th></tr></thead>
+            <tbody>
+              <tr><td>Guessed routes like <code>/api/me</code> returned 404</td><td>Everything authenticated is under <code>/api/v1</code> (<code>/api/v1/me</code>). Point agents at <code>/llms.txt</code>, which starts with a URL map.</td></tr>
+              <tr><td>A collection named <code>projects</code> collided with a WREN route</td><td>Avoid <code>projects</code> as a collection name; <code>/api/v1/projects</code> is the public directory.</td></tr>
+              <tr><td>Keys containing <code>/</code> broke by-key URLs</td><td>URL-encode keys (<code>encodeURIComponent</code>, <code>quote(key, safe="")</code>), or use letters, digits, <code>-</code> and <code>:</code>.</td></tr>
+              <tr><td>Python scripts got <code>403 error code: 1010</code></td><td>Not WREN: a Cloudflare browser check in front of the server. Send a User-Agent, or relax the check for <code>/api</code>.</td></tr>
+              <tr><td><code>slug\r</code> in ids, broken <code>.env</code> values on Windows</td><td>Line endings in shell glue. Pin LF; fewer pipes once writes are single upserts.</td></tr>
+              <tr><td>Deploys stopped when the CLI's login expired</td><td>Use an API key: <code>WREN_API_KEY=… wren deploy …</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout--info"><p>Found a workaround that isn't here? It's probably a gap in WREN. Open an issue at <a href="https://github.com/usewren">github.com/usewren</a>.</p></div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer"><div class="container">
+    <div class="footer__inner">
+      <p class="footer__brand"><strong>WREN</strong> &mdash; deploy, version, serve</p>
+      <ul class="footer__links"><li><a href="/concepts">Concepts</a></li><li><a href="/guides">Guides</a></li><li><a href="/docs">API Docs</a></li><li><a href="https://github.com/usewren">GitHub (usewren)</a></li></ul>
+    </div>
+    <p class="footer__copy">&copy; 2026 WREN. Cloud or self-hosted. No vendor lock-in.</p>
+  </div></footer>
+</body>
+</html>
