@@ -57,6 +57,34 @@ Guarantees and non-guarantees agents commonly need before they act:
 
 ---
 
+## Common workarounds and the better way
+
+Things real apps on WREN did, and what to do instead. Details: /guides/better-ways.
+
+| If you're about to… | Do this instead |
+|---|---|
+| search for a document, then PUT or POST it | declare `naturalKey` once (admin), then `PUT /api/v1/{collection}/by-key/{key}` |
+| read, modify and PUT back a document others also write | send `If-Match: "<version>"` (or `?ifVersion=n`); on 412 re-read and re-apply. Never compute a write from a cached read |
+| re-run a seed/import that could overwrite live edits | `PUT …/by-key/{key}?ifVersion=0` (create-only) |
+| PUT the schema on every run | `PATCH /api/v1/{collection}/_schema` with only the fields to change; better, set it once |
+| skip writes yourself to avoid empty versions | not needed: an identical JSON write or file upload returns `unchanged: true` and adds no version |
+| label versions as an audit trail | every write is already a version with author and time; labels name versions to come back to |
+| store dates twice (e.g. `20261005`) to range-filter | store ISO dates; `where=date>=2026-10-05` compares them as text |
+| request `?limit=1000` and trust the result | lists return at most 200 (newest first): page with `offset`/`total`, or `_query` with `cursor` |
+| load all documents to compute totals in the client | `_query` with `aggregate`, or a materialized query |
+| poll for changes | live events: `/api/v1/_events` or `/orgs/{slug}/_events` |
+| copy data to another system with a script run by hand | a webhook, plus a key narrowed to read that collection |
+| POST files and track their ids | key the file collection by `filename`; `PUT …/by-key/{name}` (multipart) |
+| copy a site under /preview/ in the live tree | public rule with `labelFilter: "published"`; `wren deploy --label preview`, then `wren promote --from preview` |
+| note document versions to roll a site back | promote with a release label; `wren restore --tree site --label release-12` |
+| add `?v=` cache busters | WREN sends `max-age=60` and `no-store` on errors; let proxies follow it |
+| put a key in a Worker so public pages can read data | make that data public with a rule (with a label filter) and read it directly (CORS *) |
+| make a collection public next to the site tree | a `tree:` rule alone serves the site; a collection rule lets anyone list everything in it |
+| give every script and agent the owner's key | one key per job narrowed with `key:<id>` rules; MCP browser sign-in for agents |
+| label each fixture document in a loop / roll each back after a test | `POST /api/v1/tree/{name}/_promote {"label":"fixture-…"}`; `POST /api/v1/{collection}/_restore {"label":…, "deleteUnlabeled":true}` |
+| re-set the same snapshot label at the start of each test run | dated fixture labels that are never re-set; one org per test suite |
+| let autosave or sync scripts grow history forever | a retention policy (`_preview` first) |
+
 ## Error responses
 
 All errors return JSON:
